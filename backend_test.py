@@ -13,7 +13,7 @@ from typing import Dict, Any, Optional
 class HSMBackendTester:
     """Housing Society Management Backend API Tester"""
     
-    def __init__(self, base_url: str = "https://dwelling-ops.preview.emergentagent.com"):
+    def __init__(self, base_url: str = "https://resident-wallet.preview.emergentagent.com"):
         self.base_url = base_url.rstrip('/')
         self.platform_owner_token = None
         self.admin_token = None

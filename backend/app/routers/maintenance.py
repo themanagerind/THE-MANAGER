@@ -384,10 +384,18 @@ async def verify_payment(
         )
         
         # Credit wallet points (₹1 = 1 point)
-        if bill.get("resident_id"):
+        # Find resident by resident_id or by flat_id
+        resident_id = bill.get("resident_id")
+        if not resident_id and bill.get("flat_id"):
+            # Look up resident by flat
+            flat = await flats_collection.find_one({"id": bill["flat_id"]}, {"_id": 0})
+            if flat and flat.get("resident_id"):
+                resident_id = flat["resident_id"]
+        
+        if resident_id:
             # Get current wallet balance
             last_txn = await wallet_transactions_collection.find_one(
-                {"user_id": bill["resident_id"]},
+                {"user_id": resident_id},
                 {"_id": 0},
                 sort=[("created_at", -1)]
             )
@@ -396,7 +404,7 @@ async def verify_payment(
             
             from ..models.finance import WalletTransaction
             txn = WalletTransaction(
-                user_id=bill["resident_id"],
+                user_id=resident_id,
                 flat_bill_id=bill_id,
                 type="credit",
                 points=bill["amount"],
