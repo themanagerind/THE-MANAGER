@@ -114,11 +114,24 @@ async def register_admin(user_data: UserCreate, society_name: str, society_addre
 @router.post("/login", response_model=TokenResponse)
 async def login(credentials: UserLogin):
     # Find user by mobile
-    query = {"mobile": credentials.mobile}
+    query = {"mobile": credentials.mobile, "status": "active"}
     if credentials.role:
         query["role"] = credentials.role
     
-    user = await users_collection.find_one(query, {"_id": 0})
+    # If no specific role requested, find highest privilege role
+    if not credentials.role:
+        # Role priority: platform_owner > admin > sub_admin > resident
+        role_priority = ["platform_owner", "admin", "sub_admin", "resident"]
+        user = None
+        for role in role_priority:
+            query["role"] = role
+            user = await users_collection.find_one(query, {"_id": 0})
+            if user:
+                break
+        # Reset query for error message
+        del query["role"]
+    else:
+        user = await users_collection.find_one(query, {"_id": 0})
     
     if not user:
         raise HTTPException(
@@ -130,18 +143,6 @@ async def login(credentials: UserLogin):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid credentials"
-        )
-    
-    if user["status"] == "blocked":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Your account has been blocked"
-        )
-    
-    if user["status"] == "pending":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Your account is pending approval"
         )
     
     # Check if society is blocked
