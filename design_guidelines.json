@@ -1,0 +1,173 @@
+{
+  "project_name": "Housing Society Management PWA",
+  "design_philosophy": {
+    "persona": "E1: The Anti-AI Designer",
+    "theme_name": "The Night Watchman",
+    "core_principles": [
+      "Fusion over Imitation: Fintech precision meets hospitality warmth.",
+      "Density with Breath: High-density data grids (Mode B) balanced by luxurious padding in containers.",
+      "Visual Tension: Asymmetry in dashboard layouts; unexpected orange accents against deep navy.",
+      "Tactile Depth: Use of layered shadows and 1px borders to create hierarchy without clutter."
+    ]
+  },
+  "typography": {
+    "font_family": {
+      "heading": "\"Plus Jakarta Sans\", sans-serif",
+      "body": "\"Plus Jakarta Sans\", sans-serif",
+      "code": "\"JetBrains Mono\", monospace"
+    },
+    "imports": [
+      "https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap"
+    ],
+    "scale": {
+      "h1": "text-[28px] font-bold tracking-tight leading-tight",
+      "h2": "text-[22px] font-semibold tracking-tight",
+      "h3": "text-[18px] font-semibold",
+      "body": "text-[14px] font-normal leading-relaxed",
+      "small": "text-[12px] font-medium tracking-wide",
+      "code": "font-mono text-sm"
+    }
+  },
+  "colors": {
+    "palette": {
+      "background": "#0D1B2A",
+      "foreground": "#ECF0F1",
+      "card": "#1A2B3C",
+      "card_foreground": "#ECF0F1",
+      "popover": "#1A2B3C",
+      "popover_foreground": "#ECF0F1",
+      "primary": "#E67E22",
+      "primary_foreground": "#FFFFFF",
+      "secondary": "#243447",
+      "secondary_foreground": "#AEB6BF",
+      "muted": "#243447",
+      "muted_foreground": "#566573",
+      "accent": "#E67E22",
+      "accent_foreground": "#FFFFFF",
+      "destructive": "#E74C3C",
+      "destructive_foreground": "#FFFFFF",
+      "border": "#2E4057",
+      "input": "#2E4057",
+      "ring": "#E67E22",
+      "chart_1": "#E67E22",
+      "chart_2": "#27AE60",
+      "chart_3": "#2E86C1",
+      "chart_4": "#F39C12",
+      "chart_5": "#9B59B6"
+    },
+    "semantic": {
+      "success": "#27AE60",
+      "warning": "#F39C12",
+      "info": "#2E86C1",
+      "danger": "#E74C3C",
+      "outstanding_text": "#E74C3C"
+    }
+  },
+  "visual_enhancers": {
+    "borders": {
+      "default": "border border-[#2E4057]",
+      "light": "border border-[#3D5166]",
+      "active": "border border-[#E67E22]/50",
+      "radius": "rounded-xl"
+    },
+    "shadows": {
+      "card": "shadow-[0_8px_30px_rgb(0,0,0,0.12)]",
+      "glow": "shadow-[0_0_20px_rgba(230,126,34,0.15)]",
+      "glass": "backdrop-blur-xl bg-[#0D1B2A]/80 border-b border-[#2E4057]"
+    },
+    "effects": {
+      "glass_morphism": "bg-[#1A2B3C]/70 backdrop-blur-md border border-[#ffffff]/5",
+      "noise_texture": "before:fixed before:inset-0 before:z-[-1] before:opacity-[0.03] before:bg-[url('https://grainy-gradients.vercel.app/noise.svg')]"
+    }
+  },
+  "components": {
+    "button": {
+      "base": "inline-flex items-center justify-center rounded-lg text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50",
+      "variants": {
+        "default": "bg-[#E67E22] text-white hover:bg-[#E67E22]/90 shadow-lg shadow-orange-900/20",
+        "secondary": "bg-[#243447] text-[#ECF0F1] hover:bg-[#2E4057] border border-[#2E4057]",
+        "ghost": "hover:bg-[#243447] text-[#AEB6BF] hover:text-[#ECF0F1]",
+        "destructive": "bg-[#E74C3C] text-white hover:bg-[#E74C3C]/90"
+      }
+    },
+    "card": {
+      "container": "rounded-xl border border-[#2E4057] bg-[#1A2B3C] text-[#ECF0F1] shadow-lg",
+      "header": "flex flex-col space-y-1.5 p-6",
+      "title": "font-semibold leading-none tracking-tight text-[#ECF0F1]",
+      "content": "p-6 pt-0"
+    },
+    "input": {
+      "base": "flex h-10 w-full rounded-md border border-[#2E4057] bg-[#0D1B2A] px-3 py-2 text-sm text-[#ECF0F1] ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-[#566573] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E67E22] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+    },
+    "badge": {
+      "base": "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
+      "variants": {
+        "default": "border-transparent bg-[#E67E22] text-white hover:bg-[#E67E22]/80",
+        "secondary": "border-transparent bg-[#243447] text-[#AEB6BF] hover:bg-[#243447]/80",
+        "outline": "text-[#ECF0F1] border-[#2E4057]",
+        "success": "border-transparent bg-[#27AE60]/20 text-[#27AE60] hover:bg-[#27AE60]/30",
+        "warning": "border-transparent bg-[#F39C12]/20 text-[#F39C12] hover:bg-[#F39C12]/30",
+        "danger": "border-transparent bg-[#E74C3C]/20 text-[#E74C3C] hover:bg-[#E74C3C]/30"
+      }
+    },
+    "sidebar": {
+      "width": "w-[240px]",
+      "mobile_behavior": "sheet",
+      "style": "bg-[#1A2B3C] border-r border-[#2E4057] flex flex-col h-screen fixed left-0 top-0 z-40 hidden md:flex",
+      "item": {
+        "base": "flex items-center gap-3 rounded-lg px-3 py-2 text-[#AEB6BF] transition-all hover:text-[#ECF0F1] hover:bg-[#243447]",
+        "active": "bg-[#243447] text-[#E67E22] font-medium border-l-2 border-[#E67E22]"
+      }
+    }
+  },
+  "layout_strategies": {
+    "dashboard_grid": {
+      "description": "Mode B: High Density Grid",
+      "classes": "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 p-6",
+      "widgets": {
+        "summary": "col-span-1 h-full",
+        "chart_main": "col-span-1 md:col-span-2 lg:col-span-2 row-span-2 h-full min-h-[400px]",
+        "list_feed": "col-span-1 md:col-span-1 row-span-2 h-full"
+      }
+    },
+    "page_container": {
+      "base": "min-h-screen bg-[#0D1B2A] text-[#ECF0F1] font-sans md:pl-[240px]"
+    }
+  },
+  "assets": {
+    "icons": {
+      "library": "lucide-react",
+      "style": "stroke-width={1.5} size={20}"
+    },
+    "images": [
+      {
+        "category": "auth_background",
+        "url": "https://images.unsplash.com/photo-1638369321342-fe20d9bd358f?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjY2NzF8MHwxfHNlYXJjaHwyfHxtb2Rlcm4lMjBsdXh1cnklMjBhcGFydG1lbnQlMjBidWlsZGluZyUyMG5pZ2h0JTIwZXh0ZXJpb3J8ZW58MHx8fHwxNzc0MDE2MzU1fDA&ixlib=rb-4.1.0&q=85",
+        "description": "Night view of a modern apartment building with illuminated windows, setting a secure and premium tone."
+      },
+      {
+        "category": "wallet_coin",
+        "url": "https://images.unsplash.com/photo-1655079343205-a9b99ac1f05c?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1MDZ8MHwxfHNlYXJjaHwzfHxpbmRpYW4lMjBjdXJyZW5jeSUyMGNvaW5zJTIwM2QlMjByZW5kZXJ8ZW58MHx8fHwxNzc0MDE2MzU2fDA&ixlib=rb-4.1.0&q=85",
+        "description": "Gold coin design for wallet points visualization."
+      }
+    ]
+  },
+  "instructions_to_main_agent": [
+    "IMPERATIVE: You are building a React.js application (NOT TypeScript/TSX). Use .js and .jsx extensions.",
+    "THEME: STRICTLY use the defined palette. No standard Tailwind blues (bg-blue-500). Use bg-[#E67E22] or semantic classes.",
+    "OUTSTANDING AMOUNT: Any display of outstanding/pending money MUST be in red text (#E74C3C).",
+    "LAYOUT: Implement a responsive sidebar. On mobile, use a Sheet/Drawer component triggered by a hamburger menu. On desktop, fixed sidebar.",
+    "CHARTS: Use Recharts. Custom Tooltip is mandatory. Style the tooltip to match the dark theme (bg-[#1A2B3C] border-[#2E4057]).",
+    "FORMS: Use Shadcn UI form components (Labels, Inputs, Selects). Customize them to remove white backgrounds and set bg-[#0D1B2A].",
+    "TESTING: Add `data-testid` to EVERY interactive element (buttons, inputs, links). Format: `role-action-target` (e.g., `admin-approve-resident-btn`).",
+    "EMPTY STATES: Do not leave tables empty. If no data, show a centered div with a Lucide icon (e.g., FileX) and a message 'No records found'.",
+    "ROUTING: Use react-router-dom v6+. Ensure protected routes check for roles."
+  ],
+  "universal_guidelines": [
+    "Spacing: Use p-6 or p-8 for cards. Don't cramp text.",
+    "Contrast: Ensure text on cards is #ECF0F1 (Primary) or #AEB6BF (Secondary). Never use dark gray on dark navy.",
+    "Border Radius: Use rounded-xl for all cards and modals. Use rounded-lg for buttons and inputs.",
+    "Motion: Add `transition-all duration-200` to buttons and interactive cards. No `transition: all` on layout containers.",
+    "Feedback: Use Sonner for toast notifications on success/error."
+  ]
+}
