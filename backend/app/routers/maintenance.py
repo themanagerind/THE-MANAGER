@@ -556,3 +556,127 @@ async def get_wallet(current_user: dict = Depends(get_current_user)):
         "balance": balance,
         "transactions": transactions
     }
+
+
+@router.get("/wallet/bazaar-status")
+async def get_bazaar_status(current_user: dict = Depends(get_current_user)):
+    """Check if Bazaar is connected"""
+    from ..core.database import platform_settings_collection
+    settings = await platform_settings_collection.find_one({"id": "platform_settings"}, {"_id": 0})
+    if not settings:
+        return {"connected": False, "shopping_link": None}
+    return {
+        "connected": settings.get("bazaar_connected", False),
+        "shopping_link": settings.get("shopping_link")
+    }
+
+
+@router.post("/wallet/redeem")
+async def redeem_points(
+    data: dict,
+    current_user: dict = Depends(get_current_user)
+):
+    """Redeem wallet points to Bazaar"""
+    import httpx
+    from ..core.database import platform_settings_collection
+    
+    points = data.get("points", 0)
+    
+    if points < 100:
+        raise HTTPException(status_code=400, detail="Minimum redeem amount is 100 points.")
+    
+    user_id = current_user["id"]
+    
+    # Get current balance
+    last_txn = await wallet_transactions_collection.find_one(
+        {"user_id": user_id},
+        {"_id": 0},
+        sort=[("created_at", -1)]
+    )
+    current_balance = last_txn.get("balance_after", 0) if last_txn else 0
+    
+    if points > current_balance:
+        raise HTTPException(status_code=400, detail="Insufficient balance.")
+    
+    # Get bazaar settings
+    settings = await platform_settings_collection.find_one({"id": "platform_settings"}, {"_id": 0})
+    if not settings or not settings.get("bazaar_connected"):
+        raise HTTPException(status_code=400, detail="Bazaar is not connected yet.")
+    
+    bazaar_url = settings.get("bazaar_api_url")
+    bazaar_key = settings.get("bazaar_secret_key")
+    shopping_link = settings.get("shopping_link")
+    
+    if not bazaar_url or not bazaar_key:
+        raise HTTPException(status_code=400, detail="Bazaar configuration incomplete.")
+    
+    # Generate unique transaction ref
+    import uuid
+    transaction_ref = str(uuid.uuid4())
+    
+    # Call Bazaar API
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.post(
+                f"{bazaar_url.rstrip('/')}/api/points/credit",
+                headers={"Authorization": f"Bearer {bazaar_key}"},
+                json={
+                    "user_mobile": current_user["mobile"],
+                    "user_name": current_user["name"],
+                    "points": points,
+                    "society_id": current_user.get("society_id"),
+                    "transaction_ref": transaction_ref
+                }
+            )
+            
+            if response.status_code == 200:
+                result = response.json()
+                if result.get("success"):
+                    # Deduct points from wallet
+                    new_balance = current_balance - points
+                    from ..models.finance import WalletTransaction
+                    txn = WalletTransaction(
+                        user_id=user_id,
+                        type="debit",
+                        points=points,
+                        balance_after=new_balance,
+                        description=f"Redeemed at Bazaar - {datetime.now(timezone.utc).strftime('%d %b %Y')}"
+                    )
+                    txn_dict = txn.model_dump()
+                    txn_dict['created_at'] = txn_dict['created_at'].isoformat()
+                    await wallet_transactions_collection.insert_one(txn_dict)
+                    
+                    return {
+                        "message": "Points redeemed successfully! Redirecting to Bazaar...",
+                        "points_redeemed": points,
+                        "new_balance": new_balance,
+                        "redirect_url": shopping_link,
+                        "transaction_ref": transaction_ref
+                    }
+                else:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Bazaar rejected: {result.get('message', 'Unknown error')}"
+                    )
+            else:
+                raise HTTPException(
+                    status_code=502,
+                    detail="Transfer failed, points not deducted. Try again."
+                )
+    except httpx.TimeoutException:
+        raise HTTPException(
+            status_code=504,
+            detail="Bazaar service timeout. Points not deducted. Try again."
+        )
+    except httpx.ConnectError:
+        raise HTTPException(
+            status_code=502,
+            detail="Cannot connect to Bazaar service. Points not deducted. Try again."
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Transfer failed, points not deducted. Try again."
+        )

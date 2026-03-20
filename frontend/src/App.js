@@ -3,7 +3,7 @@ import { Toaster } from 'sonner';
 import useAuthStore from './store/authStore';
 
 // Auth Pages
-import { Login, Register } from './pages/auth/AuthPages';
+import { Login, Register, RegisterAdmin, SetPassword, ForgotPassword } from './pages/auth/AuthPages';
 
 // Layouts
 import PlatformLayout from './components/layout/PlatformLayout';
@@ -101,6 +101,9 @@ function App() {
           {/* Public Routes */}
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
+          <Route path="/register-admin" element={<RegisterAdmin />} />
+          <Route path="/set-password" element={<SetPassword />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
           
           {/* Home Redirect */}
           <Route path="/" element={<HomeRedirect />} />

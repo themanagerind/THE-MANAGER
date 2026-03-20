@@ -21,6 +21,7 @@ wallet_transactions_collection = db.wallet_transactions
 notices_collection = db.notices
 complaints_collection = db.complaints
 platform_settings_collection = db.platform_settings
+otp_records_collection = db.otp_records
 
 async def init_indexes():
     """Create database indexes"""
@@ -32,6 +33,8 @@ async def init_indexes():
     await flat_bills_collection.create_index([("batch_id", 1), ("flat_id", 1)])
     await flat_bills_collection.create_index("resident_id")
     await wallet_transactions_collection.create_index("user_id")
+    await otp_records_collection.create_index("mobile")
+    await otp_records_collection.create_index("expires_at", expireAfterSeconds=0)
 
 async def close_db():
     client.close()

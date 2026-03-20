@@ -416,12 +416,28 @@ async def approve_resident(resident_id: str, current_user: dict = Depends(requir
     if resident["status"] != "pending":
         raise HTTPException(status_code=400, detail="Resident is not in pending status")
     
+    # If resident has password (old flow), set to active directly
+    # If no password (new OTP flow), set to approved so they can set password
+    new_status = "active" if resident.get("password_hash") else "approved"
+    
     await users_collection.update_one(
         {"id": resident_id},
-        {"$set": {"status": "active", "updated_at": datetime.now(timezone.utc).isoformat()}}
+        {"$set": {
+            "status": new_status,
+            "needs_password_setup": not bool(resident.get("password_hash")),
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }}
     )
     
-    return {"message": "Resident approved successfully"}
+    # Link resident to flat if flat_id exists and status is active
+    if resident.get("flat_id") and new_status == "active":
+        await flats_collection.update_one(
+            {"id": resident["flat_id"]},
+            {"$set": {"resident_id": resident_id}}
+        )
+    
+    status_msg = "approved - waiting for password setup" if new_status == "approved" else "approved and activated"
+    return {"message": f"Resident {status_msg}"}
 
 @router.post("/residents/{resident_id}/reject")
 async def reject_resident(resident_id: str, current_user: dict = Depends(require_role("admin"))):

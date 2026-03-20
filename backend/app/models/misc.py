@@ -48,7 +48,17 @@ class ComplaintStatusUpdate(BaseModel):
 class PlatformSettings(BaseModel):
     id: str = "platform_settings"
     shopping_link: Optional[str] = None
+    bazaar_api_url: Optional[str] = None
+    bazaar_secret_key: Optional[str] = None
+    bazaar_connected: bool = False
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class ShoppingLinkUpdate(BaseModel):
     shopping_link: str
+
+class BazaarSettingsUpdate(BaseModel):
+    bazaar_api_url: str
+    bazaar_secret_key: str
+
+class RedeemPointsRequest(BaseModel):
+    points: float

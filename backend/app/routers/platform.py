@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, status, Depends
 from typing import List
 from datetime import datetime, timezone
 from ..models.user import UserResponse
-from ..models.misc import ShoppingLinkUpdate, PlatformSettings
+from ..models.misc import ShoppingLinkUpdate, PlatformSettings, BazaarSettingsUpdate
 from ..core.database import users_collection, societies_collection, platform_settings_collection
 from ..core.security import require_role
 
@@ -148,4 +148,48 @@ async def get_platform_stats(current_user: dict = Depends(require_role("platform
         "total_admins": total_admins,
         "pending_admins": pending_admins,
         "total_residents": total_residents
+    }
+
+
+# ============ BAZAAR SETTINGS ============
+
+@router.get("/bazaar-settings")
+async def get_bazaar_settings(current_user: dict = Depends(require_role("platform_owner"))):
+    """Get Bazaar API settings"""
+    settings = await platform_settings_collection.find_one({"id": "platform_settings"}, {"_id": 0})
+    if not settings:
+        return {
+            "bazaar_api_url": None,
+            "bazaar_secret_key": None,
+            "bazaar_connected": False,
+            "shopping_link": None
+        }
+    return {
+        "bazaar_api_url": settings.get("bazaar_api_url"),
+        "bazaar_secret_key": settings.get("bazaar_secret_key"),
+        "bazaar_connected": settings.get("bazaar_connected", False),
+        "shopping_link": settings.get("shopping_link")
+    }
+
+@router.put("/bazaar-settings")
+async def update_bazaar_settings(
+    data: BazaarSettingsUpdate,
+    current_user: dict = Depends(require_role("platform_owner"))
+):
+    """Update Bazaar API URL and Secret Key"""
+    await platform_settings_collection.update_one(
+        {"id": "platform_settings"},
+        {
+            "$set": {
+                "bazaar_api_url": data.bazaar_api_url,
+                "bazaar_secret_key": data.bazaar_secret_key,
+                "bazaar_connected": True,
+                "updated_at": datetime.now(timezone.utc).isoformat()
+            }
+        },
+        upsert=True
+    )
+    return {
+        "message": "Bazaar settings updated successfully",
+        "bazaar_connected": True
     }
