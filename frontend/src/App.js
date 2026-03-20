@@ -17,6 +17,9 @@ import { PlatformDashboard, ManageAdmins, BazaarSettings } from './pages/platfor
 // Admin Pages
 import { AdminDashboard, WingsManager, FlatMapping, ResidentsManager } from './pages/admin/AdminPages';
 import MaintenanceBills from './pages/admin/MaintenanceBills';
+import IncomePage from './pages/admin/IncomePage';
+import ExpensesPage from './pages/admin/ExpensesPage';
+import PlansPage from './pages/admin/PlansPage';
 
 // Sub-Admin Pages
 import { SubAdminDashboard, VerifyPayments, PlanApprovals, ExpenseApprovals } from './pages/subadmin/SubAdminPages';
@@ -27,6 +30,7 @@ import { ResidentDashboard, MyBills, WalletPage } from './pages/resident/Residen
 // Shared Pages
 import ReportsPage from './pages/shared/ReportsPage';
 import { NoticesPage, ComplaintsPage, BazaarPage } from './pages/shared/SharedPages';
+
 
 // Protected Route Component
 const ProtectedRoute = ({ children, allowedRoles }) => {
@@ -180,6 +184,36 @@ function App() {
               <ProtectedRoute allowedRoles={['admin']}>
                 <AdminLayout>
                   <MaintenanceBills />
+                </AdminLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/income"
+            element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <AdminLayout>
+                  <IncomePage />
+                </AdminLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/expenses"
+            element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <AdminLayout>
+                  <ExpensesPage />
+                </AdminLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/plans"
+            element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <AdminLayout>
+                  <PlansPage />
                 </AdminLayout>
               </ProtectedRoute>
             }

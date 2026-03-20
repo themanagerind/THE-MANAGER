@@ -22,6 +22,13 @@ class HSMBackendTester:
         self.test_society_id = None
         self.test_wing_id = None
         self.test_flat_id = None
+        self.test_resident_id = None
+        self.test_resident_mobile = None
+        self.test_sub_admin_id = None
+        self.sub_admin_token = None
+        self.test_income_id = None
+        self.test_expense_id = None
+        self.test_plan_id = None
         self.tests_run = 0
         self.tests_passed = 0
         self.failed_tests = []
@@ -399,10 +406,244 @@ class HSMBackendTester:
         success = result['success'] and result['data'].get('role') == 'resident'
         if success:
             message = f"Resident registered: {result['data']['name']} (Status: {result['data']['status']})"
+            # Store for sub-admin creation later
+            self.test_resident_id = result['data']['id']
+            self.test_resident_mobile = register_data['mobile']
         else:
             message = f"Registration failed: {result['data']}"
             
         self.log_test("Resident Registration", success, message)
+
+    def test_income_crud(self):
+        """Test income entries CRUD operations (Phase 2)"""
+        print("🔍 Testing Income CRUD...")
+        
+        if not self.admin_token:
+            self.log_test("Income CRUD", False, "No admin token available")
+            return
+            
+        # Create income entry
+        income_data = {
+            "title": "March Maintenance Collection",
+            "category": "maintenance_collection",
+            "amount": 50000.0,
+            "entry_date": "2026-03-15",
+            "description": "Monthly maintenance collection"
+        }
+        
+        result = self.api_request('POST', '/admin/income', income_data, token=self.admin_token)
+        
+        if result['success']:
+            self.test_income_id = result['data']['id']
+            message = f"Income entry created: {result['data']['id']}"
+            success = True
+        else:
+            success = False
+            message = f"Income creation failed: {result['data']}"
+            
+        self.log_test("Create Income Entry", success, message)
+        
+        # Get income entries
+        result = self.api_request('GET', '/admin/income', token=self.admin_token)
+        success = result['success'] and len(result['data']) > 0
+        if success:
+            entries = result['data']
+            message = f"Retrieved {len(entries)} income entries"
+        else:
+            message = f"Failed to get income entries: {result['data']}"
+            
+        self.log_test("Get Income Entries", success, message)
+
+    def test_expenses_crud(self):
+        """Test expense bills CRUD operations (Phase 2)"""
+        print("🔍 Testing Expenses CRUD...")
+        
+        if not self.admin_token:
+            self.log_test("Expenses CRUD", False, "No admin token available")
+            return
+            
+        # Create expense bill
+        expense_data = {
+            "title": "Elevator Repair",
+            "category": "repair",
+            "amount": 25000.0,
+            "bill_date": "2026-03-10",
+            "description": "Emergency elevator repair work"
+        }
+        
+        result = self.api_request('POST', '/admin/expenses', expense_data, token=self.admin_token)
+        
+        if result['success']:
+            self.test_expense_id = result['data']['id']
+            message = f"Expense bill created: {result['data']['id']}"
+            success = True
+        else:
+            success = False
+            message = f"Expense creation failed: {result['data']}"
+            
+        self.log_test("Create Expense Bill", success, message)
+        
+        # Get expense bills
+        result = self.api_request('GET', '/admin/expenses', token=self.admin_token)
+        success = result['success'] and len(result['data']) > 0
+        if success:
+            expenses = result['data']
+            message = f"Retrieved {len(expenses)} expense bills"
+        else:
+            message = f"Failed to get expenses: {result['data']}"
+            
+        self.log_test("Get Expense Bills", success, message)
+
+    def test_plans_crud(self):
+        """Test plans CRUD operations (Phase 2)"""
+        print("🔍 Testing Plans CRUD...")
+        
+        if not self.admin_token:
+            self.log_test("Plans CRUD", False, "No admin token available")
+            return
+            
+        # Create plan
+        plan_data = {
+            "title": "New Security System",
+            "description": "Installation of advanced CCTV and access control system for enhanced security",
+            "amount": 500000.0
+        }
+        
+        result = self.api_request('POST', '/admin/plans', plan_data, token=self.admin_token)
+        
+        if result['success']:
+            self.test_plan_id = result['data']['id']
+            message = f"Plan created: {result['data']['id']}"
+            success = True
+        else:
+            success = False
+            message = f"Plan creation failed: {result['data']}"
+            
+        self.log_test("Create Plan", success, message)
+        
+        # Get plans
+        result = self.api_request('GET', '/admin/plans', token=self.admin_token)
+        success = result['success'] and len(result['data']) > 0
+        if success:
+            plans = result['data']
+            message = f"Retrieved {len(plans)} plans with approvals"
+            # Check if approvals were created
+            if len(plans) > 0 and 'approvals' in plans[0]:
+                approval_count = len(plans[0]['approvals'])
+                message += f", {approval_count} approval entries"
+        else:
+            message = f"Failed to get plans: {result['data']}"
+            
+        self.log_test("Get Plans with Approvals", success, message)
+
+    def test_sub_admin_creation(self):
+        """Test sub-admin creation and assignment"""
+        print("🔍 Testing Sub-Admin Creation...")
+        
+        if not self.admin_token or not hasattr(self, 'test_resident_id') or not self.test_wing_id:
+            self.log_test("Sub-Admin Creation", False, "Prerequisites not met")
+            return
+            
+        # First approve the resident
+        result = self.api_request('POST', f'/admin/residents/{self.test_resident_id}/approve', 
+                                 token=self.admin_token)
+        
+        if not result['success']:
+            self.log_test("Approve Resident", False, f"Failed to approve resident: {result['data']}")
+            return
+        else:
+            self.log_test("Approve Resident", True, f"Resident approved: {result['data']['message']}")
+            
+        # Promote resident to sub-admin using query parameter
+        url = f"{self.base_url}/api/admin/residents/{self.test_resident_id}/promote"
+        params = {'wing_id': self.test_wing_id}
+        headers = {
+            'Content-Type': 'application/json',
+            'Authorization': f'Bearer {self.admin_token}'
+        }
+        
+        try:
+            response = requests.post(url, params=params, headers=headers, timeout=30)
+            result = {
+                'status_code': response.status_code,
+                'data': response.json() if response.content else {},
+                'success': 200 <= response.status_code < 300
+            }
+        except Exception as e:
+            result = {'status_code': 0, 'data': {'error': str(e)}, 'success': False}
+        
+        if result['success']:
+            self.test_sub_admin_id = result['data'].get('sub_admin_id')
+            message = f"Resident promoted to sub-admin: {result['data']['message']}"
+            success = True
+        else:
+            success = False
+            message = f"Sub-admin creation failed: {result['data']}"
+            
+        self.log_test("Promote Resident to Sub-Admin", success, message)
+        
+        # Get sub-admins list
+        result = self.api_request('GET', '/admin/sub-admins', token=self.admin_token)
+        success = result['success'] and len(result['data']) >= 0  # Can be 0 if no sub-admins
+        if success:
+            sub_admins = result['data']
+            message = f"Retrieved {len(sub_admins)} sub-admins"
+        else:
+            message = f"Failed to get sub-admins: {result['data']}"
+            
+        self.log_test("Get Sub-Admins List", success, message)
+
+    def test_sub_admin_login_and_workflow(self):
+        """Test sub-admin login and verification workflows"""
+        print("🔍 Testing Sub-Admin Workflows...")
+        
+        if not hasattr(self, 'test_resident_mobile'):
+            self.log_test("Sub-Admin Workflows", False, "No sub-admin credentials available")
+            return
+            
+        # Login as sub-admin
+        login_data = {
+            "mobile": self.test_resident_mobile,
+            "password": "respass123"
+        }
+        
+        result = self.api_request('POST', '/auth/login', login_data)
+        
+        if result['success'] and 'access_token' in result['data']:
+            self.sub_admin_token = result['data']['access_token']
+            user = result['data'].get('user', {})
+            success = user.get('role') == 'sub_admin'
+            message = f"Sub-admin logged in: {user.get('name')} ({user.get('role')})"
+        else:
+            success = False
+            message = f"Sub-admin login failed: {result['data']}"
+            
+        self.log_test("Sub-Admin Login", success, message)
+        
+        if not success:
+            return
+            
+        # Test pending expenses for sub-admin
+        result = self.api_request('GET', '/subadmin/expenses/pending', token=self.sub_admin_token)
+        success = result['success']
+        if success:
+            pending_expenses = result['data']
+            message = f"Retrieved {len(pending_expenses)} pending expense verifications"
+        else:
+            message = f"Failed to get pending expenses: {result['data']}"
+            
+        self.log_test("Get Pending Expense Verifications", success, message)
+        
+        # Test pending plans for sub-admin
+        result = self.api_request('GET', '/subadmin/plans/pending', token=self.sub_admin_token)
+        success = result['success']
+        if success:
+            pending_plans = result['data']
+            message = f"Retrieved {len(pending_plans)} pending plan approvals"
+        else:
+            message = f"Failed to get pending plans: {result['data']}"
+            
+        self.log_test("Get Pending Plan Approvals", success, message)
 
     def run_all_tests(self):
         """Run all backend tests"""
@@ -432,6 +673,15 @@ class HSMBackendTester:
         
         # Resident registration
         self.test_resident_registration()
+        
+        # Phase 2 - Finance Management
+        self.test_income_crud()
+        self.test_expenses_crud()  
+        self.test_plans_crud()
+        
+        # Sub-Admin Management
+        self.test_sub_admin_creation()
+        self.test_sub_admin_login_and_workflow()
         
         # Print summary
         print("=" * 60)
