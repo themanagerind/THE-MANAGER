@@ -141,6 +141,7 @@ const Login = () => {
               <p className="text-text-muted text-sm text-center mb-2">Demo Credentials</p>
               <div className="text-xs text-text-secondary space-y-1">
                 <p>Platform Owner: 9999999999 / owner123</p>
+                <p>Admin: 8888888888 / admin123</p>
               </div>
             </div>
           </div>
