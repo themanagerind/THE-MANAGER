@@ -1,12 +1,83 @@
 from fastapi import APIRouter, HTTPException, status, Depends
 from typing import List
+from pydantic import BaseModel
 from datetime import datetime, timezone
-from ..models.user import UserResponse
+from ..models.user import UserResponse, User
+from ..models.society import Society
 from ..models.misc import ShoppingLinkUpdate, PlatformSettings, BazaarSettingsUpdate
 from ..core.database import users_collection, societies_collection, platform_settings_collection
-from ..core.security import require_role
+from ..core.security import require_role, get_password_hash
 
 router = APIRouter(prefix="/platform", tags=["Platform Owner"])
+
+
+# ============ CREATE SOCIETY ============
+
+class CreateSocietyRequest(BaseModel):
+    society_name: str
+    society_address: str
+    admin_name: str
+    admin_mobile: str
+    admin_password: str
+
+@router.post("/societies")
+async def create_society(
+    data: CreateSocietyRequest,
+    current_user: dict = Depends(require_role("platform_owner"))
+):
+    """Platform Owner creates a new society with an admin"""
+    # Check if admin mobile already exists
+    existing = await users_collection.find_one({"mobile": data.admin_mobile, "role": "admin"})
+    if existing:
+        raise HTTPException(status_code=400, detail="Admin with this mobile already exists")
+    
+    # Create society
+    society = Society(name=data.society_name, address=data.society_address, status="active")
+    society_dict = society.model_dump()
+    society_dict['created_at'] = society_dict['created_at'].isoformat()
+    
+    # Create admin user
+    admin = User(
+        mobile=data.admin_mobile,
+        name=data.admin_name,
+        role="admin",
+        society_id=society.id,
+        status="active",
+        password_hash=get_password_hash(data.admin_password)
+    )
+    admin_dict = admin.model_dump()
+    admin_dict['created_at'] = admin_dict['created_at'].isoformat()
+    admin_dict['updated_at'] = admin_dict['updated_at'].isoformat()
+    
+    # Link admin to society
+    society_dict['admin_id'] = admin.id
+    
+    await societies_collection.insert_one(society_dict)
+    await users_collection.insert_one(admin_dict)
+    
+    return {
+        "message": f"Society '{data.society_name}' created with admin {data.admin_name}",
+        "society_id": society.id,
+        "admin_id": admin.id
+    }
+
+@router.get("/societies")
+async def get_all_societies(current_user: dict = Depends(require_role("platform_owner"))):
+    """Get all societies with admin info"""
+    societies = await societies_collection.find({}, {"_id": 0}).to_list(1000)
+    result = []
+    for soc in societies:
+        admin = None
+        if soc.get("admin_id"):
+            admin = await users_collection.find_one(
+                {"id": soc["admin_id"]},
+                {"_id": 0, "password_hash": 0}
+            )
+        result.append({
+            **{k: v for k, v in soc.items() if k != '_id'},
+            "admin": {"name": admin["name"], "mobile": admin["mobile"], "status": admin["status"]} if admin else None
+        })
+    return result
 
 @router.get("/admins", response_model=List[dict])
 async def get_all_admins(current_user: dict = Depends(require_role("platform_owner"))):

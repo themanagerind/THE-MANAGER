@@ -55,6 +55,7 @@ const PlatformLayout = ({ children }) => {
 
   const navItems = [
     { path: '/platform', icon: LayoutDashboard, label: 'Dashboard' },
+    { path: '/platform/societies', icon: Building2, label: 'Manage Societies' },
     { path: '/platform/admins', icon: Users, label: 'Manage Admins' },
     { path: '/platform/settings', icon: ShoppingBag, label: 'Bazaar Settings' },
   ];

@@ -1,7 +1,13 @@
 import { useState, useEffect } from 'react';
-import { Building2, Users, ShieldCheck, Link as LinkIcon, ExternalLink, Wifi, WifiOff, Key, Globe } from 'lucide-react';
+import { Building2, Users, ShieldCheck, Link as LinkIcon, ExternalLink, Wifi, WifiOff, Key, Globe, Plus, MapPin, Phone, Lock, Eye, EyeOff } from 'lucide-react';
 import { platformAPI } from '../../lib/api';
 import { toast } from 'sonner';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '../../components/ui/dialog';
 
 const PlatformDashboard = () => {
   const [stats, setStats] = useState(null);
@@ -60,6 +66,201 @@ const PlatformDashboard = () => {
           </div>
         ))}
       </div>
+    </div>
+  );
+};
+
+const ManageSocieties = () => {
+  const [societies, setSocieties] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [formData, setFormData] = useState({
+    society_name: '', society_address: '',
+    admin_name: '', admin_mobile: '', admin_password: ''
+  });
+
+  const fetchSocieties = async () => {
+    try {
+      const res = await platformAPI.getSocieties();
+      setSocieties(res.data);
+    } catch (e) {
+      toast.error('Failed to load societies');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchSocieties(); }, []);
+
+  const handleCreate = async (e) => {
+    e.preventDefault();
+    if (!formData.society_name || !formData.society_address || !formData.admin_name || !formData.admin_mobile || !formData.admin_password) {
+      toast.error('All fields are required');
+      return;
+    }
+    setSaving(true);
+    try {
+      await platformAPI.createSociety(formData);
+      toast.success(`Society '${formData.society_name}' created successfully!`);
+      setShowAddModal(false);
+      setFormData({ society_name: '', society_address: '', admin_name: '', admin_mobile: '', admin_password: '' });
+      fetchSocieties();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Failed to create society');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const getStatusBadge = (status) => {
+    switch (status) {
+      case 'active': return <span className="badge-success">Active</span>;
+      case 'blocked': return <span className="badge-danger">Blocked</span>;
+      default: return <span className="badge-info">{status}</span>;
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="animate-pulse space-y-6">
+        <div className="h-8 bg-bg-surface rounded w-48" />
+        <div className="h-96 bg-bg-surface rounded-xl" />
+      </div>
+    );
+  }
+
+  return (
+    <div data-testid="manage-societies-page" className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-[28px] font-bold text-text-primary">Manage Societies</h1>
+          <p className="text-text-secondary mt-1">Create and manage housing societies</p>
+        </div>
+        <button onClick={() => setShowAddModal(true)} data-testid="add-society-btn"
+          className="btn-primary flex items-center gap-2">
+          <Plus className="w-4 h-4" /> Add Society
+        </button>
+      </div>
+
+      {/* Societies List */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {societies.length === 0 ? (
+          <div className="col-span-full card p-12 text-center">
+            <Building2 className="w-16 h-16 mx-auto mb-4 text-text-muted opacity-50" />
+            <p className="text-text-secondary text-lg">No societies yet</p>
+            <p className="text-text-muted text-sm mt-1">Click "Add Society" to create the first one</p>
+          </div>
+        ) : societies.map((soc) => (
+          <div key={soc.id} className="card p-6 hover:border-accent/30 transition-colors">
+            <div className="flex items-start justify-between mb-4">
+              <div className="p-3 bg-accent/20 rounded-lg">
+                <Building2 className="w-6 h-6 text-accent" />
+              </div>
+              {getStatusBadge(soc.status)}
+            </div>
+            <h3 className="font-semibold text-text-primary text-lg mb-1">{soc.name}</h3>
+            <div className="flex items-center gap-1 text-text-secondary text-sm mb-4">
+              <MapPin className="w-3.5 h-3.5" />
+              <span className="truncate">{soc.address}</span>
+            </div>
+            {soc.admin ? (
+              <div className="pt-4 border-t border-border-color">
+                <p className="text-text-muted text-xs mb-1">Admin</p>
+                <div className="flex items-center justify-between">
+                  <span className="text-text-primary text-sm font-medium">{soc.admin.name}</span>
+                  <span className="text-text-secondary text-xs">{soc.admin.mobile}</span>
+                </div>
+              </div>
+            ) : (
+              <div className="pt-4 border-t border-border-color">
+                <p className="text-text-muted text-sm">No admin assigned</p>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Add Society Modal */}
+      <Dialog open={showAddModal} onOpenChange={setShowAddModal}>
+        <DialogContent className="bg-bg-surface border-border-color sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="text-text-primary text-xl">Add New Society</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleCreate} className="space-y-4 mt-2">
+            <div className="p-3 bg-bg-elevated rounded-lg mb-2">
+              <p className="text-accent text-sm font-medium">Society Details</p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-text-secondary mb-2">Society Name</label>
+              <div className="relative">
+                <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
+                <input type="text" value={formData.society_name}
+                  onChange={(e) => setFormData({ ...formData, society_name: e.target.value })}
+                  data-testid="society-name-input"
+                  className="input-field w-full pl-10" placeholder="e.g. Green Valley Apartments" required />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-text-secondary mb-2">Society Address</label>
+              <div className="relative">
+                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
+                <input type="text" value={formData.society_address}
+                  onChange={(e) => setFormData({ ...formData, society_address: e.target.value })}
+                  data-testid="society-address-input"
+                  className="input-field w-full pl-10" placeholder="Full address" required />
+              </div>
+            </div>
+
+            <div className="p-3 bg-bg-elevated rounded-lg">
+              <p className="text-accent text-sm font-medium">Admin Details</p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-text-secondary mb-2">Admin Name</label>
+              <div className="relative">
+                <Users className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
+                <input type="text" value={formData.admin_name}
+                  onChange={(e) => setFormData({ ...formData, admin_name: e.target.value })}
+                  data-testid="admin-name-input"
+                  className="input-field w-full pl-10" placeholder="Admin full name" required />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-text-secondary mb-2">Admin Mobile</label>
+              <div className="relative">
+                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
+                <input type="text" value={formData.admin_mobile}
+                  onChange={(e) => setFormData({ ...formData, admin_mobile: e.target.value.replace(/\D/g, '').slice(0, 10) })}
+                  data-testid="admin-mobile-input"
+                  className="input-field w-full pl-10" placeholder="10-digit mobile" maxLength={10} required />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-text-secondary mb-2">Admin Password</label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
+                <input type={showPassword ? 'text' : 'password'} value={formData.admin_password}
+                  onChange={(e) => setFormData({ ...formData, admin_password: e.target.value })}
+                  data-testid="admin-password-input"
+                  className="input-field w-full pl-10 pr-10" placeholder="Set admin password" required />
+                <button type="button" onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary">
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            <div className="flex gap-3 justify-end pt-2">
+              <button type="button" onClick={() => setShowAddModal(false)} className="btn-secondary">Cancel</button>
+              <button type="submit" disabled={saving} data-testid="create-society-btn"
+                className="btn-primary disabled:opacity-50 flex items-center gap-2">
+                {saving ? 'Creating...' : <><Plus className="w-4 h-4" /> Create Society</>}
+              </button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
@@ -340,4 +541,4 @@ const BazaarSettings = () => {
   );
 };
 
-export { PlatformDashboard, ManageAdmins, BazaarSettings };
+export { PlatformDashboard, ManageAdmins, ManageSocieties, BazaarSettings };

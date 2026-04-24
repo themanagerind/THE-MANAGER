@@ -59,6 +59,7 @@ Full-stack PWA for Housing Society Management with 4 roles: Platform Owner, Admi
 - [x] **P0 Bug Fix**: resident_id properly linked to flat on admin approval and password setup
 - [x] **Public API endpoints**: /societies, /wings, /flats for resident signup dropdowns
 - [x] **Account Status Check**: API to check if account exists and needs password setup
+- [x] **Platform Owner: Create Society** - Add Society with Admin in one go (name, address, admin details)
 
 ## P0/P1 Features Remaining
 - [ ] P1: Push notifications for payment status changes

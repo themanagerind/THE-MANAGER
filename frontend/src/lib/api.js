@@ -65,6 +65,8 @@ export const platformAPI = {
   getStats: () => api.get('/platform/stats'),
   getBazaarSettings: () => api.get('/platform/bazaar-settings'),
   updateBazaarSettings: (data) => api.put('/platform/bazaar-settings', data),
+  createSociety: (data) => api.post('/platform/societies', data),
+  getSocieties: () => api.get('/platform/societies'),
 };
 
 // Admin APIs

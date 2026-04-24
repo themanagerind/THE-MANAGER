@@ -12,7 +12,7 @@ import SubAdminLayout from './components/layout/SubAdminLayout';
 import ResidentLayout from './components/layout/ResidentLayout';
 
 // Platform Owner Pages
-import { PlatformDashboard, ManageAdmins, BazaarSettings } from './pages/platform/PlatformPages';
+import { PlatformDashboard, ManageAdmins, ManageSocieties, BazaarSettings } from './pages/platform/PlatformPages';
 
 // Admin Pages
 import { AdminDashboard, WingsManager, FlatMapping, ResidentsManager } from './pages/admin/AdminPages';
@@ -125,6 +125,16 @@ function App() {
               <ProtectedRoute allowedRoles={['platform_owner']}>
                 <PlatformLayout>
                   <ManageAdmins />
+                </PlatformLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/platform/societies"
+            element={
+              <ProtectedRoute allowedRoles={['platform_owner']}>
+                <PlatformLayout>
+                  <ManageSocieties />
                 </PlatformLayout>
               </ProtectedRoute>
             }
