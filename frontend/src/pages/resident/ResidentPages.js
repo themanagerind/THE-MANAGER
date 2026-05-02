@@ -150,15 +150,15 @@ const MyBills = () => {
         <p className="text-text-secondary mt-1">View and pay your maintenance bills</p>
       </div>
       <div className="card overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="table-mobile-wrapper">
           <table className="w-full">
             <thead className="table-header">
               <tr>
-                <th className="text-left p-4">Month</th>
-                <th className="text-left p-4">Amount</th>
-                <th className="text-left p-4">Status</th>
-                <th className="text-left p-4">Payment</th>
-                <th className="text-left p-4">Actions</th>
+                <th className="text-left p-3 sm:p-4">Month</th>
+                <th className="text-left p-3 sm:p-4">Amount</th>
+                <th className="text-left p-3 sm:p-4">Status</th>
+                <th className="text-left p-3 sm:p-4 hidden sm:table-cell">Payment</th>
+                <th className="text-left p-3 sm:p-4">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -168,16 +168,16 @@ const MyBills = () => {
                 </td></tr>
               ) : bills.map((bill) => (
                 <tr key={bill.id} className="table-row">
-                  <td className="p-4 font-medium text-text-primary">{bill.month}</td>
-                  <td className="p-4 text-text-primary">{bill.amount}</td>
-                  <td className="p-4">{getStatusBadge(bill)}</td>
-                  <td className="p-4 text-text-secondary text-sm">
+                  <td className="p-3 sm:p-4 font-medium text-text-primary text-sm">{bill.month}</td>
+                  <td className="p-3 sm:p-4 text-text-primary text-sm">{bill.amount}</td>
+                  <td className="p-3 sm:p-4">{getStatusBadge(bill)}</td>
+                  <td className="p-3 sm:p-4 text-text-secondary text-sm hidden sm:table-cell">
                     {bill.payment_mode ? <span>{bill.payment_mode.toUpperCase()} - {bill.payment_ref}</span> : '-'}
                   </td>
-                  <td className="p-4">
+                  <td className="p-3 sm:p-4">
                     {(bill.status === 'pending' || bill.status === 'overdue') && (
                       <button onClick={() => { setSelectedBill(bill); setShowPayModal(true); }}
-                        data-testid={`pay-bill-${bill.id}`} className="btn-primary text-sm py-1 px-3">Pay Now</button>
+                        data-testid={`pay-bill-${bill.id}`} className="btn-primary text-xs sm:text-sm py-1 px-2 sm:px-3">Pay Now</button>
                     )}
                   </td>
                 </tr>

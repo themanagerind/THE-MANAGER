@@ -87,7 +87,7 @@ const PlansPage = () => {
 
   return (
     <div data-testid="plans-page" className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="page-header">
         <div>
           <h1 className="text-[28px] font-bold text-text-primary">Plans</h1>
           <p className="text-text-secondary mt-1">Create and manage society plans</p>
@@ -95,7 +95,7 @@ const PlansPage = () => {
         <button
           onClick={() => setShowModal(true)}
           data-testid="add-plan-btn"
-          className="btn-primary flex items-center gap-2"
+          className="btn-primary flex items-center gap-2 w-full sm:w-auto justify-center"
         >
           <Plus className="w-5 h-5" />
           Create Plan
@@ -103,7 +103,7 @@ const PlansPage = () => {
       </div>
 
       {/* Summary Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
         <div className="card p-4">
           <p className="text-text-secondary text-sm">Total Plans</p>
           <p className="text-2xl font-bold text-text-primary">{plans.length}</p>

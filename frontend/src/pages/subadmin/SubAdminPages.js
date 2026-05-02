@@ -160,16 +160,16 @@ const VerifyPayments = () => {
       </div>
 
       <div className="card overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="table-mobile-wrapper">
           <table className="w-full">
             <thead className="table-header">
               <tr>
-                <th className="text-left p-4">Flat</th>
-                <th className="text-left p-4">Resident</th>
-                <th className="text-left p-4">Month</th>
-                <th className="text-left p-4">Amount</th>
-                <th className="text-left p-4">Payment Details</th>
-                <th className="text-left p-4">Actions</th>
+                <th className="text-left p-3 sm:p-4">Flat</th>
+                <th className="text-left p-3 sm:p-4 hidden sm:table-cell">Resident</th>
+                <th className="text-left p-3 sm:p-4">Month</th>
+                <th className="text-left p-3 sm:p-4">Amount</th>
+                <th className="text-left p-3 sm:p-4 hidden md:table-cell">Payment</th>
+                <th className="text-left p-3 sm:p-4">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -183,23 +183,23 @@ const VerifyPayments = () => {
               ) : (
                 payments.map((payment) => (
                   <tr key={payment.id} className="table-row">
-                    <td className="p-4 font-medium text-text-primary">{payment.flat_number}</td>
-                    <td className="p-4 text-text-primary">{payment.resident_name || '-'}</td>
-                    <td className="p-4 text-text-primary">{payment.month}</td>
-                    <td className="p-4 text-text-primary">₹{payment.amount}</td>
-                    <td className="p-4 text-text-secondary text-sm">
+                    <td className="p-3 sm:p-4 font-medium text-text-primary text-sm">{payment.flat_number}</td>
+                    <td className="p-3 sm:p-4 text-text-primary text-sm hidden sm:table-cell">{payment.resident_name || '-'}</td>
+                    <td className="p-3 sm:p-4 text-text-primary text-sm">{payment.month}</td>
+                    <td className="p-3 sm:p-4 text-text-primary text-sm">{payment.amount}</td>
+                    <td className="p-3 sm:p-4 text-text-secondary text-sm hidden md:table-cell">
                       <span className="badge-info">{payment.payment_mode?.toUpperCase()}</span>
-                      <span className="ml-2">{payment.payment_ref}</span>
+                      <span className="ml-1 text-xs">{payment.payment_ref}</span>
                     </td>
-                    <td className="p-4">
-                      <div className="flex gap-2">
+                    <td className="p-3 sm:p-4">
+                      <div className="flex gap-1.5">
                         <button
                           onClick={() => handleApprove(payment.id)}
                           disabled={processing}
                           data-testid={`approve-payment-${payment.id}`}
-                          className="p-2 bg-success/20 text-success rounded-lg hover:bg-success/30 transition-colors disabled:opacity-50"
+                          className="p-1.5 sm:p-2 bg-success/20 text-success rounded-lg hover:bg-success/30 transition-colors disabled:opacity-50"
                         >
-                          <CheckCircle className="w-5 h-5" />
+                          <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5" />
                         </button>
                         <button
                           onClick={() => {
@@ -208,15 +208,15 @@ const VerifyPayments = () => {
                           }}
                           disabled={processing}
                           data-testid={`reject-payment-${payment.id}`}
-                          className="p-2 bg-danger/20 text-danger rounded-lg hover:bg-danger/30 transition-colors disabled:opacity-50"
+                          className="p-1.5 sm:p-2 bg-danger/20 text-danger rounded-lg hover:bg-danger/30 transition-colors disabled:opacity-50"
                         >
-                          <XCircle className="w-5 h-5" />
+                          <XCircle className="w-4 h-4 sm:w-5 sm:h-5" />
                         </button>
                       </div>
                     </td>
                   </tr>
                 ))
-              )}
+              )}}
             </tbody>
           </table>
         </div>

@@ -95,20 +95,21 @@ const ReportsPage = () => {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 border-b border-border-color pb-2">
+      <div className="tabs-scroll border-b border-border-color pb-2">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
             data-testid={`tab-${tab.id}`}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+            className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg transition-colors text-sm sm:text-base ${
               activeTab === tab.id
                 ? 'bg-accent text-white'
                 : 'text-text-secondary hover:text-text-primary hover:bg-bg-elevated'
             }`}
           >
             <tab.icon className="w-4 h-4" />
-            {tab.label}
+            <span className="hidden sm:inline">{tab.label}</span>
+            <span className="sm:hidden">{tab.id === 'income' ? 'Income' : tab.id === 'expenses' ? 'Expenses' : 'Outstanding'}</span>
           </button>
         ))}
       </div>
@@ -155,25 +156,25 @@ const ReportsPage = () => {
           </div>
 
           <div className="card overflow-hidden">
-            <div className="overflow-x-auto">
+            <div className="table-mobile-wrapper">
               <table className="w-full">
                 <thead className="table-header">
                   <tr>
-                    <th className="text-left p-4">Date</th>
-                    <th className="text-left p-4">Title</th>
-                    <th className="text-left p-4">Category</th>
-                    <th className="text-right p-4">Amount</th>
+                    <th className="text-left p-3 sm:p-4">Date</th>
+                    <th className="text-left p-3 sm:p-4">Title</th>
+                    <th className="text-left p-3 sm:p-4 hidden sm:table-cell">Category</th>
+                    <th className="text-right p-3 sm:p-4">Amount</th>
                   </tr>
                 </thead>
                 <tbody>
                   {incomeData.entries.map((entry, i) => (
                     <tr key={i} className="table-row">
-                      <td className="p-4 text-text-primary">{entry.entry_date}</td>
-                      <td className="p-4 text-text-primary">{entry.title}</td>
-                      <td className="p-4">
+                      <td className="p-3 sm:p-4 text-text-primary text-sm">{entry.entry_date}</td>
+                      <td className="p-3 sm:p-4 text-text-primary text-sm">{entry.title}</td>
+                      <td className="p-3 sm:p-4 hidden sm:table-cell">
                         <span className="badge-info">{entry.category}</span>
                       </td>
-                      <td className="p-4 text-right text-success font-medium">
+                      <td className="p-3 sm:p-4 text-right text-success font-medium">
                         ₹{entry.amount.toLocaleString()}
                       </td>
                     </tr>
@@ -181,8 +182,9 @@ const ReportsPage = () => {
                 </tbody>
                 <tfoot className="bg-success/10">
                   <tr>
-                    <td colSpan={3} className="p-4 font-bold text-text-primary">Grand Total</td>
-                    <td className="p-4 text-right font-bold text-success text-lg">
+                    <td colSpan={2} className="p-3 sm:p-4 font-bold text-text-primary">Grand Total</td>
+                    <td className="p-3 sm:p-4 hidden sm:table-cell"></td>
+                    <td className="p-3 sm:p-4 text-right font-bold text-success text-lg">
                       ₹{incomeData.total.toLocaleString()}
                     </td>
                   </tr>
@@ -209,26 +211,24 @@ const ReportsPage = () => {
           </div>
 
           <div className="card overflow-hidden">
-            <div className="overflow-x-auto">
+            <div className="table-mobile-wrapper">
               <table className="w-full">
                 <thead className="table-header">
                   <tr>
-                    <th className="text-left p-4">Date</th>
-                    <th className="text-left p-4">Title</th>
-                    <th className="text-left p-4">Category</th>
-                    <th className="text-left p-4">Status</th>
-                    <th className="text-right p-4">Amount</th>
+                    <th className="text-left p-3 sm:p-4">Title</th>
+                    <th className="text-left p-3 sm:p-4 hidden sm:table-cell">Category</th>
+                    <th className="text-left p-3 sm:p-4">Status</th>
+                    <th className="text-right p-3 sm:p-4">Amount</th>
                   </tr>
                 </thead>
                 <tbody>
                   {expenseData.entries.map((entry, i) => (
                     <tr key={i} className="table-row">
-                      <td className="p-4 text-text-primary">{entry.bill_date}</td>
-                      <td className="p-4 text-text-primary">{entry.title}</td>
-                      <td className="p-4">
+                      <td className="p-3 sm:p-4 text-text-primary text-sm">{entry.title}</td>
+                      <td className="p-3 sm:p-4 hidden sm:table-cell">
                         <span className="badge-info">{entry.category}</span>
                       </td>
-                      <td className="p-4">
+                      <td className="p-3 sm:p-4">
                         {entry.status === 'verified' ? (
                           <span className="badge-success">Verified</span>
                         ) : entry.status === 'rejected' ? (
@@ -237,7 +237,7 @@ const ReportsPage = () => {
                           <span className="badge-warning">Pending</span>
                         )}
                       </td>
-                      <td className="p-4 text-right text-danger font-medium">
+                      <td className="p-3 sm:p-4 text-right text-danger font-medium">
                         ₹{entry.amount.toLocaleString()}
                       </td>
                     </tr>
@@ -245,8 +245,10 @@ const ReportsPage = () => {
                 </tbody>
                 <tfoot className="bg-danger/10">
                   <tr>
-                    <td colSpan={4} className="p-4 font-bold text-text-primary">Grand Total</td>
-                    <td className="p-4 text-right font-bold text-danger text-lg">
+                    <td className="p-3 sm:p-4 font-bold text-text-primary">Grand Total</td>
+                    <td className="p-3 sm:p-4 hidden sm:table-cell"></td>
+                    <td className="p-3 sm:p-4"></td>
+                    <td className="p-3 sm:p-4 text-right font-bold text-danger text-lg">
                       ₹{expenseData.total.toLocaleString()}
                     </td>
                   </tr>
@@ -261,7 +263,7 @@ const ReportsPage = () => {
       {activeTab === 'outstanding' && (
         <div className="space-y-6">
           {/* Month Summary */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
             {outstandingSummary.map((item) => (
               <button
                 key={item.month}
@@ -283,30 +285,30 @@ const ReportsPage = () => {
           {/* Outstanding Detail - ALL TEXT IN RED */}
           {outstandingDetail && (
             <div className="card overflow-hidden">
-              <div className="p-4 border-b border-border-color bg-danger/10">
-                <h3 className="font-semibold text-danger">
+              <div className="p-3 sm:p-4 border-b border-border-color bg-danger/10">
+                <h3 className="font-semibold text-danger text-sm sm:text-base">
                   Outstanding Details for {outstandingDetail.month}
                 </h3>
               </div>
-              <div className="overflow-x-auto">
+              <div className="table-mobile-wrapper">
                 <table className="w-full">
                   <thead className="bg-danger/10">
                     <tr>
-                      <th className="text-left p-4 text-danger">Flat</th>
-                      <th className="text-left p-4 text-danger">Wing</th>
-                      <th className="text-left p-4 text-danger">Resident</th>
-                      <th className="text-left p-4 text-danger">Months Pending</th>
-                      <th className="text-right p-4 text-danger">Outstanding</th>
+                      <th className="text-left p-3 sm:p-4 text-danger">Flat</th>
+                      <th className="text-left p-3 sm:p-4 text-danger hidden sm:table-cell">Wing</th>
+                      <th className="text-left p-3 sm:p-4 text-danger">Resident</th>
+                      <th className="text-left p-3 sm:p-4 text-danger hidden sm:table-cell">Pending</th>
+                      <th className="text-right p-3 sm:p-4 text-danger">Amount</th>
                     </tr>
                   </thead>
                   <tbody>
                     {outstandingDetail.flats.map((flat, i) => (
                       <tr key={i} className="table-row">
-                        <td className="p-4 font-medium text-danger">{flat.flat_number}</td>
-                        <td className="p-4 text-danger">{flat.wing_name}</td>
-                        <td className="p-4 text-danger">{flat.resident_name}</td>
-                        <td className="p-4 text-danger">{flat.months_pending?.length || 0}</td>
-                        <td className="p-4 text-right font-bold text-danger">
+                        <td className="p-3 sm:p-4 font-medium text-danger text-sm">{flat.flat_number}</td>
+                        <td className="p-3 sm:p-4 text-danger hidden sm:table-cell">{flat.wing_name}</td>
+                        <td className="p-3 sm:p-4 text-danger text-sm">{flat.resident_name}</td>
+                        <td className="p-3 sm:p-4 text-danger hidden sm:table-cell">{flat.months_pending?.length || 0}</td>
+                        <td className="p-3 sm:p-4 text-right font-bold text-danger">
                           ₹{flat.total_outstanding.toLocaleString()}
                         </td>
                       </tr>
@@ -314,10 +316,12 @@ const ReportsPage = () => {
                   </tbody>
                   <tfoot className="bg-danger/20">
                     <tr>
-                      <td colSpan={4} className="p-4 font-bold text-danger text-lg">
+                      <td colSpan={2} className="p-3 sm:p-4 font-bold text-danger sm:text-lg">
                         Grand Total
                       </td>
-                      <td className="p-4 text-right font-bold text-danger text-xl">
+                      <td className="p-3 sm:p-4 hidden sm:table-cell"></td>
+                      <td className="p-3 sm:p-4 hidden sm:table-cell"></td>
+                      <td className="p-3 sm:p-4 text-right font-bold text-danger text-lg sm:text-xl">
                         ₹{outstandingDetail.grand_total.toLocaleString()}
                       </td>
                     </tr>

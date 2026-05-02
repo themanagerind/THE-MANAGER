@@ -168,7 +168,7 @@ const MaintenanceBills = () => {
 
   return (
     <div data-testid="maintenance-bills-page" className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="page-header">
         <div>
           <h1 className="text-[28px] font-bold text-text-primary">Maintenance Bills</h1>
           <p className="text-text-secondary mt-1">Generate and manage monthly bills</p>
@@ -179,7 +179,7 @@ const MaintenanceBills = () => {
             setShowGenerateModal(true);
           }}
           data-testid="generate-bills-btn"
-          className="btn-primary flex items-center gap-2"
+          className="btn-primary flex items-center gap-2 w-full sm:w-auto justify-center"
         >
           <Plus className="w-5 h-5" />
           Generate Bills
@@ -217,16 +217,16 @@ const MaintenanceBills = () => {
           <div className="p-4 border-b border-border-color">
             <h3 className="font-semibold text-text-primary">Bills for {viewBillsMonth}</h3>
           </div>
-          <div className="overflow-x-auto">
+          <div className="table-mobile-wrapper">
             <table className="w-full">
               <thead className="table-header">
                 <tr>
-                  <th className="text-left p-4">Flat</th>
-                  <th className="text-left p-4">Resident</th>
-                  <th className="text-left p-4">Wing</th>
-                  <th className="text-left p-4">Amount</th>
-                  <th className="text-left p-4">Status</th>
-                  <th className="text-left p-4">Actions</th>
+                  <th className="text-left p-3 sm:p-4">Flat</th>
+                  <th className="text-left p-3 sm:p-4">Resident</th>
+                  <th className="text-left p-3 sm:p-4 hidden sm:table-cell">Wing</th>
+                  <th className="text-left p-3 sm:p-4">Amount</th>
+                  <th className="text-left p-3 sm:p-4">Status</th>
+                  <th className="text-left p-3 sm:p-4">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -240,12 +240,12 @@ const MaintenanceBills = () => {
                 ) : (
                   bills.map((bill) => (
                     <tr key={bill.id} className="table-row">
-                      <td className="p-4 font-medium text-text-primary">{bill.flat_number}</td>
-                      <td className="p-4 text-text-primary">{bill.resident_name || '-'}</td>
-                      <td className="p-4 text-text-primary">{bill.wing_name}</td>
-                      <td className="p-4 text-text-primary">₹{bill.amount}</td>
-                      <td className="p-4">{getStatusBadge(bill)}</td>
-                      <td className="p-4">
+                      <td className="p-3 sm:p-4 font-medium text-text-primary">{bill.flat_number}</td>
+                      <td className="p-3 sm:p-4 text-text-primary text-sm">{bill.resident_name || '-'}</td>
+                      <td className="p-3 sm:p-4 text-text-primary hidden sm:table-cell">{bill.wing_name}</td>
+                      <td className="p-3 sm:p-4 text-text-primary">₹{bill.amount}</td>
+                      <td className="p-3 sm:p-4">{getStatusBadge(bill)}</td>
+                      <td className="p-3 sm:p-4">
                         {!bill.is_cancelled && bill.status !== 'verified' && (
                           <button
                             onClick={() => handleCancelBill(bill.id)}

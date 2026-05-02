@@ -189,7 +189,7 @@ const ResidentLayout = ({ children }) => {
 
       {/* Main Content */}
       <main className="lg:pl-60 pt-16 lg:pt-0 min-h-screen">
-        <div className="p-6">
+        <div className="p-4 sm:p-6">
           {children}
         </div>
       </main>

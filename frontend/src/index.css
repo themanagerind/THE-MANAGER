@@ -120,6 +120,49 @@
     .table-row {
         @apply border-b border-border-light hover:bg-bg-surface/50 transition-colors;
     }
+
+    /* Mobile page header - title + action button */
+    .page-header {
+        @apply flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4;
+    }
+
+    /* Mobile-friendly tabs */
+    .tabs-scroll {
+        @apply flex gap-2 overflow-x-auto pb-2 -mx-1 px-1;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+    }
+    .tabs-scroll::-webkit-scrollbar {
+        display: none;
+    }
+    .tabs-scroll > button {
+        @apply whitespace-nowrap flex-shrink-0;
+    }
+
+    /* Table wrapper with scroll hint */
+    .table-mobile-wrapper {
+        @apply overflow-x-auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    .table-mobile-wrapper table {
+        @apply min-w-[500px];
+    }
+
+    /* Mobile text adjustments */
+    @media (max-width: 640px) {
+        h1 {
+            font-size: 22px !important;
+        }
+        h2 {
+            font-size: 18px !important;
+        }
+        .card {
+            @apply rounded-lg;
+        }
+        .btn-primary, .btn-secondary, .btn-danger {
+            @apply text-sm;
+        }
+    }
 }
 
 @layer utilities {

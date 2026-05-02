@@ -77,7 +77,7 @@ const NoticesPage = () => {
 
   return (
     <div data-testid="notices-page" className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="page-header">
         <div>
           <h1 className="text-[28px] font-bold text-text-primary">Notice Board</h1>
           <p className="text-text-secondary mt-1">Important announcements</p>
@@ -86,7 +86,7 @@ const NoticesPage = () => {
           <button
             onClick={() => setShowModal(true)}
             data-testid="create-notice-btn"
-            className="btn-primary flex items-center gap-2"
+            className="btn-primary flex items-center gap-2 w-full sm:w-auto justify-center"
           >
             <Plus className="w-5 h-5" />
             New Notice
@@ -289,7 +289,7 @@ const ComplaintsPage = () => {
 
   return (
     <div data-testid="complaints-page" className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="page-header">
         <div>
           <h1 className="text-[28px] font-bold text-text-primary">Complaints</h1>
           <p className="text-text-secondary mt-1">Report and track issues</p>
@@ -298,7 +298,7 @@ const ComplaintsPage = () => {
           <button
             onClick={() => setShowModal(true)}
             data-testid="create-complaint-btn"
-            className="btn-primary flex items-center gap-2"
+            className="btn-primary flex items-center gap-2 w-full sm:w-auto justify-center"
           >
             <Plus className="w-5 h-5" />
             New Complaint
@@ -314,44 +314,44 @@ const ComplaintsPage = () => {
         </div>
       ) : (
         <div className="card overflow-hidden">
-          <div className="overflow-x-auto">
+          <div className="table-mobile-wrapper">
             <table className="w-full">
               <thead className="table-header">
                 <tr>
-                  <th className="text-left p-4">Title</th>
-                  <th className="text-left p-4">Category</th>
-                  <th className="text-left p-4">Priority</th>
-                  <th className="text-left p-4">Status</th>
-                  <th className="text-left p-4">Date</th>
-                  {canManage && <th className="text-left p-4">Actions</th>}
+                  <th className="text-left p-3 sm:p-4">Title</th>
+                  <th className="text-left p-3 sm:p-4 hidden sm:table-cell">Category</th>
+                  <th className="text-left p-3 sm:p-4">Priority</th>
+                  <th className="text-left p-3 sm:p-4">Status</th>
+                  <th className="text-left p-3 sm:p-4 hidden md:table-cell">Date</th>
+                  {canManage && <th className="text-left p-3 sm:p-4">Actions</th>}
                 </tr>
               </thead>
               <tbody>
                 {complaints.map((complaint) => (
                   <tr key={complaint.id} className="table-row">
-                    <td className="p-4">
+                    <td className="p-3 sm:p-4">
                       <div>
-                        <p className="font-medium text-text-primary">{complaint.title}</p>
-                        <p className="text-sm text-text-secondary truncate max-w-[200px]">
+                        <p className="font-medium text-text-primary text-sm">{complaint.title}</p>
+                        <p className="text-xs text-text-secondary truncate max-w-[120px] sm:max-w-[200px]">
                           {complaint.description}
                         </p>
                       </div>
                     </td>
-                    <td className="p-4">
+                    <td className="p-3 sm:p-4 hidden sm:table-cell">
                       <span className="badge-info">{complaint.category}</span>
                     </td>
-                    <td className="p-4">{getPriorityBadge(complaint.priority)}</td>
-                    <td className="p-4">{getStatusBadge(complaint.status)}</td>
-                    <td className="p-4 text-text-secondary text-sm">
+                    <td className="p-3 sm:p-4">{getPriorityBadge(complaint.priority)}</td>
+                    <td className="p-3 sm:p-4">{getStatusBadge(complaint.status)}</td>
+                    <td className="p-3 sm:p-4 text-text-secondary text-sm hidden md:table-cell">
                       {new Date(complaint.created_at).toLocaleDateString()}
                     </td>
                     {canManage && (
-                      <td className="p-4">
+                      <td className="p-3 sm:p-4">
                         <select
                           value={complaint.status}
                           onChange={(e) => handleStatusUpdate(complaint.id, e.target.value)}
                           data-testid={`update-status-${complaint.id}`}
-                          className="input-field text-sm py-1"
+                          className="input-field text-xs sm:text-sm py-1"
                         >
                           <option value="open">Open</option>
                           <option value="in_progress">In Progress</option>

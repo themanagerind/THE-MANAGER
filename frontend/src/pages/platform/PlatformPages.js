@@ -133,13 +133,13 @@ const ManageSocieties = () => {
 
   return (
     <div data-testid="manage-societies-page" className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="page-header">
         <div>
           <h1 className="text-[28px] font-bold text-text-primary">Manage Societies</h1>
           <p className="text-text-secondary mt-1">Create and manage housing societies</p>
         </div>
         <button onClick={() => setShowAddModal(true)} data-testid="add-society-btn"
-          className="btn-primary flex items-center gap-2">
+          className="btn-primary flex items-center gap-2 w-full sm:w-auto justify-center">
           <Plus className="w-4 h-4" /> Add Society
         </button>
       </div>
@@ -320,15 +320,15 @@ const ManageAdmins = () => {
         <p className="text-text-secondary mt-1">Approve or block society admins</p>
       </div>
       <div className="card overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="table-mobile-wrapper">
           <table className="w-full">
             <thead className="table-header">
               <tr>
-                <th className="text-left p-4">Admin</th>
-                <th className="text-left p-4">Society</th>
-                <th className="text-left p-4">Mobile</th>
-                <th className="text-left p-4">Status</th>
-                <th className="text-left p-4">Actions</th>
+                <th className="text-left p-3 sm:p-4">Admin</th>
+                <th className="text-left p-3 sm:p-4">Society</th>
+                <th className="text-left p-3 sm:p-4 hidden sm:table-cell">Mobile</th>
+                <th className="text-left p-3 sm:p-4">Status</th>
+                <th className="text-left p-3 sm:p-4">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -339,17 +339,17 @@ const ManageAdmins = () => {
               ) : (
                 admins.map((admin) => (
                   <tr key={admin.id} className="table-row">
-                    <td className="p-4">
-                      <p className="font-medium text-text-primary">{admin.name}</p>
-                      <p className="text-sm text-text-secondary">{admin.email}</p>
+                    <td className="p-3 sm:p-4">
+                      <p className="font-medium text-text-primary text-sm">{admin.name}</p>
+                      <p className="text-xs text-text-secondary">{admin.email}</p>
                     </td>
-                    <td className="p-4">
-                      <p className="font-medium text-text-primary">{admin.society?.name || '-'}</p>
-                      <p className="text-sm text-text-secondary truncate max-w-[200px]">{admin.society?.address || '-'}</p>
+                    <td className="p-3 sm:p-4">
+                      <p className="font-medium text-text-primary text-sm">{admin.society?.name || '-'}</p>
+                      <p className="text-xs text-text-secondary truncate max-w-[120px] sm:max-w-[200px]">{admin.society?.address || '-'}</p>
                     </td>
-                    <td className="p-4 text-text-primary">{admin.mobile}</td>
-                    <td className="p-4">{getStatusBadge(admin.status)}</td>
-                    <td className="p-4">
+                    <td className="p-3 sm:p-4 text-text-primary hidden sm:table-cell">{admin.mobile}</td>
+                    <td className="p-3 sm:p-4">{getStatusBadge(admin.status)}</td>
+                    <td className="p-3 sm:p-4">
                       <div className="flex gap-2">
                         {admin.status === 'pending' && (
                           <button onClick={() => handleApprove(admin.id)} data-testid={`approve-admin-${admin.id}`}

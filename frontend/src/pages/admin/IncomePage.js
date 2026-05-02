@@ -83,7 +83,7 @@ const IncomePage = () => {
 
   return (
     <div data-testid="income-page" className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="page-header">
         <div>
           <h1 className="text-[28px] font-bold text-text-primary">Income</h1>
           <p className="text-text-secondary mt-1">Track society income</p>
@@ -91,7 +91,7 @@ const IncomePage = () => {
         <button
           onClick={() => setShowModal(true)}
           data-testid="add-income-btn"
-          className="btn-primary flex items-center gap-2"
+          className="btn-primary flex items-center gap-2 w-full sm:w-auto justify-center"
         >
           <Plus className="w-5 h-5" />
           Add Income
@@ -113,15 +113,15 @@ const IncomePage = () => {
 
       {/* Entries Table */}
       <div className="card overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="table-mobile-wrapper">
           <table className="w-full">
             <thead className="table-header">
               <tr>
-                <th className="text-left p-4">Date</th>
-                <th className="text-left p-4">Title</th>
-                <th className="text-left p-4">Category</th>
-                <th className="text-left p-4">Description</th>
-                <th className="text-right p-4">Amount</th>
+                <th className="text-left p-3 sm:p-4">Date</th>
+                <th className="text-left p-3 sm:p-4">Title</th>
+                <th className="text-left p-3 sm:p-4 hidden sm:table-cell">Category</th>
+                <th className="text-left p-3 sm:p-4 hidden md:table-cell">Description</th>
+                <th className="text-right p-3 sm:p-4">Amount</th>
               </tr>
             </thead>
             <tbody>
@@ -135,17 +135,17 @@ const IncomePage = () => {
               ) : (
                 entries.map((entry) => (
                   <tr key={entry.id} className="table-row">
-                    <td className="p-4 text-text-primary">{entry.entry_date}</td>
-                    <td className="p-4 font-medium text-text-primary">{entry.title}</td>
-                    <td className="p-4">
+                    <td className="p-3 sm:p-4 text-text-primary text-sm">{entry.entry_date}</td>
+                    <td className="p-3 sm:p-4 font-medium text-text-primary text-sm">{entry.title}</td>
+                    <td className="p-3 sm:p-4 hidden sm:table-cell">
                       <span className="badge-info">
                         {INCOME_CATEGORIES.find(c => c.value === entry.category)?.label || entry.category}
                       </span>
                     </td>
-                    <td className="p-4 text-text-secondary text-sm max-w-[200px] truncate">
+                    <td className="p-3 sm:p-4 text-text-secondary text-sm max-w-[200px] truncate hidden md:table-cell">
                       {entry.description || '-'}
                     </td>
-                    <td className="p-4 text-right font-semibold text-success">
+                    <td className="p-3 sm:p-4 text-right font-semibold text-success">
                       ₹{entry.amount.toLocaleString()}
                     </td>
                   </tr>
@@ -155,8 +155,10 @@ const IncomePage = () => {
             {entries.length > 0 && (
               <tfoot className="bg-success/10">
                 <tr>
-                  <td colSpan={4} className="p-4 font-bold text-text-primary">Grand Total</td>
-                  <td className="p-4 text-right font-bold text-success text-lg">
+                  <td colSpan={2} className="p-3 sm:p-4 font-bold text-text-primary">Grand Total</td>
+                  <td className="p-3 sm:p-4 hidden sm:table-cell"></td>
+                  <td className="p-3 sm:p-4 hidden md:table-cell"></td>
+                  <td className="p-3 sm:p-4 text-right font-bold text-success text-lg">
                     ₹{totalIncome.toLocaleString()}
                   </td>
                 </tr>

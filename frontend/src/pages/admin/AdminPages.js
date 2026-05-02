@@ -159,7 +159,7 @@ const WingsManager = () => {
 
   return (
     <div data-testid="wings-manager-page" className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="page-header">
         <div>
           <h1 className="text-[28px] font-bold text-text-primary">Wings</h1>
           <p className="text-text-secondary mt-1">Manage society wings</p>
@@ -167,7 +167,7 @@ const WingsManager = () => {
         <button
           onClick={() => setShowModal(true)}
           data-testid="add-wing-btn"
-          className="btn-primary flex items-center gap-2"
+          className="btn-primary flex items-center gap-2 w-full sm:w-auto justify-center"
         >
           <Plus className="w-5 h-5" />
           Add Wing
@@ -533,18 +533,18 @@ const ResidentsManager = () => {
 
   return (
     <div data-testid="residents-manager-page" className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="page-header">
         <div>
           <h1 className="text-[28px] font-bold text-text-primary">Residents</h1>
           <p className="text-text-secondary mt-1">Manage society residents</p>
         </div>
-        <div className="flex gap-2">
+        <div className="tabs-scroll">
           {['all', 'pending', 'active'].map((f) => (
             <button
               key={f}
               onClick={() => setFilter(f)}
               data-testid={`filter-${f}`}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              className={`px-3 sm:px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                 filter === f
                   ? 'bg-accent text-white'
                   : 'bg-bg-elevated text-text-secondary hover:text-text-primary'
@@ -557,15 +557,15 @@ const ResidentsManager = () => {
       </div>
 
       <div className="card overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="table-mobile-wrapper">
           <table className="w-full">
             <thead className="table-header">
               <tr>
-                <th className="text-left p-4">Resident</th>
-                <th className="text-left p-4">Flat</th>
-                <th className="text-left p-4">Wing</th>
-                <th className="text-left p-4">Status</th>
-                <th className="text-left p-4">Actions</th>
+                <th className="text-left p-3 sm:p-4">Resident</th>
+                <th className="text-left p-3 sm:p-4">Flat</th>
+                <th className="text-left p-3 sm:p-4 hidden sm:table-cell">Wing</th>
+                <th className="text-left p-3 sm:p-4">Status</th>
+                <th className="text-left p-3 sm:p-4">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -579,36 +579,36 @@ const ResidentsManager = () => {
               ) : (
                 residents.map((resident) => (
                   <tr key={resident.id} className="table-row">
-                    <td className="p-4">
+                    <td className="p-3 sm:p-4">
                       <div>
-                        <p className="font-medium text-text-primary">{resident.name}</p>
-                        <p className="text-sm text-text-secondary">{resident.mobile}</p>
+                        <p className="font-medium text-text-primary text-sm">{resident.name}</p>
+                        <p className="text-xs text-text-secondary">{resident.mobile}</p>
                       </div>
                     </td>
-                    <td className="p-4 text-text-primary">
+                    <td className="p-3 sm:p-4 text-text-primary text-sm">
                       {resident.flat?.number || 'Not assigned'}
                     </td>
-                    <td className="p-4 text-text-primary">
+                    <td className="p-3 sm:p-4 text-text-primary hidden sm:table-cell">
                       {resident.wing?.name || '-'}
                     </td>
-                    <td className="p-4">{getStatusBadge(resident.status)}</td>
-                    <td className="p-4">
+                    <td className="p-3 sm:p-4">{getStatusBadge(resident.status)}</td>
+                    <td className="p-3 sm:p-4">
                       <div className="flex gap-2 flex-wrap">
                         {resident.status === 'pending' && (
                           <>
                             <button
                               onClick={() => handleApprove(resident.id)}
                               data-testid={`approve-resident-${resident.id}`}
-                              className="p-2 bg-success/20 text-success rounded-lg hover:bg-success/30 transition-colors"
+                              className="p-1.5 sm:p-2 bg-success/20 text-success rounded-lg hover:bg-success/30 transition-colors"
                             >
-                              <CheckCircle className="w-5 h-5" />
+                              <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5" />
                             </button>
                             <button
                               onClick={() => handleReject(resident.id)}
                               data-testid={`reject-resident-${resident.id}`}
-                              className="p-2 bg-danger/20 text-danger rounded-lg hover:bg-danger/30 transition-colors"
+                              className="p-1.5 sm:p-2 bg-danger/20 text-danger rounded-lg hover:bg-danger/30 transition-colors"
                             >
-                              <XCircle className="w-5 h-5" />
+                              <XCircle className="w-4 h-4 sm:w-5 sm:h-5" />
                             </button>
                           </>
                         )}
@@ -620,10 +620,10 @@ const ResidentsManager = () => {
                               }
                             }}
                             data-testid={`promote-resident-${resident.id}`}
-                            className="input-field text-sm py-1"
+                            className="input-field text-xs sm:text-sm py-1"
                             defaultValue=""
                           >
-                            <option value="">Promote to Sub-Admin</option>
+                            <option value="">Promote</option>
                             {wings.filter(w => !w.sub_admin_id).map((wing) => (
                               <option key={wing.id} value={wing.id}>
                                 Wing {wing.name}

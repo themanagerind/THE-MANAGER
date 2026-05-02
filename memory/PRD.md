@@ -60,12 +60,13 @@ Full-stack PWA for Housing Society Management with 4 roles: Platform Owner, Admi
 - [x] **Public API endpoints**: /societies, /wings, /flats for resident signup dropdowns
 - [x] **Account Status Check**: API to check if account exists and needs password setup
 - [x] **Platform Owner: Create Society** - Add Society with Admin in one go (name, address, admin details)
+- [x] **Mobile Responsive Polish** - All pages optimized for mobile: responsive headers (page-header), scrollable tabs, hidden columns on small screens, touch-friendly buttons, reduced padding
 
 ## P0/P1 Features Remaining
 - [ ] P1: Push notifications for payment status changes
 - [ ] P1: Sub-Admin dashboard UI improvements
 - [ ] P1: File upload for expense receipts
-- [ ] P2: Mobile responsive polish
+- [x] P2: Mobile responsive polish
 - [ ] P2: Real SMS integration (Fast2SMS/MSG91) - currently MOCKED
 - [ ] P2: Sub-Admin temporary password SMS on promotion
 - [ ] P3: Admin as Resident dual-role switching

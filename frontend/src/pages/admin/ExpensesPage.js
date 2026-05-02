@@ -98,7 +98,7 @@ const ExpensesPage = () => {
 
   return (
     <div data-testid="expenses-page" className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="page-header">
         <div>
           <h1 className="text-[28px] font-bold text-text-primary">Expenses</h1>
           <p className="text-text-secondary mt-1">Track and manage expense bills</p>
@@ -106,7 +106,7 @@ const ExpensesPage = () => {
         <button
           onClick={() => setShowModal(true)}
           data-testid="add-expense-btn"
-          className="btn-primary flex items-center gap-2"
+          className="btn-primary flex items-center gap-2 w-full sm:w-auto justify-center"
         >
           <Plus className="w-5 h-5" />
           Add Expense
@@ -141,16 +141,16 @@ const ExpensesPage = () => {
 
       {/* Expenses Table */}
       <div className="card overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="table-mobile-wrapper">
           <table className="w-full">
             <thead className="table-header">
               <tr>
-                <th className="text-left p-4">Date</th>
-                <th className="text-left p-4">Title</th>
-                <th className="text-left p-4">Category</th>
-                <th className="text-left p-4">Status</th>
-                <th className="text-left p-4">Verifications</th>
-                <th className="text-right p-4">Amount</th>
+                <th className="text-left p-3 sm:p-4 hidden sm:table-cell">Date</th>
+                <th className="text-left p-3 sm:p-4">Title</th>
+                <th className="text-left p-3 sm:p-4 hidden md:table-cell">Category</th>
+                <th className="text-left p-3 sm:p-4">Status</th>
+                <th className="text-left p-3 sm:p-4 hidden lg:table-cell">Verifications</th>
+                <th className="text-right p-3 sm:p-4">Amount</th>
               </tr>
             </thead>
             <tbody>
@@ -164,24 +164,24 @@ const ExpensesPage = () => {
               ) : (
                 expenses.map((expense) => (
                   <tr key={expense.id} className="table-row">
-                    <td className="p-4 text-text-primary">{expense.bill_date}</td>
-                    <td className="p-4">
+                    <td className="p-3 sm:p-4 text-text-primary text-sm hidden sm:table-cell">{expense.bill_date}</td>
+                    <td className="p-3 sm:p-4">
                       <div>
-                        <p className="font-medium text-text-primary">{expense.title}</p>
+                        <p className="font-medium text-text-primary text-sm">{expense.title}</p>
                         {expense.description && (
-                          <p className="text-sm text-text-secondary truncate max-w-[200px]">
+                          <p className="text-xs text-text-secondary truncate max-w-[150px] sm:max-w-[200px]">
                             {expense.description}
                           </p>
                         )}
                       </div>
                     </td>
-                    <td className="p-4">
+                    <td className="p-3 sm:p-4 hidden md:table-cell">
                       <span className="badge-info">
                         {EXPENSE_CATEGORIES.find(c => c.value === expense.category)?.label || expense.category}
                       </span>
                     </td>
-                    <td className="p-4">{getStatusBadge(expense.status)}</td>
-                    <td className="p-4">
+                    <td className="p-3 sm:p-4">{getStatusBadge(expense.status)}</td>
+                    <td className="p-3 sm:p-4 hidden lg:table-cell">
                       {expense.verifications?.length > 0 ? (
                         <div className="space-y-1">
                           {expense.verifications.map((v, i) => (
@@ -196,7 +196,7 @@ const ExpensesPage = () => {
                         <span className="text-text-muted text-sm">Awaiting</span>
                       )}
                     </td>
-                    <td className="p-4 text-right font-semibold text-danger">
+                    <td className="p-3 sm:p-4 text-right font-semibold text-danger">
                       ₹{expense.amount.toLocaleString()}
                     </td>
                   </tr>
@@ -206,8 +206,12 @@ const ExpensesPage = () => {
             {expenses.length > 0 && (
               <tfoot className="bg-danger/10">
                 <tr>
-                  <td colSpan={5} className="p-4 font-bold text-text-primary">Grand Total</td>
-                  <td className="p-4 text-right font-bold text-danger text-lg">
+                  <td className="p-3 sm:p-4 hidden sm:table-cell"></td>
+                  <td className="p-3 sm:p-4 font-bold text-text-primary">Grand Total</td>
+                  <td className="p-3 sm:p-4 hidden md:table-cell"></td>
+                  <td className="p-3 sm:p-4"></td>
+                  <td className="p-3 sm:p-4 hidden lg:table-cell"></td>
+                  <td className="p-3 sm:p-4 text-right font-bold text-danger text-lg">
                     ₹{totalExpenses.toLocaleString()}
                   </td>
                 </tr>
