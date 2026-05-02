@@ -66,23 +66,31 @@ Full-stack PWA for Housing Society Management with 4 roles: Platform Owner, Admi
 - [x] **Phase A — CSS foundation**: Inter font, role-based CSS variables (`--accent`, `--accent-raw`, `--accent-light`), `.role-platform/.role-admin/.role-sub_admin/.role-resident/.role-manager` classes, flat shadow-free design, `.btn-*`, `.card`, `.stat-card`, `.input-field`, `.badge-*`, `.table-*`, `.sidebar-item`, `.topbar` component classes. Tailwind safelist for dynamic role classes.
 - [x] **Phase B — Mobile + Components**:
   - Unified `RoleLayout.js` with desktop dark sidebar (240px) + 56px topbar
-  - **Mobile bottom navigation bar** (64px, 4 items + More) with accent underline active state
+  - Mobile bottom navigation bar (64px, 4 items + More) with accent underline active state
   - Mobile drawer (hamburger) with full nav + role switch + logout
   - Mobile "More" sheet for overflow nav items
-  - **OTP input redesign** (`OtpInput.js`) — 6 separate boxes, auto-advance, backspace, paste support, accent focus ring
-  - Stat cards migrated to `.stat-card` with role-accent 3px left border on Admin/Platform/SubAdmin/Resident dashboards
-  - Toaster theme switched from dark → light to match new design system
+  - OTP input redesign (`OtpInput.js`) — 6 separate boxes, auto-advance, backspace, paste support
+  - Stat cards migrated to `.stat-card` with role-accent 3px left border on all dashboards
+  - Toaster theme switched dark → light
+- [x] **Phase C — Feature-specific screens**:
+  - **Notice Board** redesign — pinned section with accent left-border, time-ago metadata, mobile FAB (`create-notice-fab`), polished empty state, accent-light pin checkbox
+  - **Complaints** with filter chips (All/Open/In Progress/Resolved) + count badges, card-grid view, **detail dialog** (`complaint-detail`) with status update panel, mobile FAB
+  - **Haat Bazaar** redesigned hero card (accent-light bg + decorative shopping bag), connection pill, balance pill, "Visit Bazaar" CTA, "How it works" 3-step section
+  - **Resident My Bills** — outstanding-amount hero (red bg if pending), "Pay Next" CTA, grouped sections (Action required / Awaiting verification / Verified history collapsible), bill rows with receipt icon
+  - **Admin Maintenance Bills** — batch chip selector, 4 summary stat-cards (Total/Verified/Awaiting/Pending), polished generate modal with 3 stat-cards in preview
+  - DialogContent ARIA fix to suppress aria-describedby warning
+
+## Demo Credentials
+- Platform Owner: 9999999999 / owner123
 
 ## P0/P1 Features Remaining
 - [ ] P1: Push notifications for payment status changes
 - [ ] P1: File upload for expense receipts (backend ready, frontend integration pending)
-- [ ] P1: Phase C — Feature-specific screens (Notice Board, Complaint detail, Haat Bazaar, Billing redesign)
+- [ ] P1: Phase D polish — replace `window.prompt`/`window.confirm` with shadcn AlertDialog (cancel-bill reasons, delete confirmations)
 - [ ] P2: Real SMS integration (Fast2SMS/MSG91) - currently MOCKED
 - [ ] P2: Sub-Admin temporary password SMS on promotion
 - [ ] P3: Admin as Resident dual-role switching
 
-## Demo Credentials
-- Platform Owner: 9999999999 / owner123
 - Admin: 8888888888 / admin123
 - Sub-Admin: 7777777777 / subadmin123
 - Test Resident: 5555555550 / newpass123
