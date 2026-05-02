@@ -8,77 +8,103 @@ module.exports = {
     theme: {
         extend: {
             fontFamily: {
-                sans: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
-                mono: ['"JetBrains Mono"', 'monospace'],
+                sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
             },
             colors: {
-                // Custom Housing Society Colors
-                'bg-base': '#0D1B2A',
-                'bg-surface': '#1A2B3C',
-                'bg-elevated': '#243447',
-                'accent': '#E67E22',
-                'accent-hover': '#CA6F1E',
-                'success': '#27AE60',
-                'warning': '#F39C12',
-                'danger': '#E74C3C',
-                'info': '#2E86C1',
-                'text-primary': '#ECF0F1',
-                'text-secondary': '#AEB6BF',
-                'text-muted': '#566573',
-                'border-color': '#2E4057',
-                'border-light': '#3D5166',
-                
+                // Role accents
+                'role-platform': '#534AB7',
+                'role-admin': '#185FA5',
+                'role-subadmin': '#0F6E56',
+                'role-resident': '#7F77DD',
+                'role-manager': '#993C1D',
+                // Sidebar
+                'sidebar-bg': '#0F172A',
+                // Semantic status
+                'status-paid': '#3B6D11',
+                'status-pending': '#854F0B',
+                'status-overdue': '#A32D2D',
+                'status-active': '#3B6D11',
+                'status-blocked': '#A32D2D',
+                // Semantic colors
+                'sem-success': '#3B6D11',
+                'sem-success-bg': '#EAF3DE',
+                'sem-danger': '#A32D2D',
+                'sem-danger-bg': '#FCEBEB',
+                'sem-warning': '#854F0B',
+                'sem-warning-bg': '#FAEEDA',
+                'sem-info': '#0C447C',
+                'sem-info-bg': '#E6F1FB',
+                'sem-neutral': '#5F5E5A',
+                'sem-neutral-bg': '#F1EFE8',
+                // Light mode
+                'page-bg': '#F8F8F6',
+                'card-bg': '#FFFFFF',
+                'surface': '#F1EFE8',
+                'txt-primary': '#1A1A18',
+                'txt-secondary': '#5F5E5A',
+                'txt-muted': '#888780',
+                'brd': 'rgba(0,0,0,0.10)',
+                // Legacy compat aliases (mapped to new design system)
+                'bg-base': '#F8F8F6',
+                'bg-surface': '#FFFFFF',
+                'bg-elevated': '#F1EFE8',
+                'border-color': 'rgba(0,0,0,0.10)',
+                'text-primary': '#1A1A18',
+                'text-secondary': '#5F5E5A',
+                'text-muted': '#888780',
+                'success': '#3B6D11',
+                'danger': '#A32D2D',
+                'warning': '#854F0B',
                 // Shadcn overrides
-                background: '#0D1B2A',
-                foreground: '#ECF0F1',
+                background: 'hsl(var(--background))',
+                foreground: 'hsl(var(--foreground))',
                 card: {
-                    DEFAULT: '#1A2B3C',
-                    foreground: '#ECF0F1'
+                    DEFAULT: 'hsl(var(--card))',
+                    foreground: 'hsl(var(--card-foreground))'
                 },
                 popover: {
-                    DEFAULT: '#1A2B3C',
-                    foreground: '#ECF0F1'
+                    DEFAULT: 'hsl(var(--popover))',
+                    foreground: 'hsl(var(--popover-foreground))'
                 },
                 primary: {
-                    DEFAULT: '#E67E22',
-                    foreground: '#FFFFFF'
+                    DEFAULT: 'hsl(var(--primary))',
+                    foreground: 'hsl(var(--primary-foreground))'
                 },
                 secondary: {
-                    DEFAULT: '#243447',
-                    foreground: '#AEB6BF'
+                    DEFAULT: 'hsl(var(--secondary))',
+                    foreground: 'hsl(var(--secondary-foreground))'
                 },
                 muted: {
-                    DEFAULT: '#243447',
-                    foreground: '#566573'
+                    DEFAULT: 'hsl(var(--muted))',
+                    foreground: 'hsl(var(--muted-foreground))'
                 },
                 accent: {
-                    DEFAULT: '#E67E22',
-                    foreground: '#FFFFFF'
+                    DEFAULT: 'hsl(var(--accent))',
+                    foreground: 'hsl(var(--accent-foreground))'
                 },
                 destructive: {
-                    DEFAULT: '#E74C3C',
-                    foreground: '#FFFFFF'
+                    DEFAULT: 'hsl(var(--destructive))',
+                    foreground: 'hsl(var(--destructive-foreground))'
                 },
-                border: '#2E4057',
-                input: '#2E4057',
-                ring: '#E67E22',
-                chart: {
-                    '1': '#E67E22',
-                    '2': '#27AE60',
-                    '3': '#2E86C1',
-                    '4': '#F39C12',
-                    '5': '#9B59B6'
-                }
+                border: 'hsl(var(--border))',
+                input: 'hsl(var(--input))',
+                ring: 'hsl(var(--ring))',
             },
             borderRadius: {
                 lg: '0.75rem',
                 md: '0.5rem',
                 sm: '0.25rem',
-                xl: '1rem'
+                xl: '1rem',
+                'card': '12px',
+                'btn': '8px',
+                'pill': '20px',
+            },
+            borderWidth: {
+                'thin': '0.5px',
             },
             boxShadow: {
-                'card': '0 8px 30px rgb(0,0,0,0.12)',
-                'glow': '0 0 20px rgba(230,126,34,0.15)',
+                'card': '0 1px 3px rgba(0,0,0,0.06)',
+                'card-hover': '0 4px 12px rgba(0,0,0,0.08)',
             },
             keyframes: {
                 'accordion-down': {

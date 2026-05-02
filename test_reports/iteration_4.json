@@ -1,0 +1,87 @@
+{
+  "summary": "Phase B Design System frontend testing: unified RoleLayout, mobile bottom nav, OTP 6-box input, form styling. Logged in as all 3 roles on desktop+mobile (1440x900 and 390x844). OTP auto-advance/backspace/paste all pass. 2 real bugs found: (1) Platform Owner accent color NOT applied due to class name mismatch, (2) Stat cards on /platform and /admin dashboards still use legacy 'card' class instead of '.stat-card' with role accent border as required.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "PlatformLayout + index.css role classes",
+        "issue": "Platform Owner accent color (#534AB7 purple) is NOT applied. PlatformLayout.js passes role='platform_owner' which produces CSS class 'role-platform_owner', but index.css only defines '.role-platform' (no '_owner' suffix). As a result, Platform Owner falls back to the :root default accent (#185FA5 admin blue) — brand icon, active sidebar items, stat-card border-left, buttons, and OTP focus ring all render blue instead of purple. Visually confirmed: platform dashboard brand icon is blue. Fix options: either change class naming (role='platform' in PlatformLayout.js) or add '.role-platform_owner' block to index.css (and also add '.role-sub_admin' vs '.role-sub-admin' — current index.css uses '.role-sub_admin' so sub_admin is OK).",
+        "selector": "[data-testid='layout-platform_owner']",
+        "priority": "HIGH"
+      },
+      {
+        "component": "AdminDashboard (AdminPages.js line 77) & PlatformDashboard (PlatformPages.js line 56)",
+        "issue": "Stat cards use legacy className='card p-6' instead of the new '.stat-card' class specified in Phase B requirements. The new class adds role-accent left border (3px) and proper typography. Currently cards appear as plain white cards with no accent indicator. 0 .stat-card elements found on /admin and /platform dashboards.",
+        "selector": ".stat-card",
+        "priority": "MEDIUM"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Platform Dashboard (/platform)",
+        "issues": [
+          "Brand icon, accent color, and any active/hover accents are all blue (#185FA5) instead of purple (#534AB7) — role theme broken.",
+          "Stat cards have no role-accent left border; appear as flat white cards."
+        ]
+      },
+      {
+        "screen": "Admin Dashboard (/admin)",
+        "issues": [
+          "Stat cards do not use .stat-card class — missing left-border accent, not matching Phase B typography spec."
+        ]
+      }
+    ]
+  },
+  "passed_tests": [
+    "Login for Platform Owner / Admin / Resident with provided credentials",
+    "Desktop (1440x900): dark sidebar 240px visible with brand + nav + avatar + logout for all 3 roles",
+    "Desktop topbar present (data-testid=topbar)",
+    "Admin role accent = #185FA5 (correct)",
+    "Resident role accent = #7F77DD (correct)",
+    "Mobile (390x844): desktop sidebar hidden, bottom-nav visible, hamburger visible",
+    "Bottom nav items render (5 items incl. More for admin overflow)",
+    "More button opens More sheet for admin overflow (Wings/Flats/Income/Expenses/Plans/Notices/Complaints)",
+    "Mobile drawer opens, contains full nav + user block + logout, closable via overlay and X",
+    "Drawer logout redirects to /login correctly",
+    "Maintenance table uses .table-row styling (12 rows rendered with proper styling)",
+    "Forgot Password /forgot-password: 6 OTP boxes with data-testid forgot-otp-0..5",
+    "OTP auto-advance: typing 1 digit moves focus to next box",
+    "OTP paste: pasting 987654 into box 0 fills all 6 boxes correctly",
+    "OTP backspace: empties current box and moves focus back",
+    "Mock OTP displayed as 'Test Mode - OTP: XXXXXX' (blue hint bar)",
+    "Register page uses .input-field on 5 form inputs (step 1)",
+    "Login page uses .input-field on 2 inputs (mobile + password)",
+    "OTP box size = 48x48px (meets >=40px requirement)"
+  ],
+  "test_report_links": [],
+  "action_items": [
+    "FIX HIGH: Platform Owner role accent not applied. Either (a) change PlatformLayout.js line 15 to role='platform' (and update data-testid expectations), OR (b) add a CSS rule '.role-platform_owner { --accent: 249 43% 50%; --accent-raw: #534AB7; --accent-light: #EEEDFE; --accent-dark: #26215C; }' in /app/frontend/src/index.css (around line 50). Recommend option (b) to avoid breaking other usages. Verify Platform dashboard brand icon and active sidebar item turn purple after fix.",
+    "FIX MEDIUM: Update AdminDashboard in /app/frontend/src/pages/admin/AdminPages.js (~line 77) and PlatformDashboard in /app/frontend/src/pages/platform/PlatformPages.js (~line 56) to use className='stat-card' instead of 'card p-6' for the 4 KPI cards on each dashboard. Inner markup should use .stat-label / .stat-value / .stat-sub per index.css design tokens.",
+    "Optional: Consider adding role='manager' handling or remove .role-manager from CSS if unused. Ensure Sub-Admin works ('.role-sub_admin' matches role='sub_admin' — OK)."
+  ],
+  "critical_code_review_comments": [
+    "Class naming mismatch between JS (role-${role}) and CSS (.role-platform) is fragile — no lookup table, no test. Recommend documenting the role→class mapping or centralizing.",
+    "Stat card migration to .stat-card class was incomplete — only CSS was added but JSX was not updated. This is a common Phase B oversight.",
+    "RoleLayout.js is 384 lines, borderline OK but consider splitting DesktopSidebar / MobileDrawer / MoreSheet / BottomNav into sub-components for maintainability.",
+    "'Made with Emergent' fixed badge overlaps bottom-right content on mobile (390x844) and intercepted pointer events in some test flows — environmental, not a code issue, but bottom nav pb safe-area seems OK."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "not tested (skip per request)",
+    "frontend": "~85% (18/22 core checks pass; Platform theme + stat-card JSX migration missing)"
+  },
+  "test_credentials": {
+    "platform_owner": "9999999999 / owner123",
+    "admin": "8888888888 / admin123",
+    "resident": "5555555550 / newpass123"
+  },
+  "seed_data_creation": "None - used existing demo accounts",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Phase B UI tested. Two remaining fixes: (1) add '.role-platform_owner' CSS block OR change role prop in PlatformLayout.js to 'platform'; (2) migrate AdminDashboard + PlatformDashboard stat cards to '.stat-card' class. After fixes, verify: platform dashboard brand icon is purple (#534AB7), platform active sidebar item is purple, stat-cards show 3px role-accent left border. OTP flow + mobile bottom nav + drawer + More sheet all working correctly and do not need retesting.",
+  "rca of the issue": "Platform Owner accent mismatch RCA: RoleLayout.js line 66 generates className using template literal `role-${role}`. PlatformLayout.js passes role='platform_owner' (matching backend role value), producing class 'role-platform_owner'. However index.css line 50 defines only '.role-platform' (shortened form). When the expected CSS rule doesn't match, CSS variables fall back to :root scope (line 11: --accent-raw: #185FA5). All 4 color roles should be consistently named — admin/sub_admin/resident currently work because their role values happen to match CSS class names. Reproduction: login as 9999999999/owner123, inspect body — class='role-platform_owner' but document.body getComputedStyle returns --accent-raw: #185FA5. Mitigation: add '.role-platform_owner' CSS block mirroring '.role-platform' values."
+}

@@ -4,6 +4,7 @@ import { Building2, Eye, EyeOff, Phone, Lock, User, ChevronRight, ArrowLeft, Shi
 import { authAPI } from '../../lib/api';
 import useAuthStore from '../../store/authStore';
 import { toast } from 'sonner';
+import OtpInput from '../../components/ui/OtpInput';
 
 const Login = () => {
   const navigate = useNavigate();
@@ -768,10 +769,12 @@ const ForgotPassword = () => {
               )}
 
               <div className="space-y-4">
-                <input type="text" data-testid="forgot-otp-input" value={otp}
-                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                  className="input-field w-full text-center text-2xl tracking-[0.5em] font-mono"
-                  placeholder="------" maxLength={6} autoFocus />
+                <OtpInput
+                  value={otp}
+                  onChange={setOtp}
+                  testIdPrefix="forgot-otp"
+                  autoFocus
+                />
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-text-muted">
                     {otpTimer > 0 ? `Expires in ${Math.floor(otpTimer / 60)}:${String(otpTimer % 60).padStart(2, '0')}` : 'OTP expired'}

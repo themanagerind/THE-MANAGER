@@ -87,12 +87,13 @@ function App() {
       <Toaster 
         position="top-right" 
         richColors 
-        theme="dark"
         toastOptions={{
           style: {
-            background: '#1A2B3C',
-            border: '1px solid #2E4057',
-            color: '#ECF0F1',
+            background: '#FFFFFF',
+            border: '0.5px solid rgba(0,0,0,0.10)',
+            color: '#1A1A18',
+            fontFamily: 'Inter, sans-serif',
+            fontSize: '13px',
           },
         }}
       />
