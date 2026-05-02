@@ -62,11 +62,21 @@ Full-stack PWA for Housing Society Management with 4 roles: Platform Owner, Admi
 - [x] **Platform Owner: Create Society** - Add Society with Admin in one go (name, address, admin details)
 - [x] **Mobile Responsive Polish** - All pages optimized for mobile: responsive headers (page-header), scrollable tabs, hidden columns on small screens, touch-friendly buttons, reduced padding
 
+### Phase 4 - Feb 2026 (Design System overhaul)
+- [x] **Phase A — CSS foundation**: Inter font, role-based CSS variables (`--accent`, `--accent-raw`, `--accent-light`), `.role-platform/.role-admin/.role-sub_admin/.role-resident/.role-manager` classes, flat shadow-free design, `.btn-*`, `.card`, `.stat-card`, `.input-field`, `.badge-*`, `.table-*`, `.sidebar-item`, `.topbar` component classes. Tailwind safelist for dynamic role classes.
+- [x] **Phase B — Mobile + Components**:
+  - Unified `RoleLayout.js` with desktop dark sidebar (240px) + 56px topbar
+  - **Mobile bottom navigation bar** (64px, 4 items + More) with accent underline active state
+  - Mobile drawer (hamburger) with full nav + role switch + logout
+  - Mobile "More" sheet for overflow nav items
+  - **OTP input redesign** (`OtpInput.js`) — 6 separate boxes, auto-advance, backspace, paste support, accent focus ring
+  - Stat cards migrated to `.stat-card` with role-accent 3px left border on Admin/Platform/SubAdmin/Resident dashboards
+  - Toaster theme switched from dark → light to match new design system
+
 ## P0/P1 Features Remaining
 - [ ] P1: Push notifications for payment status changes
-- [ ] P1: Sub-Admin dashboard UI improvements
-- [ ] P1: File upload for expense receipts
-- [x] P2: Mobile responsive polish
+- [ ] P1: File upload for expense receipts (backend ready, frontend integration pending)
+- [ ] P1: Phase C — Feature-specific screens (Notice Board, Complaint detail, Haat Bazaar, Billing redesign)
 - [ ] P2: Real SMS integration (Fast2SMS/MSG91) - currently MOCKED
 - [ ] P2: Sub-Admin temporary password SMS on promotion
 - [ ] P3: Admin as Resident dual-role switching
@@ -74,6 +84,7 @@ Full-stack PWA for Housing Society Management with 4 roles: Platform Owner, Admi
 ## Demo Credentials
 - Platform Owner: 9999999999 / owner123
 - Admin: 8888888888 / admin123
+- Sub-Admin: 7777777777 / subadmin123
 - Test Resident: 5555555550 / newpass123
 
 ## Auth Flow
