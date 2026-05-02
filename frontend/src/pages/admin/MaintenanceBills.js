@@ -157,21 +157,36 @@ const MaintenanceBills = () => {
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   };
 
+  const monthLabel = (m) => {
+    if (!m) return '';
+    const [y, mm] = m.split('-');
+    const d = new Date(parseInt(y), parseInt(mm) - 1);
+    return d.toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
+  };
+
   if (loading) {
     return (
       <div className="animate-pulse space-y-6">
-        <div className="h-8 bg-bg-surface rounded w-48" />
-        <div className="h-96 bg-bg-surface rounded-xl" />
+        <div className="h-8 bg-bg-elevated rounded w-48" />
+        <div className="h-96 bg-bg-elevated rounded-xl" />
       </div>
     );
   }
+
+  // Aggregate summary for the selected batch
+  const activeBills = bills.filter((b) => !b.is_cancelled);
+  const verifiedCount = activeBills.filter((b) => b.status === 'verified').length;
+  const paidCount = activeBills.filter((b) => b.status === 'paid').length;
+  const pendingCount = activeBills.filter((b) => b.status === 'pending' || b.status === 'overdue').length;
+  const totalAmount = activeBills.reduce((s, b) => s + b.amount, 0);
+  const collectedAmount = activeBills.filter((b) => b.status === 'verified').reduce((s, b) => s + b.amount, 0);
 
   return (
     <div data-testid="maintenance-bills-page" className="space-y-6">
       <div className="page-header">
         <div>
-          <h1 className="text-[28px] font-bold text-text-primary">Maintenance Bills</h1>
-          <p className="text-text-secondary mt-1">Generate and manage monthly bills</p>
+          <h1>Maintenance Bills</h1>
+          <p className="text-[12px]" style={{ color: '#5F5E5A' }}>Generate and manage monthly bills</p>
         </div>
         <button
           onClick={() => {
@@ -181,41 +196,66 @@ const MaintenanceBills = () => {
           data-testid="generate-bills-btn"
           className="btn-primary flex items-center gap-2 w-full sm:w-auto justify-center"
         >
-          <Plus className="w-5 h-5" />
-          Generate Bills
+          <Plus className="w-4 h-4" /> Generate Bills
         </button>
       </div>
 
-      {/* Batches Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {batches.slice(0, 4).map((batch) => (
-          <button
-            key={batch.id}
-            onClick={() => setViewBillsMonth(batch.month)}
-            data-testid={`batch-${batch.month}`}
-            className={`card p-4 text-left transition-all ${
-              viewBillsMonth === batch.month ? 'ring-2 ring-accent' : ''
-            }`}
-          >
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-text-secondary text-sm">{batch.month}</span>
-              <Calendar className="w-4 h-4 text-text-muted" />
-            </div>
-            <p className="text-xl font-bold text-text-primary">
-              ₹{batch.total_amount.toLocaleString()}
-            </p>
-            <p className="text-sm text-text-secondary">
-              {batch.billed_flats} flats @ ₹{batch.amount_per_flat}
-            </p>
-          </button>
-        ))}
-      </div>
+      {/* Batch chips */}
+      {batches.length > 0 && (
+        <div className="tabs-scroll" data-testid="batch-chips">
+          {batches.slice(0, 12).map((batch) => {
+            const active = viewBillsMonth === batch.month;
+            return (
+              <button
+                key={batch.id}
+                onClick={() => setViewBillsMonth(batch.month)}
+                data-testid={`batch-${batch.month}`}
+                className="px-3 py-1.5 rounded-full text-[12px] font-medium transition-all whitespace-nowrap"
+                style={
+                  active
+                    ? { backgroundColor: 'var(--accent-raw)', color: '#FFFFFF' }
+                    : { backgroundColor: '#FFFFFF', color: '#1A1A18', border: '0.5px solid rgba(0,0,0,0.10)' }
+                }
+              >
+                {monthLabel(batch.month)}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Summary cards for selected batch */}
+      {viewBillsMonth && bills.length > 0 && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3" data-testid="bills-summary">
+          <div className="stat-card">
+            <p className="stat-label">Total bills</p>
+            <p className="stat-value">{bills.length}</p>
+            <p className="stat-sub" style={{ color: '#5F5E5A' }}>₹{totalAmount.toLocaleString()}</p>
+          </div>
+          <div className="stat-card">
+            <p className="stat-label">Verified</p>
+            <p className="stat-value" style={{ color: '#3B6D11' }}>{verifiedCount}</p>
+            <p className="stat-sub" style={{ color: '#3B6D11' }}>₹{collectedAmount.toLocaleString()} collected</p>
+          </div>
+          <div className="stat-card">
+            <p className="stat-label">Awaiting</p>
+            <p className="stat-value" style={{ color: '#0C447C' }}>{paidCount}</p>
+            <p className="stat-sub" style={{ color: '#5F5E5A' }}>verification pending</p>
+          </div>
+          <div className="stat-card">
+            <p className="stat-label">Pending</p>
+            <p className="stat-value text-outstanding">{pendingCount}</p>
+            <p className="stat-sub text-outstanding">unpaid</p>
+          </div>
+        </div>
+      )}
 
       {/* Bills Table */}
       {viewBillsMonth && (
         <div className="card overflow-hidden">
-          <div className="p-4 border-b border-border-color">
-            <h3 className="font-semibold text-text-primary">Bills for {viewBillsMonth}</h3>
+          <div className="px-4 py-3 flex items-center justify-between" style={{ borderBottom: '0.5px solid rgba(0,0,0,0.06)' }}>
+            <h2>Bills · {monthLabel(viewBillsMonth)}</h2>
+            <span className="badge-neutral">{bills.length}</span>
           </div>
           <div className="table-mobile-wrapper">
             <table className="w-full">
@@ -232,25 +272,26 @@ const MaintenanceBills = () => {
               <tbody>
                 {bills.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="p-8 text-center text-text-secondary">
-                      <Receipt className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                      <p>No bills found</p>
+                    <td colSpan={6} className="p-8 text-center" style={{ color: '#5F5E5A' }}>
+                      <Receipt className="w-10 h-10 mx-auto mb-2 opacity-40" />
+                      <p className="text-[12px]">No bills found for this month</p>
                     </td>
                   </tr>
                 ) : (
                   bills.map((bill) => (
-                    <tr key={bill.id} className="table-row">
-                      <td className="p-3 sm:p-4 font-medium text-text-primary">{bill.flat_number}</td>
-                      <td className="p-3 sm:p-4 text-text-primary text-sm">{bill.resident_name || '-'}</td>
-                      <td className="p-3 sm:p-4 text-text-primary hidden sm:table-cell">{bill.wing_name}</td>
-                      <td className="p-3 sm:p-4 text-text-primary">₹{bill.amount}</td>
+                    <tr key={bill.id} className="table-row" data-testid={`bill-${bill.id}`}>
+                      <td className="p-3 sm:p-4 font-medium" style={{ color: '#1A1A18' }}>{bill.flat_number}</td>
+                      <td className="p-3 sm:p-4 text-[12px]" style={{ color: '#1A1A18' }}>{bill.resident_name || '-'}</td>
+                      <td className="p-3 sm:p-4 hidden sm:table-cell text-[12px]" style={{ color: '#5F5E5A' }}>{bill.wing_name}</td>
+                      <td className="p-3 sm:p-4 font-medium" style={{ color: '#1A1A18' }}>₹{bill.amount}</td>
                       <td className="p-3 sm:p-4">{getStatusBadge(bill)}</td>
                       <td className="p-3 sm:p-4">
                         {!bill.is_cancelled && bill.status !== 'verified' && (
                           <button
                             onClick={() => handleCancelBill(bill.id)}
                             data-testid={`cancel-bill-${bill.id}`}
-                            className="text-sm text-danger hover:underline"
+                            className="text-[11px] hover:underline"
+                            style={{ color: '#A32D2D' }}
                           >
                             Cancel
                           </button>
@@ -259,7 +300,8 @@ const MaintenanceBills = () => {
                           <button
                             onClick={() => handleRestoreBill(bill.id)}
                             data-testid={`restore-bill-${bill.id}`}
-                            className="text-sm text-info hover:underline"
+                            className="text-[11px] hover:underline"
+                            style={{ color: '#0C447C' }}
                           >
                             Restore
                           </button>
@@ -276,81 +318,64 @@ const MaintenanceBills = () => {
 
       {/* Generate Modal */}
       <Dialog open={showGenerateModal} onOpenChange={setShowGenerateModal}>
-        <DialogContent className="bg-bg-surface border-border-color max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="text-text-primary">Generate Maintenance Bills</DialogTitle>
-          </DialogHeader>
-          
+        <DialogContent className="card max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Generate Maintenance Bills</DialogTitle></DialogHeader>
+
           {!preview ? (
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-text-secondary mb-2">
-                  Month
-                </label>
+                <label className="block text-[11px] uppercase tracking-wider font-medium mb-1.5" style={{ color: '#5F5E5A' }}>Month</label>
                 <input
                   type="month"
                   value={generateForm.month}
                   onChange={(e) => setGenerateForm({ ...generateForm, month: e.target.value })}
                   data-testid="month-input"
-                  className="input-field w-full"
+                  className="input-field"
                   required
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-text-secondary mb-2">
-                  Amount per Flat (₹)
-                </label>
+                <label className="block text-[11px] uppercase tracking-wider font-medium mb-1.5" style={{ color: '#5F5E5A' }}>Amount per Flat (₹)</label>
                 <input
                   type="number"
                   value={generateForm.amountPerFlat}
                   onChange={(e) => setGenerateForm({ ...generateForm, amountPerFlat: parseInt(e.target.value) })}
                   data-testid="amount-input"
-                  className="input-field w-full"
+                  className="input-field"
                   min="1"
                   required
                 />
               </div>
-              <div className="flex gap-3 justify-end">
-                <button
-                  onClick={() => setShowGenerateModal(false)}
-                  className="btn-secondary"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handlePreview}
-                  data-testid="preview-btn"
-                  className="btn-primary"
-                >
-                  Preview
-                </button>
+              <div className="flex gap-2 justify-end">
+                <button onClick={() => setShowGenerateModal(false)} className="btn-secondary">Cancel</button>
+                <button onClick={handlePreview} data-testid="preview-btn" className="btn-primary">Preview</button>
               </div>
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="grid grid-cols-3 gap-4">
-                <div className="card p-4 bg-bg-elevated">
-                  <p className="text-text-secondary text-sm">Total Flats</p>
-                  <p className="text-2xl font-bold text-text-primary">{preview.total_active_flats}</p>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="stat-card">
+                  <p className="stat-label">Total flats</p>
+                  <p className="stat-value">{preview.total_active_flats}</p>
                 </div>
-                <div className="card p-4 bg-bg-elevated">
-                  <p className="text-text-secondary text-sm">Amount/Flat</p>
-                  <p className="text-2xl font-bold text-text-primary">₹{preview.amount_per_flat}</p>
+                <div className="stat-card">
+                  <p className="stat-label">Per flat</p>
+                  <p className="stat-value">₹{preview.amount_per_flat}</p>
                 </div>
-                <div className="card p-4 bg-bg-elevated">
-                  <p className="text-text-secondary text-sm">Total Amount</p>
-                  <p className="text-2xl font-bold text-accent">
+                <div className="stat-card">
+                  <p className="stat-label">Total</p>
+                  <p className="stat-value" style={{ color: 'var(--accent-raw)' }}>
                     ₹{((preview.total_active_flats - excludedFlats.length) * preview.amount_per_flat).toLocaleString()}
                   </p>
                 </div>
               </div>
 
-              <div className="text-sm text-text-secondary flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4 text-warning" />
+              <div className="text-[12px] flex items-center gap-2" style={{ color: '#5F5E5A' }}>
+                <AlertTriangle className="w-4 h-4" style={{ color: '#854F0B' }} />
                 Click on a flat to exclude it from billing
               </div>
 
-              <div className="max-h-[400px] overflow-y-auto border border-border-color rounded-lg">
+              <div className="max-h-[400px] overflow-y-auto rounded-lg" style={{ border: '0.5px solid rgba(0,0,0,0.10)' }}>
                 <table className="w-full">
                   <thead className="table-header sticky top-0">
                     <tr>
@@ -369,30 +394,17 @@ const MaintenanceBills = () => {
                           key={flat.id}
                           onClick={() => handleExcludeFlat(flat.id)}
                           data-testid={`preview-flat-${flat.id}`}
-                          className={`cursor-pointer transition-colors ${
-                            isExcluded
-                              ? 'bg-danger/10 hover:bg-danger/20'
-                              : 'hover:bg-bg-elevated'
-                          }`}
+                          className="cursor-pointer transition-colors table-row"
+                          style={isExcluded ? { backgroundColor: '#FCEBEB' } : undefined}
                         >
-                          <td className={`p-3 ${isExcluded ? 'text-danger' : 'text-text-primary'}`}>
-                            {flat.number}
-                          </td>
-                          <td className={`p-3 ${isExcluded ? 'text-danger' : 'text-text-primary'}`}>
-                            {flat.wing_name}
-                          </td>
-                          <td className={`p-3 ${isExcluded ? 'text-danger' : 'text-text-primary'}`}>
-                            {flat.resident_name || '-'}
-                          </td>
-                          <td className={`p-3 ${isExcluded ? 'text-danger line-through' : 'text-text-primary'}`}>
+                          <td className="p-3" style={{ color: isExcluded ? '#A32D2D' : '#1A1A18' }}>{flat.number}</td>
+                          <td className="p-3" style={{ color: isExcluded ? '#A32D2D' : '#1A1A18' }}>{flat.wing_name}</td>
+                          <td className="p-3" style={{ color: isExcluded ? '#A32D2D' : '#1A1A18' }}>{flat.resident_name || '-'}</td>
+                          <td className="p-3" style={{ color: isExcluded ? '#A32D2D' : '#1A1A18', textDecoration: isExcluded ? 'line-through' : 'none' }}>
                             ₹{flat.amount}
                           </td>
                           <td className="p-3">
-                            {isExcluded ? (
-                              <span className="badge-danger">Excluded</span>
-                            ) : (
-                              <span className="badge-success">Include</span>
-                            )}
+                            {isExcluded ? <span className="badge-danger">Excluded</span> : <span className="badge-success">Include</span>}
                           </td>
                         </tr>
                       );
@@ -401,13 +413,8 @@ const MaintenanceBills = () => {
                 </table>
               </div>
 
-              <div className="flex gap-3 justify-end">
-                <button
-                  onClick={() => setPreview(null)}
-                  className="btn-secondary"
-                >
-                  Back
-                </button>
+              <div className="flex gap-2 justify-end">
+                <button onClick={() => setPreview(null)} className="btn-secondary">Back</button>
                 <button
                   onClick={handleGenerate}
                   disabled={generating}

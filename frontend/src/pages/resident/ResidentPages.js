@@ -97,6 +97,7 @@ const MyBills = () => {
   const [selectedBill, setSelectedBill] = useState(null);
   const [paymentForm, setPaymentForm] = useState({ mode: 'upi', ref: '' });
   const [paying, setPaying] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
 
   const fetchBills = async () => {
     try {
@@ -129,78 +130,158 @@ const MyBills = () => {
     }
   };
 
-  const getStatusBadge = (bill) => {
+  const getStatusInfo = (bill) => {
     switch (bill.status) {
-      case 'verified': return <span className="badge-success">Verified</span>;
-      case 'paid': return <span className="badge-info">Awaiting Verification</span>;
-      case 'pending': return <span className="badge-warning">Pending</span>;
-      case 'overdue': return <span className="badge-danger">Overdue</span>;
-      default: return <span className="badge-info">{bill.status}</span>;
+      case 'verified': return { label: 'Verified', cls: 'badge-success', sub: 'Payment confirmed' };
+      case 'paid': return { label: 'Awaiting Verification', cls: 'badge-info', sub: 'Submitted, pending review' };
+      case 'pending': return { label: 'Pending', cls: 'badge-warning', sub: 'Action required' };
+      case 'overdue': return { label: 'Overdue', cls: 'badge-danger', sub: 'Past due date' };
+      default: return { label: bill.status, cls: 'badge-neutral', sub: '' };
     }
   };
 
+  const monthLabel = (m) => {
+    if (!m) return '';
+    const [y, mm] = m.split('-');
+    const d = new Date(parseInt(y), parseInt(mm) - 1);
+    return d.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+  };
+
   if (loading) {
-    return <div className="animate-pulse space-y-6"><div className="h-8 bg-bg-surface rounded w-48" /><div className="h-96 bg-bg-surface rounded-xl" /></div>;
+    return (
+      <div className="animate-pulse space-y-6">
+        <div className="h-8 bg-bg-elevated rounded w-48" />
+        <div className="h-32 bg-bg-elevated rounded-xl" />
+        <div className="space-y-3">{[...Array(3)].map((_, i) => <div key={i} className="h-20 bg-bg-elevated rounded-xl" />)}</div>
+      </div>
+    );
   }
+
+  const pendingBills = bills.filter((b) => b.status === 'pending' || b.status === 'overdue');
+  const submittedBills = bills.filter((b) => b.status === 'paid');
+  const verifiedBills = bills.filter((b) => b.status === 'verified');
+  const totalPending = pendingBills.reduce((s, b) => s + b.amount, 0);
+  const nextDue = pendingBills[0];
 
   return (
     <div data-testid="my-bills-page" className="space-y-6">
       <div>
-        <h1 className="text-[28px] font-bold text-text-primary">My Bills</h1>
-        <p className="text-text-secondary mt-1">View and pay your maintenance bills</p>
+        <h1>My Bills</h1>
+        <p className="text-[12px]" style={{ color: '#5F5E5A' }}>Maintenance billing & payments</p>
       </div>
-      <div className="card overflow-hidden">
-        <div className="table-mobile-wrapper">
-          <table className="w-full">
-            <thead className="table-header">
-              <tr>
-                <th className="text-left p-3 sm:p-4">Month</th>
-                <th className="text-left p-3 sm:p-4">Amount</th>
-                <th className="text-left p-3 sm:p-4">Status</th>
-                <th className="text-left p-3 sm:p-4 hidden sm:table-cell">Payment</th>
-                <th className="text-left p-3 sm:p-4">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {bills.length === 0 ? (
-                <tr><td colSpan={5} className="p-8 text-center text-text-secondary">
-                  <Receipt className="w-12 h-12 mx-auto mb-2 opacity-50" /><p>No bills found</p>
-                </td></tr>
-              ) : bills.map((bill) => (
-                <tr key={bill.id} className="table-row">
-                  <td className="p-3 sm:p-4 font-medium text-text-primary text-sm">{bill.month}</td>
-                  <td className="p-3 sm:p-4 text-text-primary text-sm">{bill.amount}</td>
-                  <td className="p-3 sm:p-4">{getStatusBadge(bill)}</td>
-                  <td className="p-3 sm:p-4 text-text-secondary text-sm hidden sm:table-cell">
-                    {bill.payment_mode ? <span>{bill.payment_mode.toUpperCase()} - {bill.payment_ref}</span> : '-'}
-                  </td>
-                  <td className="p-3 sm:p-4">
-                    {(bill.status === 'pending' || bill.status === 'overdue') && (
-                      <button onClick={() => { setSelectedBill(bill); setShowPayModal(true); }}
-                        data-testid={`pay-bill-${bill.id}`} className="btn-primary text-xs sm:text-sm py-1 px-2 sm:px-3">Pay Now</button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+
+      {/* Summary hero */}
+      <div
+        className="rounded-xl p-5 sm:p-6"
+        style={{
+          backgroundColor: pendingBills.length > 0 ? '#FCEBEB' : 'var(--accent-light)',
+          border: '0.5px solid rgba(0,0,0,0.06)',
+        }}
+        data-testid="bills-summary-hero"
+      >
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div>
+            <p className="text-[10px] uppercase tracking-wider font-medium" style={{ color: pendingBills.length > 0 ? '#A32D2D' : 'var(--accent-raw)' }}>
+              {pendingBills.length > 0 ? 'Outstanding amount' : 'All settled'}
+            </p>
+            <p className="text-[32px] font-medium leading-tight mt-1" style={{ color: pendingBills.length > 0 ? '#A32D2D' : '#1A1A18' }}>
+              ₹{totalPending.toLocaleString()}
+            </p>
+            <p className="text-[12px] mt-1" style={{ color: '#5F5E5A' }}>
+              {pendingBills.length > 0
+                ? `${pendingBills.length} ${pendingBills.length === 1 ? 'bill' : 'bills'} due`
+                : 'No pending bills. Great job!'}
+            </p>
+          </div>
+          {nextDue && (
+            <button
+              onClick={() => { setSelectedBill(nextDue); setShowPayModal(true); }}
+              data-testid="pay-next-btn"
+              className="btn-primary flex items-center gap-2"
+            >
+              Pay {monthLabel(nextDue.month)} <ArrowUpRight className="w-4 h-4" />
+            </button>
+          )}
         </div>
       </div>
 
-      <Dialog open={showPayModal} onOpenChange={setShowPayModal}>
-        <DialogContent className="bg-bg-surface border-border-color">
-          <DialogHeader><DialogTitle className="text-text-primary">Submit Payment</DialogTitle></DialogHeader>
-          <div className="mb-4 p-4 bg-bg-elevated rounded-lg">
-            <p className="text-text-secondary text-sm">Bill for</p>
-            <p className="text-xl font-bold text-text-primary">{selectedBill?.month}</p>
-            <p className="text-2xl font-bold text-accent">{selectedBill?.amount}</p>
+      {/* Pending list */}
+      {pendingBills.length > 0 && (
+        <section>
+          <div className="flex items-center gap-2 mb-2 px-1">
+            <span className="text-[10px] uppercase tracking-wider font-medium" style={{ color: '#A32D2D' }}>Action required</span>
+            <span className="text-[10px]" style={{ color: '#5F5E5A' }}>· {pendingBills.length}</span>
           </div>
+          <div className="space-y-2.5">
+            {pendingBills.map((bill) => (
+              <BillRow key={bill.id} bill={bill} status={getStatusInfo(bill)}
+                onPay={() => { setSelectedBill(bill); setShowPayModal(true); }} monthLabel={monthLabel} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Submitted (waiting verification) */}
+      {submittedBills.length > 0 && (
+        <section>
+          <div className="flex items-center gap-2 mb-2 px-1">
+            <span className="text-[10px] uppercase tracking-wider font-medium" style={{ color: '#0C447C' }}>Awaiting verification</span>
+            <span className="text-[10px]" style={{ color: '#5F5E5A' }}>· {submittedBills.length}</span>
+          </div>
+          <div className="space-y-2.5">
+            {submittedBills.map((bill) => (
+              <BillRow key={bill.id} bill={bill} status={getStatusInfo(bill)} monthLabel={monthLabel} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Verified history (collapsible) */}
+      {verifiedBills.length > 0 && (
+        <section>
+          <button
+            onClick={() => setShowHistory(!showHistory)}
+            data-testid="toggle-history-btn"
+            className="flex items-center gap-2 mb-2 px-1 hover:opacity-80"
+          >
+            <span className="text-[10px] uppercase tracking-wider font-medium" style={{ color: '#3B6D11' }}>Verified history</span>
+            <span className="text-[10px]" style={{ color: '#5F5E5A' }}>· {verifiedBills.length}</span>
+            <span className="text-[11px] underline" style={{ color: '#5F5E5A' }}>{showHistory ? 'Hide' : 'Show'}</span>
+          </button>
+          {showHistory && (
+            <div className="space-y-2.5">
+              {verifiedBills.map((bill) => (
+                <BillRow key={bill.id} bill={bill} status={getStatusInfo(bill)} monthLabel={monthLabel} />
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
+      {bills.length === 0 && (
+        <div className="card p-10 text-center">
+          <Receipt className="w-10 h-10 mx-auto mb-3 opacity-40" />
+          <h2>No bills yet</h2>
+          <p className="text-[12px] mt-1" style={{ color: '#5F5E5A' }}>Your maintenance bills will appear here</p>
+        </div>
+      )}
+
+      <Dialog open={showPayModal} onOpenChange={setShowPayModal}>
+        <DialogContent className="card max-w-md">
+          <DialogHeader><DialogTitle>Submit payment</DialogTitle></DialogHeader>
+          {selectedBill && (
+            <div className="rounded-lg p-4 mb-3" style={{ backgroundColor: 'var(--accent-light)' }}>
+              <p className="text-[10px] uppercase tracking-wider font-medium" style={{ color: 'var(--accent-raw)' }}>Bill for</p>
+              <p className="text-[15px] font-medium mt-0.5" style={{ color: '#1A1A18' }}>{monthLabel(selectedBill.month)}</p>
+              <p className="text-[26px] font-medium mt-1" style={{ color: 'var(--accent-raw)' }}>₹{selectedBill.amount.toLocaleString()}</p>
+            </div>
+          )}
           <form onSubmit={handlePay} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-text-secondary mb-2">Payment Mode</label>
+              <label className="block text-[11px] uppercase tracking-wider font-medium mb-1.5" style={{ color: '#5F5E5A' }}>Payment Mode</label>
               <select value={paymentForm.mode}
                 onChange={(e) => setPaymentForm({ ...paymentForm, mode: e.target.value })}
-                data-testid="payment-mode-select" className="input-field w-full">
+                data-testid="payment-mode-select" className="input-field">
                 <option value="upi">UPI</option>
                 <option value="cash">Cash</option>
                 <option value="bank">Bank Transfer</option>
@@ -208,12 +289,12 @@ const MyBills = () => {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-text-secondary mb-2">Reference Number / Transaction ID</label>
+              <label className="block text-[11px] uppercase tracking-wider font-medium mb-1.5" style={{ color: '#5F5E5A' }}>Reference / Transaction ID</label>
               <input type="text" value={paymentForm.ref}
                 onChange={(e) => setPaymentForm({ ...paymentForm, ref: e.target.value })}
-                data-testid="payment-ref-input" className="input-field w-full" placeholder="Enter reference number" required />
+                data-testid="payment-ref-input" className="input-field" placeholder="Enter reference number" required />
             </div>
-            <div className="flex gap-3 justify-end">
+            <div className="flex gap-2 justify-end">
               <button type="button" onClick={() => setShowPayModal(false)} className="btn-secondary">Cancel</button>
               <button type="submit" disabled={paying} data-testid="submit-payment-btn"
                 className="btn-primary disabled:opacity-50">{paying ? 'Submitting...' : 'Submit Payment'}</button>
@@ -224,6 +305,44 @@ const MyBills = () => {
     </div>
   );
 };
+
+const BillRow = ({ bill, status, onPay, monthLabel }) => (
+  <div className="card p-4 flex items-center gap-3" data-testid={`bill-row-${bill.id}`}>
+    <div className="flex-shrink-0">
+      <div
+        className="w-10 h-10 rounded-lg flex items-center justify-center"
+        style={{ backgroundColor: 'var(--accent-light)' }}
+      >
+        <Receipt className="w-5 h-5" style={{ color: 'var(--accent-raw)' }} />
+      </div>
+    </div>
+    <div className="flex-1 min-w-0">
+      <div className="flex items-center gap-2 flex-wrap">
+        <p className="text-[14px] font-medium leading-tight" style={{ color: '#1A1A18' }}>
+          {monthLabel(bill.month)}
+        </p>
+        <span className={status.cls}>{status.label}</span>
+      </div>
+      <p className="text-[11px] mt-0.5" style={{ color: '#5F5E5A' }}>
+        {bill.payment_mode ? `${bill.payment_mode.toUpperCase()} · ${bill.payment_ref}` : status.sub}
+      </p>
+    </div>
+    <div className="text-right flex-shrink-0">
+      <p className="text-[15px] font-medium leading-tight" style={{ color: '#1A1A18' }}>
+        ₹{bill.amount.toLocaleString()}
+      </p>
+      {onPay && (
+        <button
+          onClick={onPay}
+          data-testid={`pay-bill-${bill.id}`}
+          className="btn-primary mt-1.5 !py-1 !px-2.5 !text-[11px]"
+        >
+          Pay Now
+        </button>
+      )}
+    </div>
+  </div>
+);
 
 const WalletPage = () => {
   const [wallet, setWallet] = useState({ balance: 0, transactions: [] });
