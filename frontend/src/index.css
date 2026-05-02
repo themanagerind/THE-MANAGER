@@ -47,7 +47,8 @@
     }
 
     /* Role accent overrides */
-    .role-platform  { --accent: 249 43% 50%; --accent-raw: #534AB7; --accent-light: #EEEDFE; --accent-dark: #26215C; }
+    .role-platform,
+    .role-platform_owner { --accent: 249 43% 50%; --accent-raw: #534AB7; --accent-light: #EEEDFE; --accent-dark: #26215C; }
     .role-admin     { --accent: 216 72% 37%; --accent-raw: #185FA5; --accent-light: #E6F1FB; --accent-dark: #042C53; }
     .role-sub_admin { --accent: 162 75% 25%; --accent-raw: #0F6E56; --accent-light: #E1F5EE; --accent-dark: #04342C; }
     .role-resident  { --accent: 245 53% 67%; --accent-raw: #7F77DD; --accent-light: #EEEDFE; --accent-dark: #26215C; }

@@ -72,16 +72,16 @@ const AdminDashboard = () => {
         <p className="text-text-secondary mt-1">Welcome back, {user?.name}</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
         {statCards.map((stat, i) => (
-          <div key={i} className="card p-6">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-text-secondary text-sm">{stat.label}</p>
-                <p className="text-3xl font-bold text-text-primary mt-2">{stat.value}</p>
+          <div key={i} className="stat-card" data-testid={`admin-stat-${i}`}>
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <p className="stat-label">{stat.label}</p>
+                <p className="stat-value">{stat.value}</p>
               </div>
-              <div className={`p-3 rounded-lg bg-bg-elevated ${stat.color}`}>
-                <stat.icon className="w-6 h-6" />
+              <div className={`p-2 rounded-lg ${stat.color}`} style={{ backgroundColor: 'var(--accent-light)' }}>
+                <stat.icon className="w-5 h-5" />
               </div>
             </div>
           </div>

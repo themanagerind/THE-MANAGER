@@ -5,6 +5,14 @@ module.exports = {
         "./src/**/*.{js,jsx,ts,tsx}",
         "./public/index.html"
     ],
+    safelist: [
+        'role-platform',
+        'role-platform_owner',
+        'role-admin',
+        'role-sub_admin',
+        'role-resident',
+        'role-manager',
+    ],
     theme: {
         extend: {
             fontFamily: {

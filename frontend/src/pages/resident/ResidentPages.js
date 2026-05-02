@@ -54,35 +54,35 @@ const ResidentDashboard = () => {
         <h1 className="text-[28px] font-bold text-text-primary">Welcome, {user?.name}</h1>
         <p className="text-text-secondary mt-1">Your society dashboard</p>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="card p-6">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-text-secondary text-sm">Pending Bills</p>
-              <p className="text-3xl font-bold text-danger mt-2">{pendingBills.length}</p>
-              <p className="text-danger text-sm mt-1">{totalPending.toLocaleString()} total</p>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
+        <div className="stat-card" data-testid="resident-stat-pending">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <p className="stat-label">Pending Bills</p>
+              <p className="stat-value text-outstanding">{pendingBills.length}</p>
+              <p className="stat-sub text-outstanding">₹{totalPending.toLocaleString()} total</p>
             </div>
-            <div className="p-3 rounded-lg bg-danger/20 text-danger"><Receipt className="w-6 h-6" /></div>
+            <div className="p-2 rounded-lg" style={{ backgroundColor: '#FCEBEB', color: '#A32D2D' }}><Receipt className="w-5 h-5" /></div>
           </div>
         </div>
-        <div className="card p-6">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-text-secondary text-sm">Wallet Balance</p>
-              <p className="text-3xl font-bold text-success mt-2">{wallet.balance}</p>
-              <p className="text-success text-sm mt-1">points</p>
+        <div className="stat-card" data-testid="resident-stat-wallet">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <p className="stat-label">Wallet Balance</p>
+              <p className="stat-value" style={{ color: '#3B6D11' }}>{wallet.balance}</p>
+              <p className="stat-sub" style={{ color: '#3B6D11' }}>points</p>
             </div>
-            <div className="p-3 rounded-lg bg-success/20 text-success"><Wallet className="w-6 h-6" /></div>
+            <div className="p-2 rounded-lg" style={{ backgroundColor: '#EAF3DE', color: '#3B6D11' }}><Wallet className="w-5 h-5" /></div>
           </div>
         </div>
-        <div className="card p-6">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-text-secondary text-sm">Total Paid</p>
-              <p className="text-3xl font-bold text-info mt-2">{bills.filter(b => b.status === 'verified').length}</p>
-              <p className="text-info text-sm mt-1">bills this year</p>
+        <div className="stat-card" data-testid="resident-stat-paid">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <p className="stat-label">Total Paid</p>
+              <p className="stat-value" style={{ color: '#0C447C' }}>{bills.filter(b => b.status === 'verified').length}</p>
+              <p className="stat-sub" style={{ color: '#0C447C' }}>bills this year</p>
             </div>
-            <div className="p-3 rounded-lg bg-info/20 text-info"><CheckCircle className="w-6 h-6" /></div>
+            <div className="p-2 rounded-lg" style={{ backgroundColor: '#E6F1FB', color: '#0C447C' }}><CheckCircle className="w-5 h-5" /></div>
           </div>
         </div>
       </div>
