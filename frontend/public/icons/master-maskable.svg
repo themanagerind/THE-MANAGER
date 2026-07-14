@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <!-- Full-bleed accent bg for maskable (no border radius, extended safe zone) -->
+  <rect width="512" height="512" fill="#185FA5"/>
+  <!-- Building centered smaller for maskable safe zone (80% of 512 = 410, center 256) -->
+  <g transform="translate(150, 152)" fill="#FFFFFF">
+    <rect x="18" y="60" width="176" height="130" rx="6"/>
+    <path d="M10 66 L106 6 L202 66 Z" fill="#FFFFFF"/>
+    <rect x="40" y="86" width="22" height="22" rx="3" fill="#185FA5"/>
+    <rect x="72" y="86" width="22" height="22" rx="3" fill="#185FA5"/>
+    <rect x="118" y="86" width="22" height="22" rx="3" fill="#185FA5"/>
+    <rect x="150" y="86" width="22" height="22" rx="3" fill="#185FA5"/>
+    <rect x="40" y="120" width="22" height="22" rx="3" fill="#185FA5"/>
+    <rect x="72" y="120" width="22" height="22" rx="3" fill="#185FA5"/>
+    <rect x="118" y="120" width="22" height="22" rx="3" fill="#185FA5"/>
+    <rect x="150" y="120" width="22" height="22" rx="3" fill="#185FA5"/>
+    <rect x="94" y="156" width="24" height="34" rx="3" fill="#185FA5"/>
+  </g>
+</svg>

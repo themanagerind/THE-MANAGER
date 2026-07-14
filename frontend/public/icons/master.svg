@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#185FA5"/>
+  <!-- Building outline: modern housing society -->
+  <g transform="translate(112, 128)" fill="#FFFFFF">
+    <!-- Main building -->
+    <rect x="24" y="80" width="240" height="176" rx="8"/>
+    <!-- Roof -->
+    <path d="M14 88 L144 8 L274 88 Z" fill="#FFFFFF"/>
+    <!-- Windows row 1 -->
+    <rect x="52" y="112" width="32" height="32" rx="4" fill="#185FA5"/>
+    <rect x="100" y="112" width="32" height="32" rx="4" fill="#185FA5"/>
+    <rect x="156" y="112" width="32" height="32" rx="4" fill="#185FA5"/>
+    <rect x="204" y="112" width="32" height="32" rx="4" fill="#185FA5"/>
+    <!-- Windows row 2 -->
+    <rect x="52" y="160" width="32" height="32" rx="4" fill="#185FA5"/>
+    <rect x="100" y="160" width="32" height="32" rx="4" fill="#185FA5"/>
+    <rect x="156" y="160" width="32" height="32" rx="4" fill="#185FA5"/>
+    <rect x="204" y="160" width="32" height="32" rx="4" fill="#185FA5"/>
+    <!-- Door -->
+    <rect x="128" y="208" width="32" height="48" rx="4" fill="#185FA5"/>
+  </g>
+</svg>
