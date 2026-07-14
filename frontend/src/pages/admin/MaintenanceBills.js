@@ -8,6 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../../components/ui/dialog';
+import { ReasonDialog } from '../../components/ConfirmDialogs';
 
 const MaintenanceBills = () => {
   const [batches, setBatches] = useState([]);
@@ -24,6 +25,8 @@ const MaintenanceBills = () => {
   const [cancelReasons, setCancelReasons] = useState({});
   const [generating, setGenerating] = useState(false);
   const [viewBillsMonth, setViewBillsMonth] = useState('');
+  const [excludeFlatId, setExcludeFlatId] = useState(null);
+  const [cancelBillId, setCancelBillId] = useState(null);
 
   const fetchData = async () => {
     try {
@@ -83,12 +86,14 @@ const MaintenanceBills = () => {
       delete newReasons[flatId];
       setCancelReasons(newReasons);
     } else {
-      const reason = prompt('Enter reason for excluding this flat:');
-      if (reason) {
-        setExcludedFlats([...excludedFlats, flatId]);
-        setCancelReasons({ ...cancelReasons, [flatId]: reason });
-      }
+      setExcludeFlatId(flatId);
     }
+  };
+
+  const confirmExcludeFlat = (reason) => {
+    setExcludedFlats([...excludedFlats, excludeFlatId]);
+    setCancelReasons({ ...cancelReasons, [excludeFlatId]: reason });
+    setExcludeFlatId(null);
   };
 
   const handleGenerate = async () => {
@@ -111,16 +116,15 @@ const MaintenanceBills = () => {
     }
   };
 
-  const handleCancelBill = async (billId) => {
-    const reason = prompt('Enter reason for cancellation:');
-    if (!reason) return;
-    
+  const handleCancelBill = async (reason) => {
     try {
-      await maintenanceAPI.cancelBill(billId, reason);
+      await maintenanceAPI.cancelBill(cancelBillId, reason);
       toast.success('Bill cancelled');
       fetchBills(viewBillsMonth);
     } catch (e) {
       toast.error(e.response?.data?.detail || 'Failed to cancel bill');
+    } finally {
+      setCancelBillId(null);
     }
   };
 
@@ -288,7 +292,7 @@ const MaintenanceBills = () => {
                       <td className="p-3 sm:p-4">
                         {!bill.is_cancelled && bill.status !== 'verified' && (
                           <button
-                            onClick={() => handleCancelBill(bill.id)}
+                            onClick={() => setCancelBillId(bill.id)}
                             data-testid={`cancel-bill-${bill.id}`}
                             className="text-[11px] hover:underline"
                             style={{ color: '#A32D2D' }}
@@ -428,6 +432,28 @@ const MaintenanceBills = () => {
           )}
         </DialogContent>
       </Dialog>
+
+      <ReasonDialog
+        open={!!excludeFlatId}
+        onOpenChange={(open) => !open && setExcludeFlatId(null)}
+        title="Exclude Flat"
+        description="Enter the reason for excluding this flat from bill generation."
+        placeholder="e.g. Flat vacant this month"
+        submitLabel="Exclude Flat"
+        onSubmit={confirmExcludeFlat}
+        testIdPrefix="exclude-flat"
+      />
+
+      <ReasonDialog
+        open={!!cancelBillId}
+        onOpenChange={(open) => !open && setCancelBillId(null)}
+        title="Cancel Bill"
+        description="Enter the reason for cancelling this bill."
+        placeholder="e.g. Duplicate bill generated"
+        submitLabel="Cancel Bill"
+        onSubmit={handleCancelBill}
+        testIdPrefix="cancel-bill"
+      />
     </div>
   );
 };

@@ -9,6 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../../components/ui/dialog';
+import { ConfirmDialog } from '../../components/ConfirmDialogs';
 
 const AdminDashboard = () => {
   const { user } = useAuthStore();
@@ -98,6 +99,7 @@ const WingsManager = () => {
   const [showModal, setShowModal] = useState(false);
   const [newWingName, setNewWingName] = useState('');
   const [saving, setSaving] = useState(false);
+  const [deleteWingId, setDeleteWingId] = useState(null);
 
   const fetchWings = async () => {
     try {
@@ -132,15 +134,15 @@ const WingsManager = () => {
     }
   };
 
-  const handleDeleteWing = async (wingId) => {
-    if (!window.confirm('Are you sure you want to delete this wing?')) return;
-    
+  const handleDeleteWing = async () => {
     try {
-      await adminAPI.deleteWing(wingId);
+      await adminAPI.deleteWing(deleteWingId);
       toast.success('Wing deleted');
       fetchWings();
     } catch (e) {
       toast.error(e.response?.data?.detail || 'Failed to delete wing');
+    } finally {
+      setDeleteWingId(null);
     }
   };
 
@@ -195,7 +197,7 @@ const WingsManager = () => {
                   <Building2 className="w-6 h-6 text-accent" />
                 </div>
                 <button
-                  onClick={() => handleDeleteWing(wing.id)}
+                  onClick={() => setDeleteWingId(wing.id)}
                   data-testid={`delete-wing-${wing.id}`}
                   className="p-2 text-text-muted hover:text-danger hover:bg-danger/10 rounded-lg transition-colors"
                 >
@@ -251,6 +253,16 @@ const WingsManager = () => {
           </form>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={!!deleteWingId}
+        onOpenChange={(open) => !open && setDeleteWingId(null)}
+        title="Delete Wing?"
+        description="Are you sure you want to delete this wing? This action cannot be undone."
+        confirmLabel="Yes, Delete"
+        onConfirm={handleDeleteWing}
+        testIdPrefix="delete-wing"
+      />
     </div>
   );
 };
@@ -458,6 +470,7 @@ const ResidentsManager = () => {
   const [filter, setFilter] = useState('all');
   const [loading, setLoading] = useState(true);
   const [wings, setWings] = useState([]);
+  const [rejectResidentId, setRejectResidentId] = useState(null);
 
   const fetchData = async () => {
     try {
@@ -488,14 +501,15 @@ const ResidentsManager = () => {
     }
   };
 
-  const handleReject = async (residentId) => {
-    if (!window.confirm('Are you sure you want to reject this resident?')) return;
+  const handleReject = async () => {
     try {
-      await adminAPI.rejectResident(residentId);
+      await adminAPI.rejectResident(rejectResidentId);
       toast.success('Resident rejected');
       fetchData();
     } catch (e) {
       toast.error('Failed to reject resident');
+    } finally {
+      setRejectResidentId(null);
     }
   };
 
@@ -604,7 +618,7 @@ const ResidentsManager = () => {
                               <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5" />
                             </button>
                             <button
-                              onClick={() => handleReject(resident.id)}
+                              onClick={() => setRejectResidentId(resident.id)}
                               data-testid={`reject-resident-${resident.id}`}
                               className="p-1.5 sm:p-2 bg-danger/20 text-danger rounded-lg hover:bg-danger/30 transition-colors"
                             >
@@ -640,6 +654,16 @@ const ResidentsManager = () => {
           </table>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={!!rejectResidentId}
+        onOpenChange={(open) => !open && setRejectResidentId(null)}
+        title="Reject Resident?"
+        description="Are you sure you want to reject this resident's registration request?"
+        confirmLabel="Yes, Reject"
+        onConfirm={handleReject}
+        testIdPrefix="reject-resident"
+      />
     </div>
   );
 };

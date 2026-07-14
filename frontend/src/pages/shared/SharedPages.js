@@ -12,6 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../../components/ui/dialog';
+import { ConfirmDialog } from '../../components/ConfirmDialogs';
 
 // ============== Time-ago helper ==============
 const timeAgo = (dateStr) => {
@@ -37,6 +38,7 @@ const NoticesPage = () => {
   const [showModal, setShowModal] = useState(false);
   const [formData, setFormData] = useState({ title: '', content: '', is_pinned: false });
   const [saving, setSaving] = useState(false);
+  const [deleteNoticeId, setDeleteNoticeId] = useState(null);
 
   const isAdmin = user?.role === 'admin';
 
@@ -69,14 +71,15 @@ const NoticesPage = () => {
     }
   };
 
-  const handleDelete = async (noticeId) => {
-    if (!window.confirm('Delete this notice?')) return;
+  const handleDelete = async () => {
     try {
-      await miscAPI.deleteNotice(noticeId);
+      await miscAPI.deleteNotice(deleteNoticeId);
       toast.success('Notice deleted');
       fetchNotices();
     } catch (e) {
       toast.error('Failed to delete notice');
+    } finally {
+      setDeleteNoticeId(null);
     }
   };
 
@@ -139,7 +142,7 @@ const NoticesPage = () => {
               </div>
               <div className="space-y-3">
                 {pinned.map((n) => (
-                  <NoticeCard key={n.id} notice={n} isAdmin={isAdmin} onDelete={handleDelete} accent />
+                  <NoticeCard key={n.id} notice={n} isAdmin={isAdmin} onDelete={setDeleteNoticeId} accent />
                 ))}
               </div>
             </div>
@@ -156,7 +159,7 @@ const NoticesPage = () => {
               )}
               <div className="space-y-3">
                 {others.map((n) => (
-                  <NoticeCard key={n.id} notice={n} isAdmin={isAdmin} onDelete={handleDelete} />
+                  <NoticeCard key={n.id} notice={n} isAdmin={isAdmin} onDelete={setDeleteNoticeId} />
                 ))}
               </div>
             </div>
@@ -236,6 +239,16 @@ const NoticesPage = () => {
           </form>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={!!deleteNoticeId}
+        onOpenChange={(open) => !open && setDeleteNoticeId(null)}
+        title="Delete Notice?"
+        description="Are you sure you want to delete this notice? This action cannot be undone."
+        confirmLabel="Yes, Delete"
+        onConfirm={handleDelete}
+        testIdPrefix="delete-notice"
+      />
     </div>
   );
 };
