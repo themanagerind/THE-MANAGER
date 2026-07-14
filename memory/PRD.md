@@ -125,3 +125,6 @@ Mobile -> OTP -> Verify -> New Password -> Login
 ## MOCKED Features
 - OTP SMS: Returns mock_otp in API response (no real SMS sent)
 - Bazaar External API: Not a real service - redeem will fail with connection error
+
+## PWA (June 2026)
+- [x] PWA Install Fix: manifest.json uses PNG icons (72-512 sizes, purpose any + separate maskable 192/512), index.html has favicon-32.png + /icons/apple-touch-icon.png links, sw.js cache bumped to societyhub-v2 with icons pre-cached. SW registered & activated — install criteria verified in browser.

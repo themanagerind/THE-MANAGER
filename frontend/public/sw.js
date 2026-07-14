@@ -1,11 +1,17 @@
 /* eslint-disable no-restricted-globals */
 
-const CACHE_NAME = 'societyhub-v1';
+const CACHE_NAME = 'societyhub-v2';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
   '/manifest.json',
-  '/offline.html'
+  '/offline.html',
+  '/favicon-32.png',
+  '/icons/apple-touch-icon.png',
+  '/icons/icon-192x192.png',
+  '/icons/icon-512x512.png',
+  '/icons/icon-maskable-192x192.png',
+  '/icons/icon-maskable-512x512.png'
 ];
 
 // Install event - cache static assets
