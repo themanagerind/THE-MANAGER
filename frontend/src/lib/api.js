@@ -67,6 +67,8 @@ export const platformAPI = {
   updateBazaarSettings: (data) => api.put('/platform/bazaar-settings', data),
   createSociety: (data) => api.post('/platform/societies', data),
   getSocieties: () => api.get('/platform/societies'),
+  updateSociety: (societyId, data) => api.put(`/platform/societies/${societyId}`, data),
+  deleteSociety: (societyId) => api.delete(`/platform/societies/${societyId}`),
 };
 
 // Admin APIs

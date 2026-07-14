@@ -59,7 +59,10 @@ Full-stack PWA for Housing Society Management with 4 roles: Platform Owner, Admi
 - [x] **P0 Bug Fix**: resident_id properly linked to flat on admin approval and password setup
 - [x] **Public API endpoints**: /societies, /wings, /flats for resident signup dropdowns
 - [x] **Account Status Check**: API to check if account exists and needs password setup
-- [x] **Platform Owner: Create Society** - Add Society with Admin in one go (name, address, admin details)
+- [x] **Platform Owner: Create Society** - Add Society with Admin in one go (name, address, location, admin details)
+- [x] **Platform Owner: Society Location field** (June 2026) - society_location required in create form, shown on card
+- [x] **Platform Owner: Edit Society** (June 2026) - PUT /api/platform/societies/{id} (name/address/location) via edit dialog
+- [x] **Platform Owner: Remove Society** (June 2026) - DELETE /api/platform/societies/{id} with AlertDialog confirm; cascades delete of users, wings, flats
 - [x] **Mobile Responsive Polish** - All pages optimized for mobile: responsive headers (page-header), scrollable tabs, hidden columns on small screens, touch-friendly buttons, reduced padding
 
 ### Phase 4 - Feb 2026 (Design System overhaul)

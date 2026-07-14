@@ -16,9 +16,15 @@ router = APIRouter(prefix="/platform", tags=["Platform Owner"])
 class CreateSocietyRequest(BaseModel):
     society_name: str
     society_address: str
+    society_location: str
     admin_name: str
     admin_mobile: str
     admin_password: str
+
+class UpdateSocietyRequest(BaseModel):
+    society_name: str
+    society_address: str
+    society_location: str
 
 @router.post("/societies")
 async def create_society(
@@ -32,7 +38,7 @@ async def create_society(
         raise HTTPException(status_code=400, detail="Admin with this mobile already exists")
     
     # Create society
-    society = Society(name=data.society_name, address=data.society_address, status="active")
+    society = Society(name=data.society_name, address=data.society_address, location=data.society_location, status="active")
     society_dict = society.model_dump()
     society_dict['created_at'] = society_dict['created_at'].isoformat()
     
@@ -78,6 +84,48 @@ async def get_all_societies(current_user: dict = Depends(require_role("platform_
             "admin": {"name": admin["name"], "mobile": admin["mobile"], "status": admin["status"]} if admin else None
         })
     return result
+
+@router.put("/societies/{society_id}")
+async def update_society(
+    society_id: str,
+    data: UpdateSocietyRequest,
+    current_user: dict = Depends(require_role("platform_owner"))
+):
+    """Update society name, address and location"""
+    society = await societies_collection.find_one({"id": society_id})
+    if not society:
+        raise HTTPException(status_code=404, detail="Society not found")
+
+    await societies_collection.update_one(
+        {"id": society_id},
+        {"$set": {
+            "name": data.society_name,
+            "address": data.society_address,
+            "location": data.society_location
+        }}
+    )
+    return {"message": "Society updated successfully"}
+
+@router.delete("/societies/{society_id}")
+async def delete_society(
+    society_id: str,
+    current_user: dict = Depends(require_role("platform_owner"))
+):
+    """Delete a society along with its users, wings and flats"""
+    from ..core.database import wings_collection, flats_collection
+
+    society = await societies_collection.find_one({"id": society_id})
+    if not society:
+        raise HTTPException(status_code=404, detail="Society not found")
+
+    wing_ids = [w["id"] async for w in wings_collection.find({"society_id": society_id}, {"id": 1})]
+    if wing_ids:
+        await flats_collection.delete_many({"wing_id": {"$in": wing_ids}})
+    await wings_collection.delete_many({"society_id": society_id})
+    await users_collection.delete_many({"society_id": society_id})
+    await societies_collection.delete_one({"id": society_id})
+
+    return {"message": f"Society '{society['name']}' deleted successfully"}
 
 @router.get("/admins", response_model=List[dict])
 async def get_all_admins(current_user: dict = Depends(require_role("platform_owner"))):

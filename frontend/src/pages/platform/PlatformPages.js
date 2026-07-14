@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Building2, Users, ShieldCheck, Link as LinkIcon, ExternalLink, Wifi, WifiOff, Key, Globe, Plus, MapPin, Phone, Lock, Eye, EyeOff } from 'lucide-react';
+import { Building2, Users, ShieldCheck, Link as LinkIcon, ExternalLink, Wifi, WifiOff, Key, Globe, Plus, MapPin, Phone, Lock, Eye, EyeOff, Pencil, Trash2, Navigation } from 'lucide-react';
 import { platformAPI } from '../../lib/api';
 import { toast } from 'sonner';
 import {
@@ -8,6 +8,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../../components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '../../components/ui/alert-dialog';
 
 const PlatformDashboard = () => {
   const [stats, setStats] = useState(null);
@@ -77,9 +87,13 @@ const ManageSocieties = () => {
   const [saving, setSaving] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
-    society_name: '', society_address: '',
+    society_name: '', society_address: '', society_location: '',
     admin_name: '', admin_mobile: '', admin_password: ''
   });
+  const [editSociety, setEditSociety] = useState(null);
+  const [editData, setEditData] = useState({ society_name: '', society_address: '', society_location: '' });
+  const [deleteSociety, setDeleteSociety] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
   const fetchSocieties = async () => {
     try {
@@ -96,7 +110,7 @@ const ManageSocieties = () => {
 
   const handleCreate = async (e) => {
     e.preventDefault();
-    if (!formData.society_name || !formData.society_address || !formData.admin_name || !formData.admin_mobile || !formData.admin_password) {
+    if (!formData.society_name || !formData.society_address || !formData.society_location || !formData.admin_name || !formData.admin_mobile || !formData.admin_password) {
       toast.error('All fields are required');
       return;
     }
@@ -105,12 +119,50 @@ const ManageSocieties = () => {
       await platformAPI.createSociety(formData);
       toast.success(`Society '${formData.society_name}' created successfully!`);
       setShowAddModal(false);
-      setFormData({ society_name: '', society_address: '', admin_name: '', admin_mobile: '', admin_password: '' });
+      setFormData({ society_name: '', society_address: '', society_location: '', admin_name: '', admin_mobile: '', admin_password: '' });
       fetchSocieties();
     } catch (e) {
       toast.error(e.response?.data?.detail || 'Failed to create society');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const openEdit = (soc) => {
+    setEditSociety(soc);
+    setEditData({ society_name: soc.name, society_address: soc.address, society_location: soc.location || '' });
+  };
+
+  const handleUpdate = async (e) => {
+    e.preventDefault();
+    if (!editData.society_name || !editData.society_address || !editData.society_location) {
+      toast.error('All fields are required');
+      return;
+    }
+    setSaving(true);
+    try {
+      await platformAPI.updateSociety(editSociety.id, editData);
+      toast.success('Society updated successfully');
+      setEditSociety(null);
+      fetchSocieties();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Failed to update society');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    try {
+      await platformAPI.deleteSociety(deleteSociety.id);
+      toast.success(`Society '${deleteSociety.name}' deleted`);
+      setDeleteSociety(null);
+      fetchSocieties();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Failed to delete society');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -161,10 +213,16 @@ const ManageSocieties = () => {
               {getStatusBadge(soc.status)}
             </div>
             <h3 className="font-semibold text-text-primary text-lg mb-1">{soc.name}</h3>
-            <div className="flex items-center gap-1 text-text-secondary text-sm mb-4">
-              <MapPin className="w-3.5 h-3.5" />
+            <div className="flex items-center gap-1 text-text-secondary text-sm mb-1">
+              <MapPin className="w-3.5 h-3.5 shrink-0" />
               <span className="truncate">{soc.address}</span>
             </div>
+            {soc.location && (
+              <div className="flex items-center gap-1 text-text-secondary text-sm mb-4">
+                <Navigation className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">{soc.location}</span>
+              </div>
+            )}
             {soc.admin ? (
               <div className="pt-4 border-t border-border-color">
                 <p className="text-text-muted text-xs mb-1">Admin</p>
@@ -178,6 +236,16 @@ const ManageSocieties = () => {
                 <p className="text-text-muted text-sm">No admin assigned</p>
               </div>
             )}
+            <div className="flex gap-2 mt-4 pt-4 border-t border-border-color">
+              <button onClick={() => openEdit(soc)} data-testid={`edit-society-${soc.id}`}
+                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-accent/10 text-accent rounded-lg text-sm font-medium hover:bg-accent/20 transition-colors">
+                <Pencil className="w-3.5 h-3.5" /> Edit
+              </button>
+              <button onClick={() => setDeleteSociety(soc)} data-testid={`delete-society-${soc.id}`}
+                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-danger/10 text-danger rounded-lg text-sm font-medium hover:bg-danger/20 transition-colors">
+                <Trash2 className="w-3.5 h-3.5" /> Remove
+              </button>
+            </div>
           </div>
         ))}
       </div>
@@ -210,6 +278,16 @@ const ManageSocieties = () => {
                   onChange={(e) => setFormData({ ...formData, society_address: e.target.value })}
                   data-testid="society-address-input"
                   className="input-field w-full pl-10" placeholder="Full address" required />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-text-secondary mb-2">Location (City / Area)</label>
+              <div className="relative">
+                <Navigation className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
+                <input type="text" value={formData.society_location}
+                  onChange={(e) => setFormData({ ...formData, society_location: e.target.value })}
+                  data-testid="society-location-input"
+                  className="input-field w-full pl-10" placeholder="e.g. Andheri West, Mumbai" required />
               </div>
             </div>
 
@@ -261,6 +339,74 @@ const ManageSocieties = () => {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Edit Society Modal */}
+      <Dialog open={!!editSociety} onOpenChange={(open) => !open && setEditSociety(null)}>
+        <DialogContent className="bg-bg-surface border-border-color sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="text-text-primary text-xl">Edit Society</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleUpdate} className="space-y-4 mt-2">
+            <div>
+              <label className="block text-sm font-medium text-text-secondary mb-2">Society Name</label>
+              <div className="relative">
+                <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
+                <input type="text" value={editData.society_name}
+                  onChange={(e) => setEditData({ ...editData, society_name: e.target.value })}
+                  data-testid="edit-society-name-input"
+                  className="input-field w-full pl-10" placeholder="Society name" required />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-text-secondary mb-2">Society Address</label>
+              <div className="relative">
+                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
+                <input type="text" value={editData.society_address}
+                  onChange={(e) => setEditData({ ...editData, society_address: e.target.value })}
+                  data-testid="edit-society-address-input"
+                  className="input-field w-full pl-10" placeholder="Full address" required />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-text-secondary mb-2">Location (City / Area)</label>
+              <div className="relative">
+                <Navigation className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
+                <input type="text" value={editData.society_location}
+                  onChange={(e) => setEditData({ ...editData, society_location: e.target.value })}
+                  data-testid="edit-society-location-input"
+                  className="input-field w-full pl-10" placeholder="e.g. Andheri West, Mumbai" required />
+              </div>
+            </div>
+            <div className="flex gap-3 justify-end pt-2">
+              <button type="button" onClick={() => setEditSociety(null)} className="btn-secondary">Cancel</button>
+              <button type="submit" disabled={saving} data-testid="update-society-btn"
+                className="btn-primary disabled:opacity-50">
+                {saving ? 'Saving...' : 'Save Changes'}
+              </button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation */}
+      <AlertDialog open={!!deleteSociety} onOpenChange={(open) => !open && setDeleteSociety(null)}>
+        <AlertDialogContent className="bg-bg-surface border-border-color">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-text-primary">Remove Society?</AlertDialogTitle>
+            <AlertDialogDescription className="text-text-secondary">
+              Are you sure you want to remove <span className="font-semibold text-text-primary">"{deleteSociety?.name}"</span>?
+              This will permanently delete the society along with its admin, wings, flats and residents. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="cancel-delete-society-btn">Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} disabled={deleting} data-testid="confirm-delete-society-btn"
+              className="bg-danger text-white hover:bg-danger/90">
+              {deleting ? 'Removing...' : 'Yes, Remove'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

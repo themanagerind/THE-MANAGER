@@ -11,6 +11,7 @@ class Society(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     name: str
     address: str
+    location: Optional[str] = None
     admin_id: Optional[str] = None
     status: Literal["active", "blocked"] = "active"
     shopping_link: Optional[str] = None
