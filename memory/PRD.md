@@ -129,8 +129,10 @@ Mobile -> OTP -> Verify -> New Password -> Login
 ## PWA (June 2026)
 - [x] PWA Install Fix: manifest.json uses PNG icons (72-512 sizes, purpose any + separate maskable 192/512), index.html has favicon-32.png + /icons/apple-touch-icon.png links, sw.js cache bumped to societyhub-v2 with icons pre-cached. SW registered & activated — install criteria verified in browser.
 
-## Phase D Polish (June 2026)
-- [x] All native window.confirm/window.prompt replaced with shadcn dialogs via reusable components in /app/frontend/src/components/ConfirmDialogs.js (ConfirmDialog + ReasonDialog)
+## Rebrand (June 2026)
+- [x] App renamed from "SocietyHub" to "THE MANAGER" everywhere: page title, meta tags, manifest.json (name/short_name), offline.html, sidebar/mobile nav branding (RoleLayout.js), all auth pages. SW cache bumped to societyhub-v3.
+
+## Phase D Polish (June 2026)- [x] All native window.confirm/window.prompt replaced with shadcn dialogs via reusable components in /app/frontend/src/components/ConfirmDialogs.js (ConfirmDialog + ReasonDialog)
 - [x] Wing delete, Resident reject (AdminPages.js), Notice delete (SharedPages.js) → ConfirmDialog
 - [x] Exclude flat reason + Cancel bill reason (MaintenanceBills.js) → ReasonDialog with textarea
 - [x] Tested by testing agent (iteration_7.json): 5/5 flows pass, zero native popups fire

@@ -1,6 +1,6 @@
 /* eslint-disable no-restricted-globals */
 
-const CACHE_NAME = 'societyhub-v2';
+const CACHE_NAME = 'societyhub-v3';
 const STATIC_ASSETS = [
   '/',
   '/index.html',

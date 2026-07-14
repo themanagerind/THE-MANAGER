@@ -55,7 +55,7 @@ const Login = () => {
             <div className="p-3 bg-accent/20 rounded-xl">
               <Building2 className="w-8 h-8 text-accent" />
             </div>
-            <span className="text-2xl font-bold text-text-primary">SocietyHub</span>
+            <span className="text-2xl font-bold text-text-primary">THE MANAGER</span>
           </div>
           <h1 className="text-4xl font-bold text-text-primary mb-4">
             Housing Society<br />Management System
@@ -72,7 +72,7 @@ const Login = () => {
             <div className="p-3 bg-accent/20 rounded-xl">
               <Building2 className="w-8 h-8 text-accent" />
             </div>
-            <span className="text-2xl font-bold text-text-primary">SocietyHub</span>
+            <span className="text-2xl font-bold text-text-primary">THE MANAGER</span>
           </div>
 
           <div className="card p-8">
@@ -275,7 +275,7 @@ const Register = () => {
           <div className="p-3 bg-accent/20 rounded-xl">
             <Building2 className="w-8 h-8 text-accent" />
           </div>
-          <span className="text-2xl font-bold text-text-primary">SocietyHub</span>
+          <span className="text-2xl font-bold text-text-primary">THE MANAGER</span>
         </div>
 
         <div className="card p-8">
@@ -450,7 +450,7 @@ const RegisterAdmin = () => {
           <div className="p-3 bg-accent/20 rounded-xl">
             <Building2 className="w-8 h-8 text-accent" />
           </div>
-          <span className="text-2xl font-bold text-text-primary">SocietyHub</span>
+          <span className="text-2xl font-bold text-text-primary">THE MANAGER</span>
         </div>
 
         <div className="card p-8">
@@ -575,7 +575,7 @@ const SetPassword = () => {
           <div className="p-3 bg-accent/20 rounded-xl">
             <KeyRound className="w-8 h-8 text-accent" />
           </div>
-          <span className="text-2xl font-bold text-text-primary">SocietyHub</span>
+          <span className="text-2xl font-bold text-text-primary">THE MANAGER</span>
         </div>
 
         <div className="card p-8">
@@ -728,7 +728,7 @@ const ForgotPassword = () => {
           <div className="p-3 bg-accent/20 rounded-xl">
             <KeyRound className="w-8 h-8 text-accent" />
           </div>
-          <span className="text-2xl font-bold text-text-primary">SocietyHub</span>
+          <span className="text-2xl font-bold text-text-primary">THE MANAGER</span>
         </div>
 
         <div className="card p-8">

@@ -89,7 +89,7 @@ const RoleLayout = ({ role, roleLabel, navItems, children }) => {
               <Building2 className="w-5 h-5 text-white" />
             </div>
             <div>
-              <div className="text-white font-medium text-[14px] leading-tight">SocietyHub</div>
+              <div className="text-white font-medium text-[14px] leading-tight">THE MANAGER</div>
               <div className="text-[10px] uppercase tracking-wider mt-0.5" style={{ color: 'rgba(255,255,255,0.4)' }}>
                 {roleLabel}
               </div>
@@ -214,7 +214,7 @@ const RoleLayout = ({ role, roleLabel, navItems, children }) => {
                   <Building2 className="w-5 h-5 text-white" />
                 </div>
                 <div>
-                  <div className="text-white font-medium text-[14px] leading-tight">SocietyHub</div>
+                  <div className="text-white font-medium text-[14px] leading-tight">THE MANAGER</div>
                   <div className="text-[10px] uppercase tracking-wider mt-0.5" style={{ color: 'rgba(255,255,255,0.4)' }}>
                     {roleLabel}
                   </div>
