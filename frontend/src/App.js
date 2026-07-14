@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import useAuthStore from './store/authStore';
+import { InstallPrompt } from './components/InstallPrompt';
 
 // Auth Pages
 import { Login, Register, RegisterAdmin, SetPassword, ForgotPassword } from './pages/auth/AuthPages';
@@ -97,6 +98,7 @@ function App() {
           },
         }}
       />
+      <InstallPrompt />
       <BrowserRouter>
         <Routes>
           {/* Public Routes */}
