@@ -18,6 +18,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '../../components/ui/alert-dialog';
+import { LocationPicker } from '../../components/LocationPicker';
 
 const PlatformDashboard = () => {
   const [stats, setStats] = useState(null);
@@ -87,11 +88,11 @@ const ManageSocieties = () => {
   const [saving, setSaving] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
-    society_name: '', society_address: '', society_location: '',
+    society_name: '', society_address: '', society_location: '', latitude: null, longitude: null,
     admin_name: '', admin_mobile: '', admin_password: ''
   });
   const [editSociety, setEditSociety] = useState(null);
-  const [editData, setEditData] = useState({ society_name: '', society_address: '', society_location: '' });
+  const [editData, setEditData] = useState({ society_name: '', society_address: '', society_location: '', latitude: null, longitude: null });
   const [deleteSociety, setDeleteSociety] = useState(null);
   const [deleting, setDeleting] = useState(false);
 
@@ -119,7 +120,7 @@ const ManageSocieties = () => {
       await platformAPI.createSociety(formData);
       toast.success(`Society '${formData.society_name}' created successfully!`);
       setShowAddModal(false);
-      setFormData({ society_name: '', society_address: '', society_location: '', admin_name: '', admin_mobile: '', admin_password: '' });
+      setFormData({ society_name: '', society_address: '', society_location: '', latitude: null, longitude: null, admin_name: '', admin_mobile: '', admin_password: '' });
       fetchSocieties();
     } catch (e) {
       toast.error(e.response?.data?.detail || 'Failed to create society');
@@ -130,7 +131,10 @@ const ManageSocieties = () => {
 
   const openEdit = (soc) => {
     setEditSociety(soc);
-    setEditData({ society_name: soc.name, society_address: soc.address, society_location: soc.location || '' });
+    setEditData({
+      society_name: soc.name, society_address: soc.address, society_location: soc.location || '',
+      latitude: soc.latitude || null, longitude: soc.longitude || null
+    });
   };
 
   const handleUpdate = async (e) => {
@@ -281,14 +285,11 @@ const ManageSocieties = () => {
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-text-secondary mb-2">Location (City / Area)</label>
-              <div className="relative">
-                <Navigation className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
-                <input type="text" value={formData.society_location}
-                  onChange={(e) => setFormData({ ...formData, society_location: e.target.value })}
-                  data-testid="society-location-input"
-                  className="input-field w-full pl-10" placeholder="e.g. Andheri West, Mumbai" required />
-              </div>
+              <label className="block text-sm font-medium text-text-secondary mb-2">Location (GPS ya Search)</label>
+              <LocationPicker
+                value={formData.society_location}
+                onChange={({ address, lat, lng }) => setFormData(f => ({ ...f, society_location: address, latitude: lat, longitude: lng }))}
+                testIdPrefix="society-location" />
             </div>
 
             <div className="p-3 bg-bg-elevated rounded-lg">
@@ -368,14 +369,11 @@ const ManageSocieties = () => {
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-text-secondary mb-2">Location (City / Area)</label>
-              <div className="relative">
-                <Navigation className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
-                <input type="text" value={editData.society_location}
-                  onChange={(e) => setEditData({ ...editData, society_location: e.target.value })}
-                  data-testid="edit-society-location-input"
-                  className="input-field w-full pl-10" placeholder="e.g. Andheri West, Mumbai" required />
-              </div>
+              <label className="block text-sm font-medium text-text-secondary mb-2">Location (GPS ya Search)</label>
+              <LocationPicker
+                value={editData.society_location}
+                onChange={({ address, lat, lng }) => setEditData(d => ({ ...d, society_location: address, latitude: lat, longitude: lng }))}
+                testIdPrefix="edit-society-location" />
             </div>
             <div className="flex gap-3 justify-end pt-2">
               <button type="button" onClick={() => setEditSociety(null)} className="btn-secondary">Cancel</button>

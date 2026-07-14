@@ -12,6 +12,8 @@ class Society(BaseModel):
     name: str
     address: str
     location: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
     admin_id: Optional[str] = None
     status: Literal["active", "blocked"] = "active"
     shopping_link: Optional[str] = None

@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, status, Depends
-from typing import List
+from typing import List, Optional
 from pydantic import BaseModel
 from datetime import datetime, timezone
 from ..models.user import UserResponse, User
@@ -17,6 +17,8 @@ class CreateSocietyRequest(BaseModel):
     society_name: str
     society_address: str
     society_location: str
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
     admin_name: str
     admin_mobile: str
     admin_password: str
@@ -25,6 +27,8 @@ class UpdateSocietyRequest(BaseModel):
     society_name: str
     society_address: str
     society_location: str
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
 
 @router.post("/societies")
 async def create_society(
@@ -38,7 +42,10 @@ async def create_society(
         raise HTTPException(status_code=400, detail="Admin with this mobile already exists")
     
     # Create society
-    society = Society(name=data.society_name, address=data.society_address, location=data.society_location, status="active")
+    society = Society(
+        name=data.society_name, address=data.society_address, location=data.society_location,
+        latitude=data.latitude, longitude=data.longitude, status="active"
+    )
     society_dict = society.model_dump()
     society_dict['created_at'] = society_dict['created_at'].isoformat()
     
@@ -101,7 +108,9 @@ async def update_society(
         {"$set": {
             "name": data.society_name,
             "address": data.society_address,
-            "location": data.society_location
+            "location": data.society_location,
+            "latitude": data.latitude,
+            "longitude": data.longitude
         }}
     )
     return {"message": "Society updated successfully"}
