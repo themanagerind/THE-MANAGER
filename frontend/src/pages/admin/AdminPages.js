@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Building2, Home, Users, Receipt, TrendingUp, Clock, CheckCircle, XCircle, Plus, Trash2, Edit2 } from 'lucide-react';
-import { adminAPI, maintenanceAPI } from '../../lib/api';
+import { Building2, Home, Users, Receipt, TrendingUp, Clock, CheckCircle, XCircle, Edit2, ChevronDown } from 'lucide-react';
+import { adminAPI, maintenanceAPI, authAPI } from '../../lib/api';
 import useAuthStore from '../../store/authStore';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
   Dialog,
@@ -12,7 +13,10 @@ import {
 import { ConfirmDialog } from '../../components/ConfirmDialogs';
 
 const AdminDashboard = () => {
-  const { user } = useAuthStore();
+  const { user, switchRole } = useAuthStore();
+  const navigate = useNavigate();
+  const [roles, setRoles] = useState([]);
+  const [showRoleSwitch, setShowRoleSwitch] = useState(false);
   const [stats, setStats] = useState({
     wings: 0,
     flats: 0,
@@ -44,6 +48,16 @@ const AdminDashboard = () => {
       }
     };
     fetchData();
+    // fetch available roles for quick switch
+    const fetchRoles = async () => {
+      try {
+        const res = await authAPI.getRoles();
+        setRoles(res.data);
+      } catch (e) {
+        // ignore
+      }
+    };
+    fetchRoles();
   }, []);
 
   if (loading) {
@@ -68,9 +82,52 @@ const AdminDashboard = () => {
 
   return (
     <div data-testid="admin-dashboard" className="space-y-8">
-      <div>
-        <h1 className="text-[28px] font-bold text-text-primary">Admin Dashboard</h1>
-        <p className="text-text-secondary mt-1">Welcome back, {user?.name}</p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-[28px] font-bold text-text-primary">Admin Dashboard</h1>
+          <p className="text-text-secondary mt-1">Welcome back, {user?.name}</p>
+        </div>
+        {roles.length > 1 && (
+          <div className="relative">
+            <button
+              onClick={() => setShowRoleSwitch(!showRoleSwitch)}
+              data-testid="admin-role-switch-btn"
+              className="btn-secondary flex items-center gap-2"
+            >
+              Switch Role <ChevronDown className="w-4 h-4" />
+            </button>
+            {showRoleSwitch && (
+              <div className="absolute right-0 mt-2 w-44 card p-2">
+                {roles.filter(r => r.role !== user?.role).map((r) => (
+                  <button
+                    key={r.role}
+                    onClick={async () => {
+                      try {
+                        const res = await authAPI.switchRole(r.role);
+                        switchRole(res.data.user, res.data.access_token);
+                        setShowRoleSwitch(false);
+                        // navigate to appropriate dashboard
+                        switch (r.role) {
+                          case 'platform_owner': navigate('/platform'); break;
+                          case 'admin': navigate('/admin'); break;
+                          case 'sub_admin': navigate('/subadmin'); break;
+                          case 'resident': navigate('/resident'); break;
+                          default: navigate('/');
+                        }
+                      } catch (e) {
+                        toast.error('Failed to switch role');
+                      }
+                    }}
+                    data-testid={`admin-switch-to-${r.role}`}
+                    className="w-full text-left px-3 py-2 hover:bg-bg-elevated rounded"
+                  >
+                    {r.role.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
@@ -93,13 +150,8 @@ const AdminDashboard = () => {
 };
 
 const WingsManager = () => {
-  const { user } = useAuthStore();
   const [wings, setWings] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showModal, setShowModal] = useState(false);
-  const [newWingName, setNewWingName] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [deleteWingId, setDeleteWingId] = useState(null);
 
   const fetchWings = async () => {
     try {
@@ -115,36 +167,6 @@ const WingsManager = () => {
   useEffect(() => {
     fetchWings();
   }, []);
-
-  const handleCreateWing = async (e) => {
-    e.preventDefault();
-    if (!newWingName.trim()) return;
-    
-    setSaving(true);
-    try {
-      await adminAPI.createWing({ name: newWingName, society_id: user.society_id });
-      toast.success('Wing created');
-      setNewWingName('');
-      setShowModal(false);
-      fetchWings();
-    } catch (e) {
-      toast.error(e.response?.data?.detail || 'Failed to create wing');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleDeleteWing = async () => {
-    try {
-      await adminAPI.deleteWing(deleteWingId);
-      toast.success('Wing deleted');
-      fetchWings();
-    } catch (e) {
-      toast.error(e.response?.data?.detail || 'Failed to delete wing');
-    } finally {
-      setDeleteWingId(null);
-    }
-  };
 
   if (loading) {
     return (
@@ -164,29 +186,15 @@ const WingsManager = () => {
       <div className="page-header">
         <div>
           <h1 className="text-[28px] font-bold text-text-primary">Wings</h1>
-          <p className="text-text-secondary mt-1">Manage society wings</p>
+          <p className="text-text-secondary mt-1">View-only wing list (only Platform Owner can add/edit/remove)</p>
         </div>
-        <button
-          onClick={() => setShowModal(true)}
-          data-testid="add-wing-btn"
-          className="btn-primary flex items-center gap-2 w-full sm:w-auto justify-center"
-        >
-          <Plus className="w-5 h-5" />
-          Add Wing
-        </button>
       </div>
 
       {wings.length === 0 ? (
         <div className="card p-12 text-center">
           <Building2 className="w-16 h-16 mx-auto text-text-muted mb-4" />
           <h3 className="text-lg font-semibold text-text-primary mb-2">No Wings Yet</h3>
-          <p className="text-text-secondary mb-4">Create your first wing to start adding flats</p>
-          <button
-            onClick={() => setShowModal(true)}
-            className="btn-primary"
-          >
-            Create Wing
-          </button>
+          <p className="text-text-secondary mb-4">Only Platform Owner can create wings</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -196,13 +204,6 @@ const WingsManager = () => {
                 <div className="p-3 bg-accent/20 rounded-lg">
                   <Building2 className="w-6 h-6 text-accent" />
                 </div>
-                <button
-                  onClick={() => setDeleteWingId(wing.id)}
-                  data-testid={`delete-wing-${wing.id}`}
-                  className="p-2 text-text-muted hover:text-danger hover:bg-danger/10 rounded-lg transition-colors"
-                >
-                  <Trash2 className="w-5 h-5" />
-                </button>
               </div>
               <h3 className="text-xl font-semibold text-text-primary mb-2">{wing.name}</h3>
               <p className="text-text-secondary text-sm">
@@ -212,57 +213,6 @@ const WingsManager = () => {
           ))}
         </div>
       )}
-
-      <Dialog open={showModal} onOpenChange={setShowModal}>
-        <DialogContent className="bg-bg-surface border-border-color">
-          <DialogHeader>
-            <DialogTitle className="text-text-primary">Create New Wing</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleCreateWing} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-text-secondary mb-2">
-                Wing Name
-              </label>
-              <input
-                type="text"
-                value={newWingName}
-                onChange={(e) => setNewWingName(e.target.value)}
-                data-testid="wing-name-input"
-                className="input-field w-full"
-                placeholder="e.g., A, B, C or Tower 1"
-                required
-              />
-            </div>
-            <div className="flex gap-3 justify-end">
-              <button
-                type="button"
-                onClick={() => setShowModal(false)}
-                className="btn-secondary"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={saving}
-                data-testid="create-wing-submit"
-                className="btn-primary disabled:opacity-50"
-              >
-                {saving ? 'Creating...' : 'Create Wing'}
-              </button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      <ConfirmDialog
-        open={!!deleteWingId}
-        onOpenChange={(open) => !open && setDeleteWingId(null)}
-        title="Delete Wing?"
-        description="Are you sure you want to delete this wing? This action cannot be undone."
-        confirmLabel="Yes, Delete"
-        onConfirm={handleDeleteWing}
-        testIdPrefix="delete-wing"
-      />
     </div>
   );
 };
@@ -270,10 +220,28 @@ const WingsManager = () => {
 const FlatMapping = () => {
   const [mapping, setMapping] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showBulkModal, setShowBulkModal] = useState(false);
-  const [selectedWing, setSelectedWing] = useState(null);
-  const [bulkForm, setBulkForm] = useState({ floorCount: 5, flatsPerFloor: 4 });
-  const [saving, setSaving] = useState(false);
+
+  const parseWingName = (value) => {
+    const raw = (value || '').trim().toUpperCase();
+    const match = raw.match(/^([A-Z]+)(\d+)?$/);
+    if (match) {
+      return {
+        prefix: match[1],
+        num: match[2] ? Number(match[2]) : 0,
+        raw,
+      };
+    }
+    return { prefix: raw, num: 0, raw };
+  };
+
+  const sortWings = (a, b) => {
+    const wa = parseWingName(a.wing_name);
+    const wb = parseWingName(b.wing_name);
+    const prefixCmp = wa.prefix.localeCompare(wb.prefix, undefined, { sensitivity: 'base' });
+    if (prefixCmp !== 0) return prefixCmp;
+    if (wa.num !== wb.num) return wa.num - wb.num;
+    return wa.raw.localeCompare(wb.raw, undefined, { sensitivity: 'base', numeric: true });
+  };
 
   const fetchMapping = async () => {
     try {
@@ -290,33 +258,6 @@ const FlatMapping = () => {
     fetchMapping();
   }, []);
 
-  const handleToggleFlat = async (flatId, currentStatus) => {
-    try {
-      await adminAPI.toggleFlat(flatId, !currentStatus);
-      toast.success(`Flat ${!currentStatus ? 'activated' : 'deactivated'}`);
-      fetchMapping();
-    } catch (e) {
-      toast.error('Failed to toggle flat');
-    }
-  };
-
-  const handleBulkCreate = async (e) => {
-    e.preventDefault();
-    if (!selectedWing) return;
-    
-    setSaving(true);
-    try {
-      await adminAPI.createFlatsBulk(selectedWing.wing_id, bulkForm.floorCount, bulkForm.flatsPerFloor);
-      toast.success('Flats created');
-      setShowBulkModal(false);
-      fetchMapping();
-    } catch (e) {
-      toast.error(e.response?.data?.detail || 'Failed to create flats');
-    } finally {
-      setSaving(false);
-    }
-  };
-
   if (loading) {
     return (
       <div className="animate-pulse space-y-6">
@@ -330,7 +271,7 @@ const FlatMapping = () => {
     <div data-testid="flat-mapping-page" className="space-y-6">
       <div>
         <h1 className="text-[28px] font-bold text-text-primary">Flat Mapping</h1>
-        <p className="text-text-secondary mt-1">Manage flats across all wings</p>
+        <p className="text-text-secondary mt-1">View-only flat mapping (only Platform Owner can add/edit/remove)</p>
       </div>
 
       {mapping.length === 0 ? (
@@ -341,7 +282,7 @@ const FlatMapping = () => {
         </div>
       ) : (
         <div className="space-y-8">
-          {mapping.map((wing) => (
+          {[...mapping].sort(sortWings).map((wing) => (
             <div key={wing.wing_id} className="card p-6">
               <div className="flex items-center justify-between mb-6">
                 <div>
@@ -350,17 +291,6 @@ const FlatMapping = () => {
                     {wing.active_flats}/{wing.total_flats} active flats
                   </p>
                 </div>
-                <button
-                  onClick={() => {
-                    setSelectedWing(wing);
-                    setShowBulkModal(true);
-                  }}
-                  data-testid={`bulk-add-flats-${wing.wing_id}`}
-                  className="btn-secondary flex items-center gap-2"
-                >
-                  <Plus className="w-4 h-4" />
-                  Add Flats
-                </button>
               </div>
 
               {Object.keys(wing.floors).length === 0 ? (
@@ -374,9 +304,8 @@ const FlatMapping = () => {
                         <span className="text-text-secondary text-sm w-20">Floor {floor}</span>
                         <div className="flex flex-wrap gap-2">
                           {flats.map((flat) => (
-                            <button
+                            <div
                               key={flat.id}
-                              onClick={() => handleToggleFlat(flat.id, flat.is_active)}
                               data-testid={`flat-${flat.id}`}
                               className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                                 flat.is_active
@@ -388,7 +317,7 @@ const FlatMapping = () => {
                               {flat.resident_name && (
                                 <span className="block text-xs opacity-75">{flat.resident_name}</span>
                               )}
-                            </button>
+                            </div>
                           ))}
                         </div>
                       </div>
@@ -399,68 +328,6 @@ const FlatMapping = () => {
           ))}
         </div>
       )}
-
-      <Dialog open={showBulkModal} onOpenChange={setShowBulkModal}>
-        <DialogContent className="bg-bg-surface border-border-color">
-          <DialogHeader>
-            <DialogTitle className="text-text-primary">
-              Add Flats to Wing {selectedWing?.wing_name}
-            </DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleBulkCreate} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-text-secondary mb-2">
-                Number of Floors
-              </label>
-              <input
-                type="number"
-                value={bulkForm.floorCount}
-                onChange={(e) => setBulkForm({ ...bulkForm, floorCount: parseInt(e.target.value) })}
-                data-testid="floor-count-input"
-                className="input-field w-full"
-                min="1"
-                max="50"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-text-secondary mb-2">
-                Flats per Floor
-              </label>
-              <input
-                type="number"
-                value={bulkForm.flatsPerFloor}
-                onChange={(e) => setBulkForm({ ...bulkForm, flatsPerFloor: parseInt(e.target.value) })}
-                data-testid="flats-per-floor-input"
-                className="input-field w-full"
-                min="1"
-                max="20"
-                required
-              />
-            </div>
-            <p className="text-text-secondary text-sm">
-              This will create {bulkForm.floorCount * bulkForm.flatsPerFloor} flats
-            </p>
-            <div className="flex gap-3 justify-end">
-              <button
-                type="button"
-                onClick={() => setShowBulkModal(false)}
-                className="btn-secondary"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={saving}
-                data-testid="bulk-create-submit"
-                className="btn-primary disabled:opacity-50"
-              >
-                {saving ? 'Creating...' : 'Create Flats'}
-              </button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };
