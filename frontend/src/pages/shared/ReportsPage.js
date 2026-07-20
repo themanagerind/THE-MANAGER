@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { BarChart3, TrendingUp, TrendingDown, IndianRupee, AlertTriangle } from 'lucide-react';
-import { reportsAPI } from '../../lib/api';
+import { BarChart3, TrendingUp, TrendingDown, IndianRupee, AlertTriangle, Receipt, CheckCircle } from 'lucide-react';
+import { reportsAPI, maintenanceAPI } from '../../lib/api';
 import { toast } from 'sonner';
+import useAuthStore from '../../store/authStore';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
 const COLORS = ['#E67E22', '#27AE60', '#2E86C1', '#F39C12', '#9B59B6'];
@@ -23,25 +24,68 @@ const CustomTooltip = ({ active, payload, label }) => {
 };
 
 const ReportsPage = () => {
+  const { user } = useAuthStore();
   const [activeTab, setActiveTab] = useState('income');
   const [incomeData, setIncomeData] = useState({ entries: [], total: 0 });
   const [expenseData, setExpenseData] = useState({ entries: [], total: 0 });
   const [outstandingSummary, setOutstandingSummary] = useState([]);
   const [outstandingDetail, setOutstandingDetail] = useState(null);
   const [selectedMonth, setSelectedMonth] = useState(null);
+  const [residentBills, setResidentBills] = useState([]);
+  const [wallet, setWallet] = useState({ balance: 0 });
   const [loading, setLoading] = useState(true);
+
+  const isResident = user?.role === 'resident';
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [incomeRes, expenseRes, outstandingRes] = await Promise.all([
-          reportsAPI.getIncome(),
-          reportsAPI.getExpenses(),
-          reportsAPI.getOutstandingSummary(),
-        ]);
-        setIncomeData(incomeRes.data);
-        setExpenseData(expenseRes.data);
-        setOutstandingSummary(outstandingRes.data);
+        if (isResident) {
+          // Fetch resident's bills
+          const billsRes = await maintenanceAPI.getMyBills();
+          setResidentBills(billsRes.data);
+        } else {
+          // Fetch admin reports
+          const [incomeRes, expenseRes, outstandingRes, walletRes] = await Promise.all([
+            reportsAPI.getIncome(),
+            reportsAPI.getExpenses(),
+            reportsAPI.getOutstandingSummary(),
+            maintenanceAPI.getWallet().catch(() => ({ data: { balance: 0 } })),
+          ]);
+
+          // Also fetch maintenance batches and bills to include maintenance as income
+          let maintenanceEntries = [];
+          try {
+            const batchesRes = await maintenanceAPI.getBatches();
+            // limit to recent 12 batches to avoid excessive requests
+            const batches = (batchesRes.data || []).slice(0, 12);
+            const billsByBatch = await Promise.all(
+              batches.map((b) => maintenanceAPI.getBills({ month: b.month }).then(r => ({ month: b.month, bills: r.data })).catch(() => ({ month: b.month, bills: [] })))
+            );
+
+            billsByBatch.forEach(({ month, bills }) => {
+              const active = (bills || []).filter(b => !b.is_cancelled);
+              const collected = active.filter(b => b.status === 'verified' || b.status === 'paid').reduce((s, b) => s + (b.amount || 0), 0);
+              if (collected > 0) {
+                maintenanceEntries.push({
+                  entry_date: month,
+                  title: `Maintenance (${month})`,
+                  category: 'maintenance',
+                  amount: collected,
+                });
+              }
+            });
+          } catch (e) {
+            // ignore maintenance fetch errors
+          }
+
+          const mergedIncomeEntries = [ ...(incomeRes.data.entries || []), ...maintenanceEntries ];
+          const maintenanceTotal = maintenanceEntries.reduce((s, e) => s + (e.amount || 0), 0);
+          setIncomeData({ entries: mergedIncomeEntries, total: (incomeRes.data.total || 0) + maintenanceTotal });
+          setWallet(walletRes.data || { balance: 0 });
+          setExpenseData(expenseRes.data);
+          setOutstandingSummary(outstandingRes.data);
+        }
       } catch (e) {
         toast.error('Failed to load reports');
       } finally {
@@ -49,7 +93,7 @@ const ReportsPage = () => {
       }
     };
     fetchData();
-  }, []);
+  }, [isResident]);
 
   const fetchOutstandingDetail = async (month) => {
     try {
@@ -61,11 +105,13 @@ const ReportsPage = () => {
     }
   };
 
-  const tabs = [
-    { id: 'income', label: 'Income Report', icon: TrendingUp },
-    { id: 'expenses', label: 'Expense Report', icon: TrendingDown },
-    { id: 'outstanding', label: 'Outstanding Report', icon: AlertTriangle },
-  ];
+  const tabs = isResident 
+    ? [{ id: 'outstanding', label: 'Outstanding Dues', icon: AlertTriangle }]
+    : [
+        { id: 'income', label: 'Income Report', icon: TrendingUp },
+        { id: 'expenses', label: 'Expense Report', icon: TrendingDown },
+        { id: 'outstanding', label: 'Outstanding Report', icon: AlertTriangle },
+      ];
 
   if (loading) {
     return (
@@ -117,7 +163,7 @@ const ReportsPage = () => {
       {/* Income Report */}
       {activeTab === 'income' && (
         <div className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
             <div className="card p-6">
               <div className="flex items-center gap-3 mb-4">
                 <div className="p-3 bg-success/20 rounded-lg">
@@ -126,6 +172,17 @@ const ReportsPage = () => {
                 <div>
                   <p className="text-text-secondary text-sm">Total Income</p>
                   <p className="text-2xl font-bold text-success">₹{incomeData.total.toLocaleString()}</p>
+                </div>
+              </div>
+            </div>
+            <div className="card p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-3 bg-accent-light rounded-lg">
+                  <IndianRupee className="w-6 h-6 text-accent" />
+                </div>
+                <div>
+                  <p className="text-text-secondary text-sm">Credit Balance</p>
+                  <p className="text-2xl font-bold text-accent">{wallet.balance}</p>
                 </div>
               </div>
             </div>
@@ -327,6 +384,64 @@ const ReportsPage = () => {
                     </tr>
                   </tfoot>
                 </table>
+              </div>
+              {/* Additional details: Expenses and Other Income for the selected month */}
+              <div className="p-4 sm:p-6 border-t border-border-color">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <h4 className="font-semibold mb-2">Expenses for {selectedMonth}</h4>
+                    <div className="overflow-auto max-h-48">
+                      <table className="w-full">
+                        <thead>
+                          <tr>
+                            <th className="text-left p-2 text-sm">Title</th>
+                            <th className="text-right p-2 text-sm">Amount</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {expenseData.entries
+                            .filter((e) => {
+                              const d = (e.entry_date || e.date || '').toString();
+                              return selectedMonth ? d.startsWith(selectedMonth) : true;
+                            })
+                            .map((e, i) => (
+                              <tr key={i}>
+                                <td className="p-2 text-sm">{e.title}</td>
+                                <td className="p-2 text-right text-danger">₹{(e.amount || 0).toLocaleString()}</td>
+                              </tr>
+                            ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h4 className="font-semibold mb-2">Income (including Maintenance) for {selectedMonth}</h4>
+                    <div className="overflow-auto max-h-48">
+                      <table className="w-full">
+                        <thead>
+                          <tr>
+                            <th className="text-left p-2 text-sm">Title</th>
+                            <th className="text-right p-2 text-sm">Amount</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {incomeData.entries
+                            .filter((e) => {
+                              const d = (e.entry_date || e.date || '').toString();
+                              return selectedMonth ? d.startsWith(selectedMonth) : true;
+                            })
+                            .map((e, i) => (
+                              <tr key={i}>
+                                <td className="p-2 text-sm">{e.title}</td>
+                                <td className="p-2 text-right text-success">₹{(e.amount || 0).toLocaleString()}</td>
+                              </tr>
+                            ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           )}
