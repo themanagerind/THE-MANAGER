@@ -125,3 +125,34 @@ async def test_stale_jwt_after_role_revoked_is_rejected(client: AsyncClient, db_
 
     resp = await client.get("/api/v1/auth/me", headers=headers)
     assert resp.status_code == 401
+
+
+async def test_otp_request_dispatches_via_sms_gateway(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins, monkeypatch
+):
+    """Regression test: request_otp_endpoint used to discard the generated
+    OTP entirely (no SMS integration was wired up), so no one could ever
+    actually receive it. Now it's dispatched through sms_service (currently
+    a mock — see app/services/sms_service.py) — confirm the endpoint calls
+    it with the right mobile and the same OTP that got hashed into Redis."""
+    mobile = "9000000097"
+    society_id = two_societies_with_admins["a"]["society_id"]
+    await _create_active_user(db_session, society_id, mobile, [Role.RESIDENT])
+
+    from app.services import otp_service
+    monkeypatch.setattr(otp_service, "_generate_otp", lambda: "654321")
+
+    dispatched = []
+
+    async def fake_send(mobile_arg, otp_arg):
+        dispatched.append((mobile_arg, otp_arg))
+
+    # auth.py imported send_otp_sms by name, so patching the reference it
+    # actually holds (not the sms_service module attribute) is what matters.
+    import app.api.v1.auth as auth_module
+    monkeypatch.setattr(auth_module, "send_otp_sms", fake_send)
+
+    resp = await client.post("/api/v1/auth/otp/request", json={"mobile": mobile})
+    assert resp.status_code == 200
+
+    assert dispatched == [(mobile, "654321")]

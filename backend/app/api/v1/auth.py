@@ -27,15 +27,19 @@ from app.schemas.auth import (
 )
 from app.services import auth_service
 from app.services.otp_service import request_otp, verify_otp
+from app.services.sms_service import send_otp_sms
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 @router.post("/otp/request", response_model=OTPRequestOut)
 async def request_otp_endpoint(body: OTPRequestIn) -> OTPRequestOut:
-    await request_otp(body.mobile)
-    # NOTE: actual SMS dispatch is a separate integration (provider not yet
-    # chosen — out of scope per Master Rule until explicitly specified).
+    otp = await request_otp(body.mobile)
+    # No SMS provider is wired up yet — send_otp_sms() is a mock (logs
+    # instead of sending) so the login flow is actually completable
+    # end-to-end. Swap sms_service.send_otp_sms for a real provider when
+    # one is chosen; nothing else here needs to change.
+    await send_otp_sms(body.mobile, otp)
     return OTPRequestOut()
 
 
