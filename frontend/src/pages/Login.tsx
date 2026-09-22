@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/auth/AuthContext";
 import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
@@ -117,6 +117,12 @@ export function Login() {
             <Button className="w-full" loading={loading} disabled={!MOBILE_RE.test(mobile)} onClick={handleRequestOtp}>
               Send code
             </Button>
+            <p className="text-sm text-navy-muted text-center">
+              New here?{" "}
+              <Link to="/signup" className="text-navy underline">
+                Create an account
+              </Link>
+            </p>
           </div>
         )}
 

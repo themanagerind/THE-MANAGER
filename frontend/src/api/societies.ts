@@ -21,11 +21,19 @@ export interface SocietyLocationOut {
   created_at: string;
 }
 
+export interface SocietyLookupOut {
+  id: string;
+  name: string;
+}
+
 export const societiesApi = {
-  signup: (input: {
-    society_name: string; society_code: string; address?: string; city?: string; state?: string; pincode?: string;
-    admin_full_name: string; admin_mobile: string; admin_email?: string;
-  }) => apiClient.post<{ society_id: string; admin_user_id: string; message: string }>("/societies/signup", input),
+  /** Platform Owner creates a society directly from their dashboard —
+   * the only way a society comes into existence now. ACTIVE immediately. */
+  create: (input: { name: string; code: string; address?: string; city?: string; state?: string; pincode?: string }) =>
+    apiClient.post<SocietyOut>("/societies", input),
+  /** Public — used by the Admin/Resident signup forms to resolve a
+   * society code to its id/name before submitting. */
+  lookup: (code: string) => apiClient.get<SocietyLookupOut>(`/societies/lookup/${encodeURIComponent(code)}`),
   list: () => apiClient.get<SocietyOut[]>("/societies"),
   approve: (id: string) => apiClient.post<SocietyOut>(`/societies/${id}/approve`),
   updateStatus: (id: string, status: SocietyStatus) =>

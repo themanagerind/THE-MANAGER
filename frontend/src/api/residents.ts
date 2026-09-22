@@ -43,6 +43,10 @@ export interface RoleRequestOut {
 }
 
 export const residentsApi = {
+  /** Public — no auth required. Resident waits for their society's Admin
+   * to approve (see pending/decideApproval below). */
+  signup: (input: { full_name: string; mobile: string; email?: string; society_id: string }) =>
+    apiClient.post<ResidentOut>("/residents/signup", input),
   pending: () => apiClient.get<ResidentOut[]>("/residents/pending"),
   decideApproval: (id: string, approve: boolean, rejectionReason?: string) =>
     apiClient.post<ResidentOut>(`/residents/${id}/approval`, { approve, rejection_reason: rejectionReason }),

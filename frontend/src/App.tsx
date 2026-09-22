@@ -3,7 +3,9 @@ import { useAuth } from "@/auth/AuthContext";
 import { ProtectedRoute } from "@/routes/ProtectedRoute";
 import { AppShell } from "@/layouts/AppShell";
 import { Login } from "@/pages/Login";
+import { Signup } from "@/pages/Signup";
 import { PlaceholderPage } from "@/pages/PlaceholderPage";
+import { PlatformSocieties } from "@/pages/platform/Societies";
 import { ResidentDashboard } from "@/pages/resident/Dashboard";
 import { ResidentDues } from "@/pages/resident/Dues";
 import { ResidentWallet } from "@/pages/resident/Wallet";
@@ -36,13 +38,14 @@ export function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/signup" element={<Signup />} />
 
       <Route element={<ProtectedRoute />}>
         <Route element={<AppShell />}>
           <Route path="/" element={<RoleHomeRedirect />} />
 
           <Route element={<ProtectedRoute allow={["PLATFORM_OWNER"]} />}>
-            <Route path="/platform/societies" element={<PlaceholderPage title="Societies" />} />
+            <Route path="/platform/societies" element={<PlatformSocieties />} />
           </Route>
 
           <Route element={<ProtectedRoute allow={["ADMIN"]} />}>
