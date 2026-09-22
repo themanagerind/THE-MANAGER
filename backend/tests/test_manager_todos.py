@@ -101,3 +101,21 @@ async def test_todo_status_cannot_move_backward_out_of_done(
     await db_session.refresh(todo)
     assert todo.status == TodoStatus.DONE
     assert todo.completed_at == completed_at_after_done
+
+
+async def test_manager_can_read_task_suggestions_catalog(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    """Manager needs read access to the task-suggestions catalog to resolve
+    a to-do's task_suggestion_id to a human title in the UI. Add (POST)
+    stays Admin-only; this only grants GET."""
+    society_id = two_societies_with_admins["a"]["society_id"]
+    manager, _todo = await _seed_manager_with_todo(db_session, society_id)
+    headers = auth_headers(manager.id, society_id, Role.MANAGER, [Role.MANAGER])
+
+    resp = await client.get("/api/v1/task-suggestions", headers=headers)
+    assert resp.status_code == 200
+    assert any(t["title"] == "Check water tank" for t in resp.json())
+
+    resp = await client.post("/api/v1/task-suggestions", json={"title": "New task"}, headers=headers)
+    assert resp.status_code == 403

@@ -35,8 +35,11 @@ async def add_task_suggestion(
 @router.get("/task-suggestions", response_model=list[TaskSuggestionOut])
 async def list_task_suggestions(
     db: Annotated[AsyncSession, Depends(get_db)],
-    current: Annotated[CurrentUser, Depends(require_role(Role.ADMIN))],
+    current: Annotated[CurrentUser, Depends(require_role(Role.ADMIN, Role.MANAGER))],
 ) -> list[TaskSuggestionOut]:
+    # Manager needs read access to resolve a to-do's task_suggestion_id to
+    # its title in the UI — the catalog itself stays Admin-managed (add
+    # above is still Admin-only), this is view-only.
     tasks = await manager_todo_service.list_task_suggestions(db)
     return [TaskSuggestionOut.model_validate(t) for t in tasks]
 
