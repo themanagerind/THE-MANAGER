@@ -20,8 +20,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.db import get_db
-from app.models.enums import Role, UserStatus
-from app.models.identity import User, UserRole
+from app.models.enums import Role, SocietyStatus, UserStatus
+from app.models.identity import Society, User, UserRole
 
 settings = get_settings()
 bearer_scheme = HTTPBearer(auto_error=False)
@@ -114,9 +114,23 @@ async def get_current_user(
     user_id = uuid.UUID(payload["sub"])
 
     # Re-derive current state from DB — the whole point of Section 49.14.
-    user = (await db.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
-    if user is None or user.status != UserStatus.ACTIVE:
+    # Joined so a society suspended AFTER token issuance is caught on every
+    # subsequent request, not just at login — an existing JWT alone must
+    # never keep working once the society is suspended.
+    row = (
+        await db.execute(
+            select(User, Society.status)
+            .outerjoin(Society, User.society_id == Society.id)
+            .where(User.id == user_id)
+        )
+    ).first()
+    if row is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "User not found or not active")
+    user, society_status = row
+    if user.status != UserStatus.ACTIVE:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "User not found or not active")
+    if user.society_id is not None and society_status != SocietyStatus.ACTIVE:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Society is suspended")
 
     active_roles_rows = (
         await db.execute(

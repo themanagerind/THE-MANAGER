@@ -203,3 +203,38 @@ async def test_payment_correction_creates_adjustment_not_new_payment(
 
     wallet = (await db_session.execute(select(Wallet).where(Wallet.resident_id == resident.id))).scalar_one()
     assert float(wallet.balance) == 4500.0
+
+
+async def test_resident_cannot_view_other_propertys_dues(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    """Regression test — audit finding C2 (IDOR): a Resident could previously
+    name ANY property_id in their own society on the by-property dues
+    endpoint and read its maintenance dues, not just their own linked
+    property's."""
+    society_id = two_societies_with_admins["a"]["society_id"]
+    prop, resident = await _seed_resident_with_property(db_session, society_id)
+    await _seed_due(db_session, society_id, prop.id, amount=1800.0)
+
+    # A second property in the SAME society that this resident has no link to.
+    other_loc = SocietyLocation(society_id=society_id, name="Wing B", location_type=LocationType.WING)
+    db_session.add(other_loc)
+    await db_session.flush()
+    other_prop = Property(
+        society_id=society_id, location_id=other_loc.id, house_number="301",
+        house_type=HouseType.FLAT, floor_number=3, status="ACTIVE",
+    )
+    db_session.add(other_prop)
+    await db_session.commit()
+    await db_session.refresh(other_prop)
+    await _seed_due(db_session, society_id, other_prop.id, amount=9999.0)
+
+    headers = auth_headers(resident.id, society_id, Role.RESIDENT, [Role.RESIDENT])
+
+    resp = await client.get(f"/api/v1/payments/maintenance-dues/by-property/{other_prop.id}", headers=headers)
+    assert resp.status_code == 403
+
+    # Sanity: the resident CAN still read dues for their own linked property.
+    resp = await client.get(f"/api/v1/payments/maintenance-dues/by-property/{prop.id}", headers=headers)
+    assert resp.status_code == 200
+    assert len(resp.json()) == 1

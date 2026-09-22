@@ -2,7 +2,7 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_db
@@ -19,6 +19,7 @@ from app.schemas.payment import (
     WalletOut,
 )
 from app.services import maintenance_service, payment_service, wallet_service
+from app.services.scope_service import resident_owns_or_rents_property
 
 router = APIRouter(prefix="/payments", tags=["payments"])
 
@@ -53,6 +54,17 @@ async def list_dues_for_property(
         CurrentUser, Depends(require_role(Role.ADMIN, Role.SUB_ADMIN, Role.RESIDENT))
     ],
 ) -> list[MaintenanceDueOut]:
+    # CRITICAL fix (audit finding C2): a Resident could previously name ANY
+    # property in their own society and read its dues, not just one they're
+    # linked to — same ownership check already used for complaints/visitors/
+    # amenities. Admin/Sub-admin are exempt: they legitimately manage every
+    # property in the society.
+    if current.active_role == Role.RESIDENT and not await resident_owns_or_rents_property(
+        db, current.user_id, property_id, current.society_id
+    ):
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN, "You are not an active Owner/Tenant of this property"
+        )
     dues = await maintenance_service.list_dues_for_property(db, current.society_id, property_id)
     return [MaintenanceDueOut.model_validate(d) for d in dues]
 

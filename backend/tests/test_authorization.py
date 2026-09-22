@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.enums import HouseType, LocationType, Role, UserStatus
@@ -105,3 +106,36 @@ async def test_scope_check_rejects_property_from_different_society(db_session: A
         db_session, fixtures["b"]["admin_id"], prop_a.id, fixtures["b"]["society_id"]
     )
     assert has_scope is False
+
+
+async def test_suspended_society_blocks_existing_token(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    """Regression test — audit finding C1: get_current_user() only checked
+    User.status, never Society.status. An Admin's JWT issued while their
+    society was ACTIVE kept working after the Platform Owner suspended
+    that society. Every protected request must be blocked once the
+    society is suspended, not just new logins."""
+    from app.models.enums import SocietyStatus
+    from app.models.identity import Society
+
+    fixtures = two_societies_with_admins
+    admin_id = fixtures["a"]["admin_id"]
+    society_id = fixtures["a"]["society_id"]
+
+    headers = auth_headers(admin_id, society_id, Role.ADMIN, [Role.ADMIN])
+
+    # Token works while the society is ACTIVE.
+    resp = await client.get("/api/v1/properties", headers=headers)
+    assert resp.status_code == 200
+
+    society = (
+        await db_session.execute(select(Society).where(Society.id == society_id))
+    ).scalar_one()
+    society.status = SocietyStatus.SUSPENDED
+    await db_session.commit()
+
+    # Same token, same headers — must now be rejected on every request,
+    # not only at login.
+    resp = await client.get("/api/v1/properties", headers=headers)
+    assert resp.status_code == 403
