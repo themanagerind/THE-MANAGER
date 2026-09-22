@@ -16,6 +16,8 @@ import { AdminOverview } from "@/pages/admin/Overview";
 import { AdminResidents } from "@/pages/admin/Residents";
 import { AdminProperties } from "@/pages/admin/Properties";
 import { AdminDues } from "@/pages/admin/Dues";
+import { ManagerTodos } from "@/pages/manager/Todos";
+import { ManagerComplaints } from "@/pages/manager/Complaints";
 
 function RoleHomeRedirect() {
   const { activeRole } = useAuth();
@@ -66,8 +68,8 @@ export function App() {
           </Route>
 
           <Route element={<ProtectedRoute allow={["MANAGER"]} />}>
-            <Route path="/manager" element={<PlaceholderPage title="My To-Dos" />} />
-            <Route path="/manager/complaints" element={<PlaceholderPage title="Complaints" />} />
+            <Route path="/manager" element={<ManagerTodos />} />
+            <Route path="/manager/complaints" element={<ManagerComplaints />} />
           </Route>
 
           <Route element={<ProtectedRoute allow={["RESIDENT"]} />}>
