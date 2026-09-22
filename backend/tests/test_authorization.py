@@ -1,4 +1,5 @@
 """Cross-society isolation tests — priority #2 per Section 42."""
+import uuid
 from datetime import datetime, timezone
 
 import pytest
@@ -6,11 +7,47 @@ from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.enums import HouseType, LocationType, Role, UserStatus
-from app.models.identity import Property, SocietyLocation, User, UserRole
+from app.models.enums import HouseType, LocationType, RelationshipType, Role, UserStatus
+from app.models.identity import Property, PropertyResident, SocietyLocation, SubAdminScope, User, UserRole
 from tests.conftest import auth_headers
 
 pytestmark = pytest.mark.asyncio
+
+
+async def _seed_subadmin_scoped_to_wing_a(db_session: AsyncSession, society_id):
+    """Two wings, a property in each, and a Sub-admin whose SubAdminScope
+    only covers Wing A. Returns (subadmin, prop_in_a, prop_in_b)."""
+    loc_a = SocietyLocation(society_id=society_id, name="Wing A", location_type=LocationType.WING)
+    loc_b = SocietyLocation(society_id=society_id, name="Wing B", location_type=LocationType.WING)
+    db_session.add_all([loc_a, loc_b])
+    await db_session.flush()
+
+    prop_in_a = Property(
+        society_id=society_id, location_id=loc_a.id, house_number="A-101",
+        house_type=HouseType.FLAT, floor_number=1, status="ACTIVE",
+    )
+    prop_in_b = Property(
+        society_id=society_id, location_id=loc_b.id, house_number="B-101",
+        house_type=HouseType.FLAT, floor_number=1, status="ACTIVE",
+    )
+    db_session.add_all([prop_in_a, prop_in_b])
+    await db_session.flush()
+
+    subadmin = User(society_id=society_id, full_name="SubAdmin", mobile="9100000009", status=UserStatus.ACTIVE)
+    db_session.add(subadmin)
+    await db_session.flush()
+    db_session.add(UserRole(user_id=subadmin.id, role=Role.SUB_ADMIN, assigned_at=datetime.now(timezone.utc)))
+    db_session.add(
+        SubAdminScope(
+            society_id=society_id, sub_admin_id=subadmin.id, location_id=loc_a.id,
+            assigned_by=subadmin.id, assigned_at=datetime.now(timezone.utc),
+        )
+    )
+    await db_session.commit()
+    await db_session.refresh(subadmin)
+    await db_session.refresh(prop_in_a)
+    await db_session.refresh(prop_in_b)
+    return subadmin, prop_in_a, prop_in_b
 
 
 async def _seed_location_and_property(db_session: AsyncSession, society_id):
@@ -139,3 +176,123 @@ async def test_suspended_society_blocks_existing_token(
     # not only at login.
     resp = await client.get("/api/v1/properties", headers=headers)
     assert resp.status_code == 403
+
+
+async def test_subadmin_cannot_see_payments_and_dues_outside_scope(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    """Regression test: /payments, /payments/pending and
+    /payments/maintenance-dues previously returned the WHOLE society to a
+    Sub-admin, ignoring their assigned Wing/Row scope (Section 27) —
+    unlike /payments/maintenance-dues/by-property/{id}, approve, reject and
+    correct, which already enforced it."""
+    from datetime import date
+    from app.models.enums import MaintenanceDueStatus, PaymentMethod, PaymentStatus
+    from app.models.payments import MaintenanceDue, Payment
+
+    society_id = two_societies_with_admins["a"]["society_id"]
+    subadmin, prop_in_a, prop_in_b = await _seed_subadmin_scoped_to_wing_a(db_session, society_id)
+
+    resident = User(society_id=society_id, full_name="Resident", mobile="9100000010", status=UserStatus.ACTIVE)
+    db_session.add(resident)
+    await db_session.flush()
+    db_session.add(UserRole(user_id=resident.id, role=Role.RESIDENT, assigned_at=datetime.now(timezone.utc)))
+    await db_session.flush()
+
+    now = datetime.now(timezone.utc)
+    due_a = MaintenanceDue(
+        society_id=society_id, property_id=prop_in_a.id, amount=1000.0, due_date=date.today(),
+        status=MaintenanceDueStatus.PENDING, billing_month=date.today().replace(day=1),
+        generated_at=now, updated_at=now,
+    )
+    due_b = MaintenanceDue(
+        society_id=society_id, property_id=prop_in_b.id, amount=2000.0, due_date=date.today(),
+        status=MaintenanceDueStatus.PENDING, billing_month=date.today().replace(day=1),
+        generated_at=now, updated_at=now,
+    )
+    db_session.add_all([due_a, due_b])
+    await db_session.flush()
+
+    payment_a = Payment(
+        society_id=society_id, maintenance_due_id=due_a.id, property_id=prop_in_a.id,
+        resident_id=resident.id, payment_method=PaymentMethod.MANUAL_UPI, amount=1000.0,
+        status=PaymentStatus.PENDING_APPROVAL, idempotency_key=uuid.uuid4(),
+    )
+    payment_b = Payment(
+        society_id=society_id, maintenance_due_id=due_b.id, property_id=prop_in_b.id,
+        resident_id=resident.id, payment_method=PaymentMethod.MANUAL_UPI, amount=2000.0,
+        status=PaymentStatus.PENDING_APPROVAL, idempotency_key=uuid.uuid4(),
+    )
+    db_session.add_all([payment_a, payment_b])
+    await db_session.commit()
+
+    headers = auth_headers(subadmin.id, society_id, Role.SUB_ADMIN, [Role.SUB_ADMIN])
+
+    resp = await client.get("/api/v1/payments/maintenance-dues", headers=headers)
+    assert resp.status_code == 200
+    due_property_ids = {d["property_id"] for d in resp.json()}
+    assert str(prop_in_a.id) in due_property_ids
+    assert str(prop_in_b.id) not in due_property_ids
+
+    resp = await client.get("/api/v1/payments", headers=headers)
+    assert resp.status_code == 200
+    body = resp.json()
+    payment_property_ids = {p["property_id"] for p in body["items"]}
+    assert str(prop_in_a.id) in payment_property_ids
+    assert str(prop_in_b.id) not in payment_property_ids
+    assert body["total"] == 1  # scoped total, not the whole society's 2
+
+    resp = await client.get("/api/v1/payments/pending", headers=headers)
+    assert resp.status_code == 200
+    pending_property_ids = {p["property_id"] for p in resp.json()}
+    assert str(prop_in_a.id) in pending_property_ids
+    assert str(prop_in_b.id) not in pending_property_ids
+
+
+async def test_subadmin_cannot_list_residents_of_property_outside_scope(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    society_id = two_societies_with_admins["a"]["society_id"]
+    subadmin, prop_in_a, prop_in_b = await _seed_subadmin_scoped_to_wing_a(db_session, society_id)
+    headers = auth_headers(subadmin.id, society_id, Role.SUB_ADMIN, [Role.SUB_ADMIN])
+
+    resp = await client.get(f"/api/v1/residents/by-property/{prop_in_a.id}", headers=headers)
+    assert resp.status_code == 200
+
+    resp = await client.get(f"/api/v1/residents/by-property/{prop_in_b.id}", headers=headers)
+    assert resp.status_code == 403
+
+
+async def test_subadmin_only_sees_residents_property_links_within_scope(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    """A Resident linked to properties in two different wings — a
+    scope-restricted Sub-admin should only see the link inside their scope,
+    not silently the whole list either."""
+    society_id = two_societies_with_admins["a"]["society_id"]
+    subadmin, prop_in_a, prop_in_b = await _seed_subadmin_scoped_to_wing_a(db_session, society_id)
+
+    resident = User(society_id=society_id, full_name="Resident", mobile="9100000011", status=UserStatus.ACTIVE)
+    db_session.add(resident)
+    await db_session.flush()
+    db_session.add(UserRole(user_id=resident.id, role=Role.RESIDENT, assigned_at=datetime.now(timezone.utc)))
+    now = datetime.now(timezone.utc)
+    db_session.add(
+        PropertyResident(
+            society_id=society_id, property_id=prop_in_a.id, resident_id=resident.id,
+            relationship_type=RelationshipType.OWNER, is_active=True, created_at=now,
+        )
+    )
+    db_session.add(
+        PropertyResident(
+            society_id=society_id, property_id=prop_in_b.id, resident_id=resident.id,
+            relationship_type=RelationshipType.OWNER, is_active=True, created_at=now,
+        )
+    )
+    await db_session.commit()
+
+    headers = auth_headers(subadmin.id, society_id, Role.SUB_ADMIN, [Role.SUB_ADMIN])
+    resp = await client.get(f"/api/v1/residents/{resident.id}/properties", headers=headers)
+    assert resp.status_code == 200
+    linked_property_ids = {link["property_id"] for link in resp.json()}
+    assert linked_property_ids == {str(prop_in_a.id)}

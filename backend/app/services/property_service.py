@@ -82,3 +82,25 @@ async def list_properties(db: AsyncSession, society_id: uuid.UUID) -> list[Prope
     return (
         await db.execute(select(Property).where(Property.society_id == society_id))
     ).scalars().all()
+
+
+async def update_property_status(
+    db: AsyncSession, society_id: uuid.UUID, property_id: uuid.UUID, new_status: str
+) -> Property:
+    """Admin-only ACTIVE/INACTIVE toggle. resident_owns_or_rents_property()
+    (scope_service) checks this on every Resident-facing action (payments,
+    complaints, visitors, amenities), so marking a property INACTIVE
+    immediately blocks new activity on it without touching the underlying
+    PropertyResident links."""
+    prop = (
+        await db.execute(
+            select(Property).where(Property.id == property_id, Property.society_id == society_id)
+        )
+    ).scalar_one_or_none()
+    if prop is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Property not found in this society")
+
+    prop.status = new_status
+    await db.commit()
+    await db.refresh(prop)
+    return prop

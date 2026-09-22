@@ -71,7 +71,20 @@ async def resident_owns_or_rents_property(
     Tenant) — same pattern already used by payment_service for payment
     submission, now extended to complaints, visitors, and amenity bookings,
     which previously only checked society_id and let a Resident name ANY
-    property in their own society."""
+    property in their own society.
+
+    Audit fix: also requires the property itself to be ACTIVE — an Admin
+    marking a property INACTIVE (e.g. under renovation, sold, demolished)
+    previously had no effect here; the existing PropertyResident link alone
+    kept every Resident-facing action open."""
+    prop = (
+        await db.execute(
+            select(Property).where(Property.id == property_id, Property.society_id == society_id)
+        )
+    ).scalar_one_or_none()
+    if prop is None or prop.status != "ACTIVE":
+        return False
+
     link = (
         await db.execute(
             select(PropertyResident).where(

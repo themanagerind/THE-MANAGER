@@ -4,7 +4,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, model_validator
 
-from app.models.enums import HouseType, LocationType
+from app.models.enums import HouseType, LocationType, PropertyStatus
 
 
 class SocietyLocationCreateIn(BaseModel):
@@ -34,6 +34,10 @@ class PropertyCreateIn(BaseModel):
         if self.house_type == HouseType.FLAT and self.floor_number is None:
             raise ValueError("floor_number is mandatory for FLAT")
         return self
+
+
+class PropertyStatusUpdateIn(BaseModel):
+    status: PropertyStatus
 
 
 class PropertyOut(BaseModel):

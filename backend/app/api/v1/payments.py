@@ -14,12 +14,13 @@ from app.schemas.payment import (
     GenerateMonthlyBillsIn,
     MaintenanceDueOut,
     PaymentOut,
+    PaymentProofOut,
     RejectPaymentIn,
     SubmitPaymentIn,
     WalletOut,
 )
 from app.services import maintenance_service, payment_service, wallet_service
-from app.services.scope_service import resident_owns_or_rents_property
+from app.services.scope_service import resident_owns_or_rents_property, subadmin_has_scope_over_property
 
 router = APIRouter(prefix="/payments", tags=["payments"])
 
@@ -43,6 +44,16 @@ async def list_dues(
     current: Annotated[CurrentUser, Depends(require_role(Role.ADMIN, Role.SUB_ADMIN))],
 ) -> list[MaintenanceDueOut]:
     dues = await maintenance_service.list_dues_for_society(db, current.society_id)
+    # Audit fix: this listed every due in the society regardless of caller
+    # role — a Sub-admin's Wing/Row scope (Section 27) was never applied,
+    # so they could read maintenance dues (amount, status, resident/property
+    # linkage) outside their assigned scope. Same pattern already used for
+    # complaints (complaint_service.filter_by_subadmin_scope).
+    if current.active_role == Role.SUB_ADMIN:
+        dues = [
+            d for d in dues
+            if await subadmin_has_scope_over_property(db, current.user_id, d.property_id, current.society_id)
+        ]
     return [MaintenanceDueOut.model_validate(d) for d in dues]
 
 
@@ -94,9 +105,22 @@ async def list_payments(
     """API Contract Freeze — reference paginated list endpoint: ?skip=&limit=,
     Page[T] envelope. Apply this same shape when extending pagination to
     other list endpoints (see docs/API_CONTRACT.md)."""
-    payments, total = await payment_service.list_payments_for_society(
-        db, current.society_id, pagination.skip, pagination.limit
-    )
+    if current.active_role == Role.SUB_ADMIN:
+        # Audit fix: scope filtering has to happen BEFORE pagination — doing
+        # it after the SQL offset/limit slice would silently return short
+        # pages and a `total` that counts the whole society, not the
+        # Sub-admin's scope.
+        all_payments = await payment_service.list_all_payments_for_society(db, current.society_id)
+        scoped = [
+            p for p in all_payments
+            if await subadmin_has_scope_over_property(db, current.user_id, p.property_id, current.society_id)
+        ]
+        total = len(scoped)
+        payments = scoped[pagination.skip : pagination.skip + pagination.limit]
+    else:
+        payments, total = await payment_service.list_payments_for_society(
+            db, current.society_id, pagination.skip, pagination.limit
+        )
     return Page(
         items=[PaymentOut.model_validate(p) for p in payments],
         total=total, skip=pagination.skip, limit=pagination.limit,
@@ -109,6 +133,11 @@ async def list_pending(
     current: Annotated[CurrentUser, Depends(require_role(Role.ADMIN, Role.SUB_ADMIN))],
 ) -> list[PaymentOut]:
     payments = await payment_service.list_pending_payments(db, current.society_id)
+    if current.active_role == Role.SUB_ADMIN:
+        payments = [
+            p for p in payments
+            if await subadmin_has_scope_over_property(db, current.user_id, p.property_id, current.society_id)
+        ]
     return [PaymentOut.model_validate(p) for p in payments]
 
 
@@ -155,6 +184,34 @@ async def correct(
         "new_amount": float(correction.new_amount),
         "difference": float(correction.difference),
     }
+
+
+@router.get("/{payment_id}/proofs", response_model=list[PaymentProofOut])
+async def list_proofs(
+    payment_id: uuid.UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current: Annotated[
+        CurrentUser, Depends(require_role(Role.ADMIN, Role.SUB_ADMIN, Role.RESIDENT))
+    ],
+) -> list[PaymentProofOut]:
+    """Audit fix: this endpoint didn't exist at all — the frontend has
+    called it since payment proof upload was added, but nothing backed it.
+    A Resident may only see proofs for their own payment; Sub-admin is
+    scope-restricted like every other payment endpoint; Admin has full
+    access."""
+    payment = await payment_service.get_payment(db, current.society_id, payment_id)
+    if payment is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Payment not found in this society")
+
+    if current.active_role == Role.RESIDENT and payment.resident_id != current.user_id:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "You can only view proofs for your own payments")
+    if current.active_role == Role.SUB_ADMIN and not await subadmin_has_scope_over_property(
+        db, current.user_id, payment.property_id, current.society_id
+    ):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Payment's property is outside your assigned scope")
+
+    proofs = await payment_service.list_proofs_for_payment(db, payment_id)
+    return [PaymentProofOut.model_validate(p) for p in proofs]
 
 
 @router.get("/wallet/me", response_model=WalletOut)

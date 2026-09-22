@@ -24,6 +24,7 @@ from app.models.enums import Role
 from app.schemas.property import (
     PropertyCreateIn,
     PropertyOut,
+    PropertyStatusUpdateIn,
     SocietyLocationCreateIn,
     SocietyLocationOut,
 )
@@ -68,3 +69,19 @@ async def list_properties(
 ) -> list[PropertyOut]:
     properties = await property_service.list_properties(db, current.society_id)
     return [PropertyOut.model_validate(p) for p in properties]
+
+
+@router.patch("/{property_id}/status", response_model=PropertyOut)
+async def update_property_status(
+    property_id: uuid.UUID,
+    body: PropertyStatusUpdateIn,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current: Annotated[CurrentUser, Depends(require_role(Role.ADMIN))],
+) -> PropertyOut:
+    """Audit fix: there was no way to mark a property INACTIVE at all,
+    despite the model supporting it and resident_owns_or_rents_property()
+    (scope_service) checking it on every Resident-facing action."""
+    prop = await property_service.update_property_status(
+        db, current.society_id, property_id, body.status.value
+    )
+    return PropertyOut.model_validate(prop)

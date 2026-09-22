@@ -8,8 +8,8 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.enums import PaymentAuditAction, PaymentMethod, PaymentStatus, Role, UserStatus
-from app.models.identity import PropertyResident, User, UserRole
+from app.models.enums import MaintenanceDueStatus, PaymentAuditAction, PaymentMethod, PaymentStatus, Role, UserStatus
+from app.models.identity import Property, PropertyResident, User, UserRole
 from app.models.payments import MaintenanceDue, Payment, PaymentAuditLog, PaymentProof
 from app.schemas.payment import SubmitPaymentIn
 from app.services.payment_service._finalize import finalize_paid
@@ -20,7 +20,13 @@ async def _active_resident_authorized_for_property(
 ) -> bool:
     """Section 49.2 active-resident payment authorization: resident must be
     actively linked (Owner or Tenant) to the property, hold an active
-    RESIDENT role, and everything must resolve to the same society."""
+    RESIDENT role, and everything must resolve to the same society.
+
+    Audit fix: also requires the property itself to be ACTIVE, matching
+    scope_service.resident_owns_or_rents_property — this is a separate
+    function (payment submission has its own extra RESIDENT-role check),
+    not a caller of it, so the property-active check has to be repeated
+    here rather than inherited."""
     resident = (
         await db.execute(
             select(User).where(
@@ -41,6 +47,14 @@ async def _active_resident_authorized_for_property(
     if has_role is None:
         return False
 
+    prop = (
+        await db.execute(
+            select(Property).where(Property.id == property_id, Property.society_id == society_id)
+        )
+    ).scalar_one_or_none()
+    if prop is None or prop.status != "ACTIVE":
+        return False
+
     link = (
         await db.execute(
             select(PropertyResident).where(
@@ -56,15 +70,28 @@ async def _active_resident_authorized_for_property(
 async def submit_payment(
     db: AsyncSession, society_id: uuid.UUID, resident_id: uuid.UUID, body: SubmitPaymentIn
 ) -> Payment:
+    # Row lock: closes the race where two concurrent submissions (e.g. two
+    # MOCK_ONLINE requests, which skip the PENDING_APPROVAL stage entirely
+    # and go straight to PAID) both read status=PENDING before either
+    # commits — the second waits here, then re-reads PAID and is rejected
+    # below instead of double-crediting.
     due = (
         await db.execute(
-            select(MaintenanceDue).where(
-                MaintenanceDue.id == body.maintenance_due_id, MaintenanceDue.society_id == society_id
-            )
+            select(MaintenanceDue)
+            .where(MaintenanceDue.id == body.maintenance_due_id, MaintenanceDue.society_id == society_id)
+            .with_for_update()
         )
     ).scalar_one_or_none()
     if due is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Maintenance due not found in this society")
+
+    # Audit fix: the only existing guard was "one PENDING_APPROVAL payment
+    # per due" — a due that's already PAID had no guard at all, so a
+    # Resident (or a retried MOCK_ONLINE request) could submit another
+    # payment against it, crediting the wallet and posting ledger income a
+    # second time for the same due.
+    if due.status == MaintenanceDueStatus.PAID:
+        raise HTTPException(status.HTTP_409_CONFLICT, "This due is already paid")
 
     if not await _active_resident_authorized_for_property(db, resident_id, due.property_id, society_id):
         raise HTTPException(

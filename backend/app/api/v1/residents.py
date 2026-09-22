@@ -16,6 +16,7 @@ from app.schemas.resident import (
     ResidentSignupIn,
 )
 from app.services import resident_service
+from app.services.scope_service import subadmin_has_scope_over_property
 
 router = APIRouter(prefix="/residents", tags=["residents"])
 
@@ -78,6 +79,13 @@ async def get_property_residents(
     db: Annotated[AsyncSession, Depends(get_db)],
     current: Annotated[CurrentUser, Depends(require_role(Role.ADMIN, Role.SUB_ADMIN))],
 ) -> list[PropertyResidentOut]:
+    # Audit fix: a Sub-admin could previously name ANY property in their own
+    # society and see its occupants — Wing/Row scope (Section 27) wasn't
+    # applied here. Admin has no such restriction.
+    if current.active_role == Role.SUB_ADMIN and not await subadmin_has_scope_over_property(
+        db, current.user_id, property_id, current.society_id
+    ):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "This property is outside your assigned scope")
     links = await resident_service.list_property_residents(db, current.society_id, property_id)
     return [PropertyResidentOut.model_validate(link) for link in links]
 
@@ -89,8 +97,16 @@ async def get_resident_properties(
     current: Annotated[CurrentUser, Depends(require_role(Role.ADMIN, Role.SUB_ADMIN, Role.RESIDENT))],
 ) -> list[PropertyResidentOut]:
     # A Resident may only query their own properties — not another resident's
-    # (private data boundary; Admin/Sub-admin have no such restriction here).
+    # (private data boundary; Admin has no such restriction here).
     if current.active_role == Role.RESIDENT and resident_id != current.user_id:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Residents can only view their own properties")
     links = await resident_service.list_resident_properties(db, current.society_id, resident_id)
+    # Audit fix: a Sub-admin could previously query ANY resident's full
+    # property list regardless of scope. A resident can be linked to
+    # properties across different wings, so filter per-link, not per-request.
+    if current.active_role == Role.SUB_ADMIN:
+        links = [
+            link for link in links
+            if await subadmin_has_scope_over_property(db, current.user_id, link.property_id, current.society_id)
+        ]
     return [PropertyResidentOut.model_validate(link) for link in links]

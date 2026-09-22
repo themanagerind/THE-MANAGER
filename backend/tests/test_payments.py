@@ -269,3 +269,112 @@ async def test_manager_can_view_property_dues_but_not_generate_or_correct(
         headers=headers,
     )
     assert resp.status_code == 403
+
+
+async def test_paid_due_cannot_be_paid_again(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    """Regression test: submit_payment() only guarded against a second
+    PENDING_APPROVAL payment on the same due — a due that's already PAID
+    (e.g. via MOCK_ONLINE, which skips PENDING_APPROVAL entirely and goes
+    straight to PAID) had no guard at all, so a second submission would
+    double-credit the wallet and double-post ledger income."""
+    society_id = two_societies_with_admins["a"]["society_id"]
+    prop, resident = await _seed_resident_with_property(db_session, society_id)
+    due = await _seed_due(db_session, society_id, prop.id, amount=1500.0)
+
+    headers = auth_headers(resident.id, society_id, Role.RESIDENT, [Role.RESIDENT])
+    resp = await client.post(
+        "/api/v1/payments",
+        json={"maintenance_due_id": str(due.id), "payment_method": "MOCK_ONLINE", "idempotency_key": str(uuid.uuid4())},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "PAID"
+
+    resp = await client.post(
+        "/api/v1/payments",
+        json={"maintenance_due_id": str(due.id), "payment_method": "MOCK_ONLINE", "idempotency_key": str(uuid.uuid4())},
+        headers=headers,
+    )
+    assert resp.status_code == 409
+
+    wallet = (await db_session.execute(select(Wallet).where(Wallet.resident_id == resident.id))).scalar_one()
+    assert float(wallet.balance) == 1500.0  # not double-credited
+
+    payments = (
+        await db_session.execute(select(Payment).where(Payment.maintenance_due_id == due.id))
+    ).scalars().all()
+    assert len(payments) == 1  # not double-inserted
+
+    ledger_entries = (
+        await db_session.execute(select(AccountEntry).where(AccountEntry.related_payment_id == payments[0].id))
+    ).scalars().all()
+    assert len(ledger_entries) == 1  # not double-posted
+
+
+async def test_payment_proof_upload_and_retrieval(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    """Regression test: the frontend has called POST /uploads/payment-proof
+    and GET /payments/{id}/proofs since manual payment support was added,
+    but neither endpoint existed on the backend at all — this whole flow
+    was disconnected."""
+    society_id = two_societies_with_admins["a"]["society_id"]
+    prop, resident = await _seed_resident_with_property(db_session, society_id)
+    due = await _seed_due(db_session, society_id, prop.id, amount=1200.0)
+    headers = auth_headers(resident.id, society_id, Role.RESIDENT, [Role.RESIDENT])
+
+    fake_jpeg = b"\xff\xd8\xff\xe0" + b"0" * 100
+    resp = await client.post(
+        "/api/v1/uploads/payment-proof",
+        files={"file": ("proof.jpg", fake_jpeg, "image/jpeg")},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    file_url = resp.json()["file_url"]
+    assert file_url.startswith("/uploads/payment_proofs/")
+
+    resp = await client.post(
+        "/api/v1/payments",
+        json={
+            "maintenance_due_id": str(due.id), "payment_method": "MANUAL_UPI",
+            "idempotency_key": str(uuid.uuid4()), "proof_type": "UPI_SCREENSHOT",
+            "proof_file_url": file_url,
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    payment_id = resp.json()["id"]
+    assert resp.json()["status"] == "PENDING_APPROVAL"
+
+    resp = await client.get(f"/api/v1/payments/{payment_id}/proofs", headers=headers)
+    assert resp.status_code == 200
+    proofs = resp.json()
+    assert len(proofs) == 1
+    assert proofs[0]["file_url"] == file_url
+
+    # An unrelated Resident cannot see this payment's proofs.
+    other_resident = User(society_id=society_id, full_name="Other Resident", mobile="9500000002", status=UserStatus.ACTIVE)
+    db_session.add(other_resident)
+    await db_session.flush()
+    db_session.add(UserRole(user_id=other_resident.id, role=Role.RESIDENT, assigned_at=datetime.now(timezone.utc)))
+    await db_session.commit()
+    other_headers = auth_headers(other_resident.id, society_id, Role.RESIDENT, [Role.RESIDENT])
+    resp = await client.get(f"/api/v1/payments/{payment_id}/proofs", headers=other_headers)
+    assert resp.status_code == 403
+
+
+async def test_payment_proof_upload_rejects_non_image(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    society_id = two_societies_with_admins["a"]["society_id"]
+    _prop, resident = await _seed_resident_with_property(db_session, society_id)
+    headers = auth_headers(resident.id, society_id, Role.RESIDENT, [Role.RESIDENT])
+
+    resp = await client.post(
+        "/api/v1/uploads/payment-proof",
+        files={"file": ("proof.txt", b"not an image", "text/plain")},
+        headers=headers,
+    )
+    assert resp.status_code == 400
