@@ -413,3 +413,47 @@ async def test_payment_proof_upload_rejects_spoofed_content_type(
         headers=headers,
     )
     assert resp.status_code == 400
+
+
+async def test_payment_proof_upload_is_rate_limited_per_resident(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    """Regression test: no per-user upload rate limit existed — an
+    authenticated Resident could upload arbitrarily many 5 MB files."""
+    society_id = two_societies_with_admins["a"]["society_id"]
+    _prop, resident = await _seed_resident_with_property(db_session, society_id)
+    headers = auth_headers(resident.id, society_id, Role.RESIDENT, [Role.RESIDENT])
+    fake_jpeg = b"\xff\xd8\xff\xe0" + b"0" * 10
+
+    statuses = []
+    for _ in range(21):
+        resp = await client.post(
+            "/api/v1/uploads/payment-proof",
+            files={"file": ("proof.jpg", fake_jpeg, "image/jpeg")},
+            headers=headers,
+        )
+        statuses.append(resp.status_code)
+
+    assert statuses.count(200) == 20
+    assert statuses[-1] == 429
+
+
+async def test_payment_proof_upload_rejects_when_storage_full(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins, monkeypatch
+):
+    """Regression test: no total-storage cap existed either — added one,
+    checked before every write."""
+    from app.services import upload_service
+
+    society_id = two_societies_with_admins["a"]["society_id"]
+    _prop, resident = await _seed_resident_with_property(db_session, society_id)
+    headers = auth_headers(resident.id, society_id, Role.RESIDENT, [Role.RESIDENT])
+
+    monkeypatch.setattr(upload_service, "_MAX_TOTAL_STORAGE_BYTES", 0)
+
+    resp = await client.post(
+        "/api/v1/uploads/payment-proof",
+        files={"file": ("proof.jpg", b"\xff\xd8\xff\xe0" + b"0" * 10, "image/jpeg")},
+        headers=headers,
+    )
+    assert resp.status_code == 507

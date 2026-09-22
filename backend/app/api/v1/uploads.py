@@ -20,5 +20,5 @@ async def upload_payment_proof(
     manual UPI/Cash payment. Returns a file_url to pass as
     SubmitPaymentIn.proof_file_url — this doesn't create the Payment or
     PaymentProof row itself, submit_payment() does that atomically."""
-    file_url = await upload_service.save_payment_proof(file)
+    file_url = await upload_service.save_payment_proof(file, current.user_id)
     return UploadProofOut(file_url=file_url)

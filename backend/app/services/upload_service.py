@@ -13,6 +13,21 @@ it streams anything. save_payment_proof() now returns a storage key (not a
 URL) — it identifies the file on disk, nothing more; PaymentProof.file_url
 stores this key, and the API layer computes the authenticated endpoint
 path from it rather than exposing the key itself.
+
+Audit fix: no per-user rate limit or storage cap existed — an
+authenticated Resident could upload arbitrarily many 5 MB files. Added a
+Redis-based per-user hourly cap (same pattern as otp_service/
+resident_service's signup rate limit) and a total-storage cap checked
+before every write.
+
+Audit fix (orphaned uploads): a file saved here has no PaymentProof row
+until submit_payment() actually succeeds with this storage key — if the
+Resident uploads and then never submits the payment, the file sits on
+disk forever with nothing referencing it. scripts/cleanup_orphan_proofs.py
+finds and deletes files older than a threshold with no matching
+PaymentProof.file_url; run it periodically (cron), same pattern as
+scripts/seed_platform_owner.py — there's no in-app scheduler to hang a
+periodic job off of.
 """
 import uuid
 from pathlib import Path
@@ -20,10 +35,25 @@ from pathlib import Path
 from fastapi import HTTPException, UploadFile, status
 
 from app.core.config import get_settings
+from app.core.redis_client import get_redis
 
 settings = get_settings()
 
 _MAX_UPLOAD_BYTES = 5 * 1024 * 1024  # 5 MB
+_MAX_UPLOADS_PER_HOUR = 20
+_UPLOAD_RATE_WINDOW_SECONDS = 3600
+_MAX_TOTAL_STORAGE_BYTES = 2 * 1024 * 1024 * 1024  # 2 GB
+
+
+def _upload_rate_key(uploaded_by: uuid.UUID) -> str:
+    return f"payment_proof_upload:rate:{uploaded_by}"
+
+
+def _current_storage_bytes() -> int:
+    proof_dir = Path(settings.upload_dir) / "payment_proofs"
+    if not proof_dir.exists():
+        return 0
+    return sum(f.stat().st_size for f in proof_dir.iterdir() if f.is_file())
 
 # (content-type, magic-byte signature, extension) — content-type is only a
 # hint from the client; the signature is what's actually checked (audit
@@ -42,11 +72,20 @@ def _detect_image_type(contents: bytes) -> tuple[str, str] | None:
     return None
 
 
-async def save_payment_proof(file: UploadFile) -> str:
+async def save_payment_proof(file: UploadFile, uploaded_by: uuid.UUID) -> str:
     """Validates the file is actually a JPEG or PNG (by signature, not just
     the client-supplied header) and within the size limit, saves it to
     disk, and returns a storage key to pass back as
     SubmitPaymentIn.proof_file_url — NOT a fetchable URL."""
+    r = get_redis()
+    attempts = await r.incr(_upload_rate_key(uploaded_by))
+    if attempts == 1:
+        await r.expire(_upload_rate_key(uploaded_by), _UPLOAD_RATE_WINDOW_SECONDS)
+    if attempts > _MAX_UPLOADS_PER_HOUR:
+        raise HTTPException(
+            status.HTTP_429_TOO_MANY_REQUESTS, "Too many uploads — try again in an hour"
+        )
+
     contents = await file.read()
     if len(contents) > _MAX_UPLOAD_BYTES:
         raise HTTPException(
@@ -55,6 +94,14 @@ async def save_payment_proof(file: UploadFile) -> str:
         )
     if len(contents) == 0:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Empty file")
+
+    if _current_storage_bytes() + len(contents) > _MAX_TOTAL_STORAGE_BYTES:
+        # Not the uploader's fault — flag it distinctly from their own bad
+        # input so an ops alert can tell the difference from a 400.
+        raise HTTPException(
+            status.HTTP_507_INSUFFICIENT_STORAGE,
+            "Storage is full — contact support",
+        )
 
     detected = _detect_image_type(contents)
     if detected is None:
