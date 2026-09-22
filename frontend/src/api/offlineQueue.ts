@@ -13,8 +13,22 @@
  * the "online" event fired is safe; the backend's
  * UNIQUE(maintenance_due_id, idempotency_key) makes a duplicate replay a
  * clean 409, not a duplicate payment.
+ *
+ * Identity isolation (audit fix): a queued write is tagged with the
+ * userId that created it. logout() doesn't clear this queue — a
+ * legitimate offline payment shouldn't be lost just because the app
+ * happened to restart before connectivity returned — so on a shared
+ * device, User A could queue a payment, log out, and User B could log in
+ * before reconnecting. Without this tag, flushQueue() would replay A's
+ * request carrying B's bearer token, and the backend derives
+ * resident_id from the token — so the payment (and its wallet credit)
+ * would silently land on B's account instead of A's whenever B happens
+ * to also be linked to the same property. flushQueue() now only ever
+ * replays entries belonging to the CURRENTLY logged-in user; anyone
+ * else's stay queued untouched until they log back in.
  */
 import { apiClient } from "@/api/client";
+import { tokenStorage } from "@/auth/tokenStorage";
 
 const DB_NAME = "hs_offline_outbox";
 const DB_VERSION = 1;
@@ -26,6 +40,7 @@ interface QueuedRequest {
   url: string;
   body: unknown;
   queuedAt: string;
+  userId: string | null;
 }
 
 function openDb(): Promise<IDBDatabase> {
@@ -59,12 +74,19 @@ async function readAll(): Promise<QueuedRequest[]> {
 }
 
 export async function enqueue(method: QueuedRequest["method"], url: string, body: unknown): Promise<void> {
-  const entry: QueuedRequest = { id: crypto.randomUUID(), method, url, body, queuedAt: new Date().toISOString() };
+  const entry: QueuedRequest = {
+    id: crypto.randomUUID(), method, url, body, queuedAt: new Date().toISOString(),
+    userId: tokenStorage.getUserId(),
+  };
   await withStore("readwrite", (store) => store.add(entry));
 }
 
+/** Counts only the CURRENTLY logged-in user's own queued items — not a
+ * different user's leftovers still sitting in the queue on a shared
+ * device (identity isolation, see file header). */
 export async function pendingCount(): Promise<number> {
-  return (await readAll()).length;
+  const currentUserId = tokenStorage.getUserId();
+  return (await readAll()).filter((r) => r.userId === currentUserId).length;
 }
 
 /** Attempts to replay every queued write, in order. Stops at the first
@@ -90,13 +112,22 @@ export interface FlushResult {
 }
 
 export async function flushQueue(): Promise<FlushResult> {
+  const currentUserId = tokenStorage.getUserId();
   const queue = await readAll();
   let succeeded = 0;
   let failed = 0;
-  let stoppedAt = -1;
+  let stopped = false;
 
-  for (let i = 0; i < queue.length; i++) {
-    const req = queue[i];
+  for (const req of queue) {
+    if (req.userId !== currentUserId) {
+      // Belongs to a different identity that used this device before (or
+      // this device has no logged-in user right now) — never replay it
+      // under someone else's session/token. Left queued untouched until
+      // that user logs back in.
+      continue;
+    }
+    if (stopped) continue;
+
     const hasIdempotencyKey =
       typeof req.body === "object" && req.body !== null && "idempotency_key" in req.body;
 
@@ -120,14 +151,16 @@ export async function flushQueue(): Promise<FlushResult> {
         failed++;
         continue;
       }
-      // Genuine failure (still offline, server error) — stop here; this
-      // and every request after it stay queued for the next attempt.
-      stoppedAt = i;
-      break;
+      // Genuine failure (still offline, server error) — stop attempting
+      // this user's remaining items; they stay queued for the next try.
+      stopped = true;
     }
   }
 
-  const remaining = stoppedAt === -1 ? 0 : queue.length - stoppedAt;
+  // Re-read rather than compute from the loop index — foreign-user items
+  // interleaved in `queue` make positional arithmetic unreliable, and this
+  // is cheap and always correct regardless of interleaving.
+  const remaining = (await readAll()).filter((r) => r.userId === currentUserId).length;
   return { succeeded, failed, remaining };
 }
 

@@ -96,3 +96,63 @@ describe("offlineQueue (IndexedDB-backed)", () => {
     expect(apiClient.request).toHaveBeenCalledWith(expect.objectContaining({ data: body }));
   });
 });
+
+describe("offlineQueue identity isolation (audit fix)", () => {
+  function fakeToken(sub: string): string {
+    const payload = btoa(JSON.stringify({ sub, society_id: "soc-1" }));
+    return `header.${payload}.sig`;
+  }
+
+  beforeEach(async () => {
+    vi.mocked(apiClient.request).mockReset();
+    await resetDb();
+    localStorage.clear();
+  });
+
+  it("does not replay a different user's queued request", async () => {
+    localStorage.setItem("hs_access_token", fakeToken("user-A"));
+    await enqueue("post", "/payments", { maintenance_due_id: "due-1", idempotency_key: "key-1" });
+
+    // User A logs out, User B logs in on the same device — flush runs
+    // under B's identity while A's request is still sitting in the queue.
+    localStorage.setItem("hs_access_token", fakeToken("user-B"));
+    const result = await flushQueue();
+
+    expect(apiClient.request).not.toHaveBeenCalled();
+    expect(result).toEqual({ succeeded: 0, failed: 0, remaining: 0 });
+    // A's item is still queued, just invisible to B's own pending count.
+    expect(await pendingCount()).toBe(0);
+  });
+
+  it("replays a request once its own user is logged in again", async () => {
+    localStorage.setItem("hs_access_token", fakeToken("user-A"));
+    await enqueue("post", "/payments", { maintenance_due_id: "due-1", idempotency_key: "key-1" });
+
+    localStorage.setItem("hs_access_token", fakeToken("user-B"));
+    await flushQueue(); // no-op for B, per the test above
+
+    localStorage.setItem("hs_access_token", fakeToken("user-A"));
+    vi.mocked(apiClient.request).mockResolvedValue({ data: { id: "payment-1" } });
+    const result = await flushQueue();
+
+    expect(result).toEqual({ succeeded: 1, failed: 0, remaining: 0 });
+    expect(apiClient.request).toHaveBeenCalledTimes(1);
+  });
+
+  it("only flushes the current user's items, leaving another user's interleaved request untouched", async () => {
+    localStorage.setItem("hs_access_token", fakeToken("user-A"));
+    await enqueue("post", "/payments", { maintenance_due_id: "due-A", idempotency_key: "key-A" });
+
+    localStorage.setItem("hs_access_token", fakeToken("user-B"));
+    await enqueue("post", "/payments", { maintenance_due_id: "due-B", idempotency_key: "key-B" });
+
+    vi.mocked(apiClient.request).mockResolvedValue({ data: { id: "payment-B" } });
+    const result = await flushQueue(); // still logged in as B
+
+    expect(result).toEqual({ succeeded: 1, failed: 0, remaining: 0 });
+    expect(apiClient.request).toHaveBeenCalledTimes(1);
+    expect(apiClient.request).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ maintenance_due_id: "due-B" }) })
+    );
+  });
+});
