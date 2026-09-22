@@ -1,0 +1,6854 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Housing Society Management API",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/api/v1/auth/otp/request": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Request Otp Endpoint",
+        "operationId": "request_otp_endpoint_api_v1_auth_otp_request_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OTPRequestIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OTPRequestOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/otp/verify": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Verify Otp Endpoint",
+        "operationId": "verify_otp_endpoint_api_v1_auth_otp_verify_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OTPVerifyIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OTPVerifyOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/select-account": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Select Account Endpoint",
+        "operationId": "select_account_endpoint_api_v1_auth_select_account_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SelectAccountIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/switch-role": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Switch Role Endpoint",
+        "operationId": "switch_role_endpoint_api_v1_auth_switch_role_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SwitchRoleIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/auth/token/refresh": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Refresh Token Endpoint",
+        "operationId": "refresh_token_endpoint_api_v1_auth_token_refresh_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshTokenIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Logout Endpoint",
+        "description": "Revokes the refresh token tied to the current session. Pass the\nrefresh_token so its specific jti is invalidated (not every session).",
+        "operationId": "logout_endpoint_api_v1_auth_logout_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshTokenIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Logout Endpoint Api V1 Auth Logout Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/auth/me": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Get Me",
+        "operationId": "get_me_api_v1_auth_me_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurrentUser"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/societies/signup": {
+      "post": {
+        "tags": [
+          "societies"
+        ],
+        "summary": "Signup",
+        "description": "Public \u2014 no auth required. Creates a PENDING society + PENDING Admin\ntogether; both wait for Platform Owner approval (Section 26).",
+        "operationId": "signup_api_v1_societies_signup_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SocietySignupIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SocietySignupOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/societies": {
+      "get": {
+        "tags": [
+          "societies"
+        ],
+        "summary": "List All",
+        "operationId": "list_all_api_v1_societies_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SocietyOut"
+                  },
+                  "type": "array",
+                  "title": "Response List All Api V1 Societies Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/societies/{society_id}/approve": {
+      "post": {
+        "tags": [
+          "societies"
+        ],
+        "summary": "Approve",
+        "operationId": "approve_api_v1_societies__society_id__approve_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "society_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Society Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SocietyOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/societies/{society_id}/status": {
+      "patch": {
+        "tags": [
+          "societies"
+        ],
+        "summary": "Update Status",
+        "operationId": "update_status_api_v1_societies__society_id__status_patch",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "society_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Society Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SocietyStatusUpdateIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SocietyOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/properties/locations": {
+      "get": {
+        "tags": [
+          "properties"
+        ],
+        "summary": "List Locations",
+        "operationId": "list_locations_api_v1_properties_locations_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SocietyLocationOut"
+                  },
+                  "type": "array",
+                  "title": "Response List Locations Api V1 Properties Locations Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "properties"
+        ],
+        "summary": "Create Location",
+        "operationId": "create_location_api_v1_properties_locations_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SocietyLocationCreateIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SocietyLocationOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/properties": {
+      "get": {
+        "tags": [
+          "properties"
+        ],
+        "summary": "List Properties",
+        "operationId": "list_properties_api_v1_properties_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PropertyOut"
+                  },
+                  "type": "array",
+                  "title": "Response List Properties Api V1 Properties Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "properties"
+        ],
+        "summary": "Create Property",
+        "operationId": "create_property_api_v1_properties_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PropertyCreateIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PropertyOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/residents/signup": {
+      "post": {
+        "tags": [
+          "residents"
+        ],
+        "summary": "Signup",
+        "description": "Public \u2014 no auth required. Resident waits for Admin approval\n(Section 26).",
+        "operationId": "signup_api_v1_residents_signup_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResidentSignupIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResidentOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/residents/pending": {
+      "get": {
+        "tags": [
+          "residents"
+        ],
+        "summary": "List Pending",
+        "operationId": "list_pending_api_v1_residents_pending_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ResidentOut"
+                  },
+                  "type": "array",
+                  "title": "Response List Pending Api V1 Residents Pending Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/residents/{resident_id}/approval": {
+      "post": {
+        "tags": [
+          "residents"
+        ],
+        "summary": "Decide Approval",
+        "operationId": "decide_approval_api_v1_residents__resident_id__approval_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "resident_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Resident Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResidentApprovalIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResidentOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/residents/property-links": {
+      "post": {
+        "tags": [
+          "residents"
+        ],
+        "summary": "Link Property",
+        "operationId": "link_property_api_v1_residents_property_links_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PropertyResidentLinkIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PropertyResidentOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/residents/property-links/{link_id}": {
+      "delete": {
+        "tags": [
+          "residents"
+        ],
+        "summary": "Unlink Property",
+        "operationId": "unlink_property_api_v1_residents_property_links__link_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "link_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Link Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PropertyResidentOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/residents/by-property/{property_id}": {
+      "get": {
+        "tags": [
+          "residents"
+        ],
+        "summary": "Get Property Residents",
+        "operationId": "get_property_residents_api_v1_residents_by_property__property_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "property_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Property Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PropertyResidentOut"
+                  },
+                  "title": "Response Get Property Residents Api V1 Residents By Property  Property Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/residents/{resident_id}/properties": {
+      "get": {
+        "tags": [
+          "residents"
+        ],
+        "summary": "Get Resident Properties",
+        "operationId": "get_resident_properties_api_v1_residents__resident_id__properties_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "resident_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Resident Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PropertyResidentOut"
+                  },
+                  "title": "Response Get Resident Properties Api V1 Residents  Resident Id  Properties Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/subadmins/promote": {
+      "post": {
+        "tags": [
+          "subadmins"
+        ],
+        "summary": "Promote",
+        "operationId": "promote_api_v1_subadmins_promote_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PromoteToSubAdminIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SubAdminScopeOut"
+                  },
+                  "type": "array",
+                  "title": "Response Promote Api V1 Subadmins Promote Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/subadmins/{sub_admin_id}/scopes": {
+      "post": {
+        "tags": [
+          "subadmins"
+        ],
+        "summary": "Assign Scope",
+        "operationId": "assign_scope_api_v1_subadmins__sub_admin_id__scopes_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "sub_admin_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Sub Admin Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignScopeIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubAdminScopeOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "subadmins"
+        ],
+        "summary": "List Scopes",
+        "operationId": "list_scopes_api_v1_subadmins__sub_admin_id__scopes_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "sub_admin_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Sub Admin Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SubAdminScopeOut"
+                  },
+                  "title": "Response List Scopes Api V1 Subadmins  Sub Admin Id  Scopes Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/subadmins/scopes/{scope_id}": {
+      "delete": {
+        "tags": [
+          "subadmins"
+        ],
+        "summary": "Revoke Scope",
+        "operationId": "revoke_scope_api_v1_subadmins_scopes__scope_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "scope_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Scope Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubAdminScopeOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/subadmins/resignation": {
+      "post": {
+        "tags": [
+          "subadmins"
+        ],
+        "summary": "Submit Resignation",
+        "description": "Sub-admin submits their own resignation (Section 7/26).",
+        "operationId": "submit_resignation_api_v1_subadmins_resignation_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResignationRequestIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoleRequestOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/subadmins/resignations/pending": {
+      "get": {
+        "tags": [
+          "subadmins"
+        ],
+        "summary": "List Pending Resignations",
+        "operationId": "list_pending_resignations_api_v1_subadmins_resignations_pending_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RoleRequestOut"
+                  },
+                  "type": "array",
+                  "title": "Response List Pending Resignations Api V1 Subadmins Resignations Pending Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/subadmins/resignations/{request_id}/decision": {
+      "post": {
+        "tags": [
+          "subadmins"
+        ],
+        "summary": "Decide Resignation",
+        "operationId": "decide_resignation_api_v1_subadmins_resignations__request_id__decision_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "request_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Request Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResignationDecisionIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoleRequestOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/payments/maintenance-dues/generate": {
+      "post": {
+        "tags": [
+          "payments"
+        ],
+        "summary": "Generate Bills",
+        "description": "Section 13.2 \u2014 Admin one-click monthly generation.",
+        "operationId": "generate_bills_api_v1_payments_maintenance_dues_generate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateMonthlyBillsIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/MaintenanceDueOut"
+                  },
+                  "type": "array",
+                  "title": "Response Generate Bills Api V1 Payments Maintenance Dues Generate Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/payments/maintenance-dues": {
+      "get": {
+        "tags": [
+          "payments"
+        ],
+        "summary": "List Dues",
+        "operationId": "list_dues_api_v1_payments_maintenance_dues_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/MaintenanceDueOut"
+                  },
+                  "type": "array",
+                  "title": "Response List Dues Api V1 Payments Maintenance Dues Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/payments/maintenance-dues/by-property/{property_id}": {
+      "get": {
+        "tags": [
+          "payments"
+        ],
+        "summary": "List Dues For Property",
+        "operationId": "list_dues_for_property_api_v1_payments_maintenance_dues_by_property__property_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "property_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Property Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MaintenanceDueOut"
+                  },
+                  "title": "Response List Dues For Property Api V1 Payments Maintenance Dues By Property  Property Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/payments": {
+      "post": {
+        "tags": [
+          "payments"
+        ],
+        "summary": "Submit Payment",
+        "description": "Section 14 \u2014 Resident submits payment (mock online -> auto PAID;\nmanual -> proof required -> PENDING_APPROVAL).",
+        "operationId": "submit_payment_api_v1_payments_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmitPaymentIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "payments"
+        ],
+        "summary": "List Payments",
+        "description": "API Contract Freeze \u2014 reference paginated list endpoint: ?skip=&limit=,\nPage[T] envelope. Apply this same shape when extending pagination to\nother list endpoints (see docs/API_CONTRACT.md).",
+        "operationId": "list_payments_api_v1_payments_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "skip",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Skip"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_PaymentOut_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/payments/pending": {
+      "get": {
+        "tags": [
+          "payments"
+        ],
+        "summary": "List Pending",
+        "operationId": "list_pending_api_v1_payments_pending_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PaymentOut"
+                  },
+                  "type": "array",
+                  "title": "Response List Pending Api V1 Payments Pending Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/payments/{payment_id}/approve": {
+      "post": {
+        "tags": [
+          "payments"
+        ],
+        "summary": "Approve",
+        "description": "Sub-admin: own scope only (checked inside the service against current\nsub_admin_scopes \u2014 Section 27). Admin: any scope.",
+        "operationId": "approve_api_v1_payments__payment_id__approve_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "payment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Payment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/payments/{payment_id}/reject": {
+      "post": {
+        "tags": [
+          "payments"
+        ],
+        "summary": "Reject",
+        "operationId": "reject_api_v1_payments__payment_id__reject_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "payment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Payment Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RejectPaymentIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/payments/{payment_id}/correct": {
+      "post": {
+        "tags": [
+          "payments"
+        ],
+        "summary": "Correct",
+        "description": "Section 13.3/49.3 \u2014 correction event, never overwrites history.",
+        "operationId": "correct_api_v1_payments__payment_id__correct_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "payment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Payment Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CorrectPaymentIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/payments/wallet/me": {
+      "get": {
+        "tags": [
+          "payments"
+        ],
+        "summary": "My Wallet",
+        "operationId": "my_wallet_api_v1_payments_wallet_me_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WalletOut"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/proposals": {
+      "post": {
+        "tags": [
+          "proposals"
+        ],
+        "summary": "Create",
+        "operationId": "create_api_v1_proposals_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProposalCreateIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProposalOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "proposals"
+        ],
+        "summary": "List All",
+        "operationId": "list_all_api_v1_proposals_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "skip",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Skip"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_ProposalOut_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/proposals/{proposal_id}": {
+      "get": {
+        "tags": [
+          "proposals"
+        ],
+        "summary": "Get Detail",
+        "operationId": "get_detail_api_v1_proposals__proposal_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "proposal_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Proposal Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProposalStatusDetailOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/proposals/{proposal_id}/vote": {
+      "post": {
+        "tags": [
+          "proposals"
+        ],
+        "summary": "Vote",
+        "operationId": "vote_api_v1_proposals__proposal_id__vote_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "proposal_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Proposal Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CastVoteIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VoteOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/proposals/{proposal_id}/withdraw": {
+      "post": {
+        "tags": [
+          "proposals"
+        ],
+        "summary": "Withdraw",
+        "operationId": "withdraw_api_v1_proposals__proposal_id__withdraw_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "proposal_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Proposal Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProposalOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/expense-bills/draft": {
+      "post": {
+        "tags": [
+          "expense-bills"
+        ],
+        "summary": "Create Draft",
+        "description": "Manager creates a draft (Section 23).",
+        "operationId": "create_draft_api_v1_expense_bills_draft_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExpenseBillCreateIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExpenseBillOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/expense-bills": {
+      "post": {
+        "tags": [
+          "expense-bills"
+        ],
+        "summary": "Create And Finalize",
+        "description": "Admin creates directly, skipping the draft step.",
+        "operationId": "create_and_finalize_api_v1_expense_bills_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExpenseBillCreateIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExpenseBillOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "expense-bills"
+        ],
+        "summary": "List All",
+        "operationId": "list_all_api_v1_expense_bills_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "skip",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Skip"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_ExpenseBillOut_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/expense-bills/{bill_id}/finalize": {
+      "post": {
+        "tags": [
+          "expense-bills"
+        ],
+        "summary": "Finalize",
+        "description": "Admin finalizes a Manager-created draft (Section 23).",
+        "operationId": "finalize_api_v1_expense_bills__bill_id__finalize_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "bill_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Bill Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExpenseBillOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/expense-bills/{bill_id}": {
+      "get": {
+        "tags": [
+          "expense-bills"
+        ],
+        "summary": "Get Detail",
+        "operationId": "get_detail_api_v1_expense_bills__bill_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "bill_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Bill Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExpenseBillStatusDetailOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/expense-bills/{bill_id}/decision": {
+      "post": {
+        "tags": [
+          "expense-bills"
+        ],
+        "summary": "Decide",
+        "description": "100% of active Sub-admins required to APPROVE; any single REJECT is\nimmediate and final (Section 23).",
+        "operationId": "decide_api_v1_expense_bills__bill_id__decision_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "bill_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Bill Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExpenseBillDecisionIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExpenseBillApprovalOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/task-suggestions": {
+      "get": {
+        "tags": [
+          "manager-todos"
+        ],
+        "summary": "List Task Suggestions",
+        "operationId": "list_task_suggestions_api_v1_task_suggestions_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TaskSuggestionOut"
+                  },
+                  "type": "array",
+                  "title": "Response List Task Suggestions Api V1 Task Suggestions Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "manager-todos"
+        ],
+        "summary": "Add Task Suggestion",
+        "description": "Platform-global master catalog \u2014 visible to every society's Admin.",
+        "operationId": "add_task_suggestion_api_v1_task_suggestions_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskSuggestionCreateIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskSuggestionOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/manager-todos": {
+      "post": {
+        "tags": [
+          "manager-todos"
+        ],
+        "summary": "Assign Todo",
+        "operationId": "assign_todo_api_v1_manager_todos_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ManagerTodoCreateIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagerTodoOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "manager-todos"
+        ],
+        "summary": "List Todos",
+        "operationId": "list_todos_api_v1_manager_todos_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "skip",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Skip"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_ManagerTodoOut_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/manager-todos/{todo_id}/status": {
+      "patch": {
+        "tags": [
+          "manager-todos"
+        ],
+        "summary": "Update Status",
+        "operationId": "update_status_api_v1_manager_todos__todo_id__status_patch",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "todo_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Todo Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ManagerTodoStatusUpdateIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagerTodoOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/complaints": {
+      "get": {
+        "tags": [
+          "complaints"
+        ],
+        "summary": "List All",
+        "operationId": "list_all_api_v1_complaints_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ComplaintOut"
+                  },
+                  "type": "array",
+                  "title": "Response List All Api V1 Complaints Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "complaints"
+        ],
+        "summary": "Create",
+        "operationId": "create_api_v1_complaints_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ComplaintCreateIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComplaintOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/complaints/{complaint_id}/status": {
+      "patch": {
+        "tags": [
+          "complaints"
+        ],
+        "summary": "Update Status",
+        "operationId": "update_status_api_v1_complaints__complaint_id__status_patch",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "complaint_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Complaint Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ComplaintStatusUpdateIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComplaintOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/complaints/{complaint_id}/assign": {
+      "post": {
+        "tags": [
+          "complaints"
+        ],
+        "summary": "Assign",
+        "description": "Assignment target must hold Manager role (Section 49.8); Sub-admin\ncaller must have scope over the complaint's property.",
+        "operationId": "assign_api_v1_complaints__complaint_id__assign_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "complaint_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Complaint Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ComplaintAssignIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComplaintAssignmentOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/visitors": {
+      "post": {
+        "tags": [
+          "visitors"
+        ],
+        "summary": "Pre Approve",
+        "operationId": "pre_approve_api_v1_visitors_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VisitorPreApproveIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisitorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/visitors/mine": {
+      "get": {
+        "tags": [
+          "visitors"
+        ],
+        "summary": "My Visitors",
+        "operationId": "my_visitors_api_v1_visitors_mine_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "skip",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Skip"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_VisitorOut_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/visitors/{visitor_id}/status": {
+      "patch": {
+        "tags": [
+          "visitors"
+        ],
+        "summary": "Resident Update Status",
+        "operationId": "resident_update_status_api_v1_visitors__visitor_id__status_patch",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "visitor_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Visitor Id"
+            }
+          },
+          {
+            "name": "new_status",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/VisitorStatus"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisitorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/visitors/guard-view": {
+      "get": {
+        "tags": [
+          "visitors"
+        ],
+        "summary": "Guard View",
+        "description": "Restricted projection only \u2014 Section 21 (no financial/resident data).",
+        "operationId": "guard_view_api_v1_visitors_guard_view_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/GuardVisitorOut"
+                  },
+                  "type": "array",
+                  "title": "Response Guard View Api V1 Visitors Guard View Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/visitors/{visitor_id}/entry": {
+      "post": {
+        "tags": [
+          "visitors"
+        ],
+        "summary": "Guard Mark Entry",
+        "operationId": "guard_mark_entry_api_v1_visitors__visitor_id__entry_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "visitor_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Visitor Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuardVisitorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/visitors/{visitor_id}/exit": {
+      "post": {
+        "tags": [
+          "visitors"
+        ],
+        "summary": "Guard Mark Exit",
+        "operationId": "guard_mark_exit_api_v1_visitors__visitor_id__exit_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "visitor_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Visitor Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuardVisitorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/notices": {
+      "post": {
+        "tags": [
+          "notices"
+        ],
+        "summary": "Create",
+        "operationId": "create_api_v1_notices_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NoticeCreateIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoticeOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "notices"
+        ],
+        "summary": "List All",
+        "operationId": "list_all_api_v1_notices_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "skip",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Skip"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_NoticeOut_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/amenities": {
+      "get": {
+        "tags": [
+          "amenities"
+        ],
+        "summary": "List Amenities",
+        "operationId": "list_amenities_api_v1_amenities_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AmenityOut"
+                  },
+                  "type": "array",
+                  "title": "Response List Amenities Api V1 Amenities Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "amenities"
+        ],
+        "summary": "Create Amenity",
+        "operationId": "create_amenity_api_v1_amenities_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AmenityCreateIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AmenityOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/amenities/bookings": {
+      "post": {
+        "tags": [
+          "amenities"
+        ],
+        "summary": "Create Booking",
+        "operationId": "create_booking_api_v1_amenities_bookings_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AmenityBookingCreateIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AmenityBookingOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "amenities"
+        ],
+        "summary": "List Bookings",
+        "operationId": "list_bookings_api_v1_amenities_bookings_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "skip",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Skip"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_AmenityBookingOut_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/amenities/bookings/{booking_id}/decision": {
+      "post": {
+        "tags": [
+          "amenities"
+        ],
+        "summary": "Decide Booking",
+        "description": "Admin (any scope) or Sub-admin (property's scope) \u2014 Section 20.",
+        "operationId": "decide_booking_api_v1_amenities_bookings__booking_id__decision_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "booking_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Booking Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AmenityBookingDecisionIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AmenityBookingOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/account-entries": {
+      "post": {
+        "tags": [
+          "account-entries"
+        ],
+        "summary": "Create",
+        "description": "Section 13.1 \u2014 sirf Admin entry create kar sakta hai.",
+        "operationId": "create_api_v1_account_entries_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccountEntryCreateIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountEntryOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "account-entries"
+        ],
+        "summary": "List All",
+        "description": "Section 13.1 \u2014 sabhi Residents ko visible, read-only.",
+        "operationId": "list_all_api_v1_account_entries_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "skip",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Skip"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_AccountEntryOut_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/account-entries/balance": {
+      "get": {
+        "tags": [
+          "account-entries"
+        ],
+        "summary": "Balance",
+        "operationId": "balance_api_v1_account_entries_balance_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BalanceSummaryOut"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/account-entries/{entry_id}": {
+      "patch": {
+        "tags": [
+          "account-entries"
+        ],
+        "summary": "Edit",
+        "description": "Section 13.1 \u2014 edit history preserved, is_edited flag drives the\n'Edited' badge in the UI.",
+        "operationId": "edit_api_v1_account_entries__entry_id__patch",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "entry_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Entry Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccountEntryUpdateIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountEntryOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "summary": "Health",
+        "description": "Section 41 \u2014 required for load balancer health checks.",
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Health Health Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AccountChoice": {
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "User Id"
+          },
+          "society_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Society Id"
+          },
+          "society_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Society Name"
+          },
+          "full_name": {
+            "type": "string",
+            "title": "Full Name"
+          },
+          "roles": {
+            "items": {
+              "$ref": "#/components/schemas/Role"
+            },
+            "type": "array",
+            "title": "Roles"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_id",
+          "society_id",
+          "society_name",
+          "full_name",
+          "roles"
+        ],
+        "title": "AccountChoice"
+      },
+      "AccountEntryCreateIn": {
+        "properties": {
+          "entry_type": {
+            "$ref": "#/components/schemas/EntryType"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "amount": {
+            "type": "number",
+            "title": "Amount"
+          },
+          "entry_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Entry Date"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entry_type",
+          "title",
+          "amount",
+          "entry_date"
+        ],
+        "title": "AccountEntryCreateIn",
+        "description": "MANUAL entries only \u2014 Admin-only (Section 13.1)."
+      },
+      "AccountEntryOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "society_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Society Id"
+          },
+          "entry_type": {
+            "$ref": "#/components/schemas/EntryType"
+          },
+          "source": {
+            "$ref": "#/components/schemas/EntrySource"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "amount": {
+            "type": "number",
+            "title": "Amount"
+          },
+          "entry_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Entry Date"
+          },
+          "is_edited": {
+            "type": "boolean",
+            "title": "Is Edited"
+          },
+          "last_edited_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Edited At"
+          },
+          "created_by": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Created By"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "society_id",
+          "entry_type",
+          "source",
+          "title",
+          "description",
+          "amount",
+          "entry_date",
+          "is_edited",
+          "last_edited_at",
+          "created_by",
+          "created_at"
+        ],
+        "title": "AccountEntryOut"
+      },
+      "AccountEntryUpdateIn": {
+        "properties": {
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "amount": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
+          },
+          "entry_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entry Date"
+          }
+        },
+        "type": "object",
+        "title": "AccountEntryUpdateIn"
+      },
+      "AmenityBookingCreateIn": {
+        "properties": {
+          "amenity_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Amenity Id"
+          },
+          "property_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Property Id"
+          },
+          "booking_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Booking Date"
+          },
+          "start_time": {
+            "type": "string",
+            "format": "time",
+            "title": "Start Time"
+          },
+          "end_time": {
+            "type": "string",
+            "format": "time",
+            "title": "End Time"
+          }
+        },
+        "type": "object",
+        "required": [
+          "amenity_id",
+          "property_id",
+          "booking_date",
+          "start_time",
+          "end_time"
+        ],
+        "title": "AmenityBookingCreateIn"
+      },
+      "AmenityBookingDecisionIn": {
+        "properties": {
+          "approve": {
+            "type": "boolean",
+            "title": "Approve"
+          }
+        },
+        "type": "object",
+        "required": [
+          "approve"
+        ],
+        "title": "AmenityBookingDecisionIn"
+      },
+      "AmenityBookingOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "society_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Society Id"
+          },
+          "amenity_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Amenity Id"
+          },
+          "property_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Property Id"
+          },
+          "resident_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Resident Id"
+          },
+          "booking_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Booking Date"
+          },
+          "start_time": {
+            "type": "string",
+            "format": "time",
+            "title": "Start Time"
+          },
+          "end_time": {
+            "type": "string",
+            "format": "time",
+            "title": "End Time"
+          },
+          "status": {
+            "$ref": "#/components/schemas/BookingStatus"
+          },
+          "approved_by": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approved By"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "society_id",
+          "amenity_id",
+          "property_id",
+          "resident_id",
+          "booking_date",
+          "start_time",
+          "end_time",
+          "status",
+          "approved_by",
+          "created_at"
+        ],
+        "title": "AmenityBookingOut"
+      },
+      "AmenityCreateIn": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "AmenityCreateIn"
+      },
+      "AmenityOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "society_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Society Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "society_id",
+          "name",
+          "description",
+          "is_active"
+        ],
+        "title": "AmenityOut"
+      },
+      "AssignScopeIn": {
+        "properties": {
+          "location_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Location Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "location_id"
+        ],
+        "title": "AssignScopeIn"
+      },
+      "BalanceSummaryOut": {
+        "properties": {
+          "total_income": {
+            "type": "number",
+            "title": "Total Income"
+          },
+          "total_expense": {
+            "type": "number",
+            "title": "Total Expense"
+          },
+          "balance": {
+            "type": "number",
+            "title": "Balance"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total_income",
+          "total_expense",
+          "balance"
+        ],
+        "title": "BalanceSummaryOut",
+        "description": "Section 13.0 \u2014 2-column ledger: Income, Expense, Balance = Income - Expense."
+      },
+      "BookingStatus": {
+        "type": "string",
+        "enum": [
+          "PENDING",
+          "APPROVED",
+          "REJECTED",
+          "CANCELLED"
+        ],
+        "title": "BookingStatus"
+      },
+      "CastVoteIn": {
+        "properties": {
+          "vote": {
+            "$ref": "#/components/schemas/Vote"
+          }
+        },
+        "type": "object",
+        "required": [
+          "vote"
+        ],
+        "title": "CastVoteIn"
+      },
+      "ComplaintAssignIn": {
+        "properties": {
+          "assigned_to": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Assigned To"
+          }
+        },
+        "type": "object",
+        "required": [
+          "assigned_to"
+        ],
+        "title": "ComplaintAssignIn"
+      },
+      "ComplaintAssignmentOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "complaint_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Complaint Id"
+          },
+          "assigned_to": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Assigned To"
+          },
+          "assigned_by": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Assigned By"
+          },
+          "assigned_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Assigned At"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "complaint_id",
+          "assigned_to",
+          "assigned_by",
+          "assigned_at",
+          "completed_at"
+        ],
+        "title": "ComplaintAssignmentOut"
+      },
+      "ComplaintCreateIn": {
+        "properties": {
+          "property_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Property Id"
+          },
+          "category": {
+            "type": "string",
+            "title": "Category"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          }
+        },
+        "type": "object",
+        "required": [
+          "property_id",
+          "category",
+          "title",
+          "description"
+        ],
+        "title": "ComplaintCreateIn"
+      },
+      "ComplaintOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "society_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Society Id"
+          },
+          "property_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Property Id"
+          },
+          "resident_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Resident Id"
+          },
+          "category": {
+            "type": "string",
+            "title": "Category"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ComplaintStatus"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "society_id",
+          "property_id",
+          "resident_id",
+          "category",
+          "title",
+          "description",
+          "status",
+          "created_at"
+        ],
+        "title": "ComplaintOut"
+      },
+      "ComplaintStatus": {
+        "type": "string",
+        "enum": [
+          "OPEN",
+          "IN_PROGRESS",
+          "RESOLVED",
+          "CLOSED"
+        ],
+        "title": "ComplaintStatus"
+      },
+      "ComplaintStatusUpdateIn": {
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/ComplaintStatus"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "ComplaintStatusUpdateIn"
+      },
+      "CorrectPaymentIn": {
+        "properties": {
+          "new_amount": {
+            "type": "number",
+            "title": "New Amount"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "new_amount",
+          "reason"
+        ],
+        "title": "CorrectPaymentIn"
+      },
+      "CurrentUser": {
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "User Id"
+          },
+          "society_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Society Id"
+          },
+          "active_role": {
+            "$ref": "#/components/schemas/Role"
+          },
+          "available_roles": {
+            "items": {
+              "$ref": "#/components/schemas/Role"
+            },
+            "type": "array",
+            "title": "Available Roles"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_id",
+          "society_id",
+          "active_role",
+          "available_roles"
+        ],
+        "title": "CurrentUser",
+        "description": "Re-derived from the DB on every request \u2014 NOT trusted from the JWT\nalone (Section 49.14). The JWT only tells us *which* user + which mode\nthey were in when the token was issued; roles/scope are re-checked here."
+      },
+      "Decision": {
+        "type": "string",
+        "enum": [
+          "APPROVE",
+          "REJECT"
+        ],
+        "title": "Decision"
+      },
+      "EntrySource": {
+        "type": "string",
+        "enum": [
+          "MANUAL",
+          "MAINTENANCE_PAYMENT",
+          "EXPENSE_BILL",
+          "ADJUSTMENT"
+        ],
+        "title": "EntrySource"
+      },
+      "EntryType": {
+        "type": "string",
+        "enum": [
+          "INCOME",
+          "EXPENSE"
+        ],
+        "title": "EntryType"
+      },
+      "ExpenseBillApprovalOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "expense_bill_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Expense Bill Id"
+          },
+          "sub_admin_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Sub Admin Id"
+          },
+          "decision": {
+            "$ref": "#/components/schemas/Decision"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "decided_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Decided At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "expense_bill_id",
+          "sub_admin_id",
+          "decision",
+          "reason",
+          "decided_at"
+        ],
+        "title": "ExpenseBillApprovalOut"
+      },
+      "ExpenseBillCreateIn": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "amount": {
+            "type": "number",
+            "title": "Amount"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          }
+        },
+        "type": "object",
+        "required": [
+          "title",
+          "amount"
+        ],
+        "title": "ExpenseBillCreateIn"
+      },
+      "ExpenseBillDecisionIn": {
+        "properties": {
+          "decision": {
+            "$ref": "#/components/schemas/Decision"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "decision"
+        ],
+        "title": "ExpenseBillDecisionIn"
+      },
+      "ExpenseBillOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "society_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Society Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "amount": {
+            "type": "number",
+            "title": "Amount"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ExpenseBillStatus"
+          },
+          "created_by": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Created By"
+          },
+          "finalized_by": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finalized By"
+          },
+          "finalized_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finalized At"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "society_id",
+          "title",
+          "description",
+          "amount",
+          "category",
+          "status",
+          "created_by",
+          "finalized_by",
+          "finalized_at",
+          "created_at"
+        ],
+        "title": "ExpenseBillOut"
+      },
+      "ExpenseBillStatus": {
+        "type": "string",
+        "enum": [
+          "DRAFT",
+          "PENDING_APPROVAL",
+          "APPROVED",
+          "REJECTED"
+        ],
+        "title": "ExpenseBillStatus"
+      },
+      "ExpenseBillStatusDetailOut": {
+        "properties": {
+          "bill": {
+            "$ref": "#/components/schemas/ExpenseBillOut"
+          },
+          "approve_count": {
+            "type": "integer",
+            "title": "Approve Count"
+          },
+          "active_subadmin_count": {
+            "type": "integer",
+            "title": "Active Subadmin Count"
+          },
+          "approvals_needed": {
+            "type": "integer",
+            "title": "Approvals Needed"
+          }
+        },
+        "type": "object",
+        "required": [
+          "bill",
+          "approve_count",
+          "active_subadmin_count",
+          "approvals_needed"
+        ],
+        "title": "ExpenseBillStatusDetailOut"
+      },
+      "GenerateMonthlyBillsIn": {
+        "properties": {
+          "amount": {
+            "type": "number",
+            "title": "Amount"
+          },
+          "billing_month": {
+            "type": "string",
+            "format": "date",
+            "title": "Billing Month"
+          }
+        },
+        "type": "object",
+        "required": [
+          "amount",
+          "billing_month"
+        ],
+        "title": "GenerateMonthlyBillsIn",
+        "description": "Section 13.2 \u2014 Admin one-click monthly bill generation:\nsingle amount + month -> one bill per property, society-wide."
+      },
+      "GuardVisitorOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "property_house_number": {
+            "type": "string",
+            "title": "Property House Number"
+          },
+          "visitor_name": {
+            "type": "string",
+            "title": "Visitor Name"
+          },
+          "visitor_mobile": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visitor Mobile"
+          },
+          "visit_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Visit Date"
+          },
+          "status": {
+            "$ref": "#/components/schemas/VisitorStatus"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "property_house_number",
+          "visitor_name",
+          "visitor_mobile",
+          "visit_date",
+          "status"
+        ],
+        "title": "GuardVisitorOut",
+        "description": "Section 21 data-boundary: Guard sees only what's needed for\nvisitor/security purposes \u2014 no financial/private resident data."
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "HouseType": {
+        "type": "string",
+        "enum": [
+          "FLAT",
+          "BUNGALOW"
+        ],
+        "title": "HouseType"
+      },
+      "LocationType": {
+        "type": "string",
+        "enum": [
+          "WING",
+          "ROW"
+        ],
+        "title": "LocationType"
+      },
+      "MaintenanceDueOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "society_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Society Id"
+          },
+          "property_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Property Id"
+          },
+          "amount": {
+            "type": "number",
+            "title": "Amount"
+          },
+          "due_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Due Date"
+          },
+          "status": {
+            "$ref": "#/components/schemas/MaintenanceDueStatus"
+          },
+          "billing_month": {
+            "type": "string",
+            "format": "date",
+            "title": "Billing Month"
+          },
+          "generated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Generated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "society_id",
+          "property_id",
+          "amount",
+          "due_date",
+          "status",
+          "billing_month",
+          "generated_at"
+        ],
+        "title": "MaintenanceDueOut"
+      },
+      "MaintenanceDueStatus": {
+        "type": "string",
+        "enum": [
+          "PENDING",
+          "PAID"
+        ],
+        "title": "MaintenanceDueStatus"
+      },
+      "ManagerTodoCreateIn": {
+        "properties": {
+          "manager_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Manager Id"
+          },
+          "task_suggestion_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Task Suggestion Id"
+          },
+          "task_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Task Date"
+          }
+        },
+        "type": "object",
+        "required": [
+          "manager_id",
+          "task_suggestion_id",
+          "task_date"
+        ],
+        "title": "ManagerTodoCreateIn"
+      },
+      "ManagerTodoOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "society_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Society Id"
+          },
+          "manager_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Manager Id"
+          },
+          "task_suggestion_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Task Suggestion Id"
+          },
+          "task_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Task Date"
+          },
+          "status": {
+            "$ref": "#/components/schemas/TodoStatus"
+          },
+          "assigned_by": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Assigned By"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "society_id",
+          "manager_id",
+          "task_suggestion_id",
+          "task_date",
+          "status",
+          "assigned_by",
+          "completed_at"
+        ],
+        "title": "ManagerTodoOut"
+      },
+      "ManagerTodoStatusUpdateIn": {
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/TodoStatus"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "ManagerTodoStatusUpdateIn"
+      },
+      "NoticeCreateIn": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content"
+          }
+        },
+        "type": "object",
+        "required": [
+          "title",
+          "content"
+        ],
+        "title": "NoticeCreateIn"
+      },
+      "NoticeOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "society_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Society Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content"
+          },
+          "created_by": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Created By"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "society_id",
+          "title",
+          "content",
+          "created_by",
+          "created_at"
+        ],
+        "title": "NoticeOut"
+      },
+      "OTPRequestIn": {
+        "properties": {
+          "mobile": {
+            "type": "string",
+            "title": "Mobile"
+          }
+        },
+        "type": "object",
+        "required": [
+          "mobile"
+        ],
+        "title": "OTPRequestIn"
+      },
+      "OTPRequestOut": {
+        "properties": {
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "default": "OTP sent"
+          }
+        },
+        "type": "object",
+        "title": "OTPRequestOut"
+      },
+      "OTPVerifyIn": {
+        "properties": {
+          "mobile": {
+            "type": "string",
+            "title": "Mobile"
+          },
+          "otp": {
+            "type": "string",
+            "title": "Otp"
+          }
+        },
+        "type": "object",
+        "required": [
+          "mobile",
+          "otp"
+        ],
+        "title": "OTPVerifyIn"
+      },
+      "OTPVerifyOut": {
+        "properties": {
+          "tokens": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TokenOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "accounts": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/AccountChoice"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Accounts"
+          },
+          "otp_session_token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Otp Session Token"
+          }
+        },
+        "type": "object",
+        "title": "OTPVerifyOut",
+        "description": "Either `tokens` is set (single unambiguous account) or `accounts` is\nset (caller must disambiguate via /auth/select-account) \u2014 never both."
+      },
+      "Page_AccountEntryOut_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AccountEntryOut"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "skip": {
+            "type": "integer",
+            "title": "Skip"
+          },
+          "limit": {
+            "type": "integer",
+            "title": "Limit"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "skip",
+          "limit"
+        ],
+        "title": "Page[AccountEntryOut]"
+      },
+      "Page_AmenityBookingOut_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AmenityBookingOut"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "skip": {
+            "type": "integer",
+            "title": "Skip"
+          },
+          "limit": {
+            "type": "integer",
+            "title": "Limit"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "skip",
+          "limit"
+        ],
+        "title": "Page[AmenityBookingOut]"
+      },
+      "Page_ExpenseBillOut_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ExpenseBillOut"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "skip": {
+            "type": "integer",
+            "title": "Skip"
+          },
+          "limit": {
+            "type": "integer",
+            "title": "Limit"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "skip",
+          "limit"
+        ],
+        "title": "Page[ExpenseBillOut]"
+      },
+      "Page_ManagerTodoOut_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ManagerTodoOut"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "skip": {
+            "type": "integer",
+            "title": "Skip"
+          },
+          "limit": {
+            "type": "integer",
+            "title": "Limit"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "skip",
+          "limit"
+        ],
+        "title": "Page[ManagerTodoOut]"
+      },
+      "Page_NoticeOut_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/NoticeOut"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "skip": {
+            "type": "integer",
+            "title": "Skip"
+          },
+          "limit": {
+            "type": "integer",
+            "title": "Limit"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "skip",
+          "limit"
+        ],
+        "title": "Page[NoticeOut]"
+      },
+      "Page_PaymentOut_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PaymentOut"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "skip": {
+            "type": "integer",
+            "title": "Skip"
+          },
+          "limit": {
+            "type": "integer",
+            "title": "Limit"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "skip",
+          "limit"
+        ],
+        "title": "Page[PaymentOut]"
+      },
+      "Page_ProposalOut_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ProposalOut"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "skip": {
+            "type": "integer",
+            "title": "Skip"
+          },
+          "limit": {
+            "type": "integer",
+            "title": "Limit"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "skip",
+          "limit"
+        ],
+        "title": "Page[ProposalOut]"
+      },
+      "Page_VisitorOut_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/VisitorOut"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "skip": {
+            "type": "integer",
+            "title": "Skip"
+          },
+          "limit": {
+            "type": "integer",
+            "title": "Limit"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "skip",
+          "limit"
+        ],
+        "title": "Page[VisitorOut]"
+      },
+      "PaymentMethod": {
+        "type": "string",
+        "enum": [
+          "MOCK_ONLINE",
+          "MANUAL_UPI",
+          "MANUAL_CASH"
+        ],
+        "title": "PaymentMethod"
+      },
+      "PaymentOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "society_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Society Id"
+          },
+          "maintenance_due_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Maintenance Due Id"
+          },
+          "property_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Property Id"
+          },
+          "resident_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Resident Id"
+          },
+          "payment_method": {
+            "$ref": "#/components/schemas/PaymentMethod"
+          },
+          "amount": {
+            "type": "number",
+            "title": "Amount"
+          },
+          "status": {
+            "$ref": "#/components/schemas/PaymentStatus"
+          },
+          "reference_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference Number"
+          },
+          "paid_marked_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paid Marked At"
+          },
+          "approved_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approved At"
+          },
+          "approved_by": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approved By"
+          },
+          "rejected_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rejected At"
+          },
+          "rejected_by": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rejected By"
+          },
+          "rejection_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rejection Reason"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "society_id",
+          "maintenance_due_id",
+          "property_id",
+          "resident_id",
+          "payment_method",
+          "amount",
+          "status",
+          "reference_number",
+          "paid_marked_at",
+          "approved_at",
+          "approved_by",
+          "rejected_at",
+          "rejected_by",
+          "rejection_reason",
+          "created_at"
+        ],
+        "title": "PaymentOut"
+      },
+      "PaymentStatus": {
+        "type": "string",
+        "enum": [
+          "PENDING_APPROVAL",
+          "PAID",
+          "REJECTED"
+        ],
+        "title": "PaymentStatus"
+      },
+      "PromoteToSubAdminIn": {
+        "properties": {
+          "resident_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Resident Id"
+          },
+          "location_ids": {
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "type": "array",
+            "title": "Location Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "resident_id",
+          "location_ids"
+        ],
+        "title": "PromoteToSubAdminIn"
+      },
+      "ProofType": {
+        "type": "string",
+        "enum": [
+          "UPI_SCREENSHOT",
+          "CASH_RECEIPT"
+        ],
+        "title": "ProofType"
+      },
+      "PropertyCreateIn": {
+        "properties": {
+          "location_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Location Id"
+          },
+          "house_number": {
+            "type": "string",
+            "title": "House Number"
+          },
+          "house_type": {
+            "$ref": "#/components/schemas/HouseType"
+          },
+          "floor_number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Floor Number"
+          }
+        },
+        "type": "object",
+        "required": [
+          "location_id",
+          "house_number",
+          "house_type"
+        ],
+        "title": "PropertyCreateIn"
+      },
+      "PropertyOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "society_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Society Id"
+          },
+          "location_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Location Id"
+          },
+          "house_number": {
+            "type": "string",
+            "title": "House Number"
+          },
+          "house_type": {
+            "$ref": "#/components/schemas/HouseType"
+          },
+          "floor_number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Floor Number"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "society_id",
+          "location_id",
+          "house_number",
+          "house_type",
+          "floor_number",
+          "status",
+          "created_at"
+        ],
+        "title": "PropertyOut"
+      },
+      "PropertyResidentLinkIn": {
+        "properties": {
+          "property_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Property Id"
+          },
+          "resident_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Resident Id"
+          },
+          "relationship_type": {
+            "$ref": "#/components/schemas/RelationshipType"
+          },
+          "start_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Date"
+          }
+        },
+        "type": "object",
+        "required": [
+          "property_id",
+          "resident_id",
+          "relationship_type"
+        ],
+        "title": "PropertyResidentLinkIn",
+        "description": "Links an already-approved Resident to a property as Owner or Tenant\n(Section 12: multiple owners, owner+tenant coexist, resident can have\nmultiple properties)."
+      },
+      "PropertyResidentOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "property_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Property Id"
+          },
+          "resident_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Resident Id"
+          },
+          "relationship_type": {
+            "$ref": "#/components/schemas/RelationshipType"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active"
+          },
+          "start_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Date"
+          },
+          "end_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Date"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "property_id",
+          "resident_id",
+          "relationship_type",
+          "is_active",
+          "start_date",
+          "end_date"
+        ],
+        "title": "PropertyResidentOut"
+      },
+      "ProposalCreateIn": {
+        "properties": {
+          "scope_type": {
+            "$ref": "#/components/schemas/ProposalScope"
+          },
+          "scope_location_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scope Location Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          }
+        },
+        "type": "object",
+        "required": [
+          "scope_type",
+          "title",
+          "description"
+        ],
+        "title": "ProposalCreateIn"
+      },
+      "ProposalOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "society_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Society Id"
+          },
+          "scope_type": {
+            "$ref": "#/components/schemas/ProposalScope"
+          },
+          "scope_location_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scope Location Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ProposalStatus"
+          },
+          "created_by": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Created By"
+          },
+          "withdrawn_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Withdrawn At"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "society_id",
+          "scope_type",
+          "scope_location_id",
+          "title",
+          "description",
+          "status",
+          "created_by",
+          "withdrawn_at",
+          "created_at"
+        ],
+        "title": "ProposalOut"
+      },
+      "ProposalScope": {
+        "type": "string",
+        "enum": [
+          "SOCIETY",
+          "WING",
+          "ROW"
+        ],
+        "title": "ProposalScope"
+      },
+      "ProposalStatus": {
+        "type": "string",
+        "enum": [
+          "OPEN",
+          "APPROVED",
+          "WITHDRAWN"
+        ],
+        "title": "ProposalStatus"
+      },
+      "ProposalStatusDetailOut": {
+        "properties": {
+          "proposal": {
+            "$ref": "#/components/schemas/ProposalOut"
+          },
+          "resident_approve_count": {
+            "type": "integer",
+            "title": "Resident Approve Count"
+          },
+          "resident_eligible_count": {
+            "type": "integer",
+            "title": "Resident Eligible Count"
+          },
+          "resident_percent": {
+            "type": "number",
+            "title": "Resident Percent"
+          },
+          "subadmin_approve_count": {
+            "type": "integer",
+            "title": "Subadmin Approve Count"
+          },
+          "subadmin_eligible_count": {
+            "type": "integer",
+            "title": "Subadmin Eligible Count"
+          },
+          "subadmin_percent": {
+            "type": "number",
+            "title": "Subadmin Percent"
+          },
+          "resident_threshold_met": {
+            "type": "boolean",
+            "title": "Resident Threshold Met"
+          },
+          "subadmin_threshold_met": {
+            "type": "boolean",
+            "title": "Subadmin Threshold Met"
+          }
+        },
+        "type": "object",
+        "required": [
+          "proposal",
+          "resident_approve_count",
+          "resident_eligible_count",
+          "resident_percent",
+          "subadmin_approve_count",
+          "subadmin_eligible_count",
+          "subadmin_percent",
+          "resident_threshold_met",
+          "subadmin_threshold_met"
+        ],
+        "title": "ProposalStatusDetailOut",
+        "description": "Live threshold snapshot at read time \u2014 never cached (Section 49.1)."
+      },
+      "RefreshTokenIn": {
+        "properties": {
+          "refresh_token": {
+            "type": "string",
+            "title": "Refresh Token"
+          }
+        },
+        "type": "object",
+        "required": [
+          "refresh_token"
+        ],
+        "title": "RefreshTokenIn"
+      },
+      "RejectPaymentIn": {
+        "properties": {
+          "rejection_reason": {
+            "type": "string",
+            "title": "Rejection Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "rejection_reason"
+        ],
+        "title": "RejectPaymentIn"
+      },
+      "RelationshipType": {
+        "type": "string",
+        "enum": [
+          "OWNER",
+          "TENANT"
+        ],
+        "title": "RelationshipType"
+      },
+      "ResidentApprovalIn": {
+        "properties": {
+          "approve": {
+            "type": "boolean",
+            "title": "Approve"
+          },
+          "rejection_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rejection Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "approve"
+        ],
+        "title": "ResidentApprovalIn"
+      },
+      "ResidentOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "society_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Society Id"
+          },
+          "full_name": {
+            "type": "string",
+            "title": "Full Name"
+          },
+          "mobile": {
+            "type": "string",
+            "title": "Mobile"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "status": {
+            "$ref": "#/components/schemas/UserStatus"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "society_id",
+          "full_name",
+          "mobile",
+          "email",
+          "status",
+          "created_at"
+        ],
+        "title": "ResidentOut"
+      },
+      "ResidentSignupIn": {
+        "properties": {
+          "full_name": {
+            "type": "string",
+            "title": "Full Name"
+          },
+          "mobile": {
+            "type": "string",
+            "title": "Mobile"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "society_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Society Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "full_name",
+          "mobile",
+          "society_id"
+        ],
+        "title": "ResidentSignupIn",
+        "description": "Resident self-signup within a society (Admin approves/rejects after)."
+      },
+      "ResignationDecisionIn": {
+        "properties": {
+          "approve": {
+            "type": "boolean",
+            "title": "Approve"
+          },
+          "decision_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "approve"
+        ],
+        "title": "ResignationDecisionIn"
+      },
+      "ResignationRequestIn": {
+        "properties": {
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "title": "ResignationRequestIn"
+      },
+      "Role": {
+        "type": "string",
+        "enum": [
+          "PLATFORM_OWNER",
+          "ADMIN",
+          "SUB_ADMIN",
+          "MANAGER",
+          "RESIDENT",
+          "SECURITY_GUARD"
+        ],
+        "title": "Role"
+      },
+      "RoleRequestOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "user_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "User Id"
+          },
+          "society_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Society Id"
+          },
+          "status": {
+            "$ref": "#/components/schemas/RoleRequestStatus"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "reviewed_by": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewed By"
+          },
+          "reviewed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewed At"
+          },
+          "decision_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision Reason"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "user_id",
+          "society_id",
+          "status",
+          "reason",
+          "reviewed_by",
+          "reviewed_at",
+          "decision_reason",
+          "created_at"
+        ],
+        "title": "RoleRequestOut"
+      },
+      "RoleRequestStatus": {
+        "type": "string",
+        "enum": [
+          "PENDING",
+          "APPROVED",
+          "REJECTED"
+        ],
+        "title": "RoleRequestStatus"
+      },
+      "SelectAccountIn": {
+        "properties": {
+          "otp_session_token": {
+            "type": "string",
+            "title": "Otp Session Token"
+          },
+          "user_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "User Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "otp_session_token",
+          "user_id"
+        ],
+        "title": "SelectAccountIn"
+      },
+      "SocietyLocationCreateIn": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "location_type": {
+            "$ref": "#/components/schemas/LocationType"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "location_type"
+        ],
+        "title": "SocietyLocationCreateIn"
+      },
+      "SocietyLocationOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "society_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Society Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "location_type": {
+            "$ref": "#/components/schemas/LocationType"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "society_id",
+          "name",
+          "location_type",
+          "created_at"
+        ],
+        "title": "SocietyLocationOut"
+      },
+      "SocietyOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "status": {
+            "$ref": "#/components/schemas/SocietyStatus"
+          },
+          "address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Address"
+          },
+          "city": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "City"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State"
+          },
+          "pincode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pincode"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "code",
+          "status",
+          "address",
+          "city",
+          "state",
+          "pincode",
+          "created_at"
+        ],
+        "title": "SocietyOut"
+      },
+      "SocietySignupIn": {
+        "properties": {
+          "society_name": {
+            "type": "string",
+            "title": "Society Name"
+          },
+          "society_code": {
+            "type": "string",
+            "title": "Society Code"
+          },
+          "address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Address"
+          },
+          "city": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "City"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State"
+          },
+          "pincode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pincode"
+          },
+          "admin_full_name": {
+            "type": "string",
+            "title": "Admin Full Name"
+          },
+          "admin_mobile": {
+            "type": "string",
+            "title": "Admin Mobile"
+          },
+          "admin_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Admin Email"
+          }
+        },
+        "type": "object",
+        "required": [
+          "society_name",
+          "society_code",
+          "admin_full_name",
+          "admin_mobile"
+        ],
+        "title": "SocietySignupIn",
+        "description": "Admin self-signup for a new society (Section 26: Admin approval flow).\nCreates the Society (PENDING) and the Admin user (PENDING) together \u2014\nboth wait for Platform Owner approval before either becomes usable."
+      },
+      "SocietySignupOut": {
+        "properties": {
+          "society_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Society Id"
+          },
+          "admin_user_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Admin User Id"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "default": "Submitted \u2014 awaiting Platform Owner approval"
+          }
+        },
+        "type": "object",
+        "required": [
+          "society_id",
+          "admin_user_id"
+        ],
+        "title": "SocietySignupOut"
+      },
+      "SocietyStatus": {
+        "type": "string",
+        "enum": [
+          "PENDING",
+          "ACTIVE",
+          "SUSPENDED"
+        ],
+        "title": "SocietyStatus"
+      },
+      "SocietyStatusUpdateIn": {
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/SocietyStatus"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "SocietyStatusUpdateIn"
+      },
+      "SubAdminScopeOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "sub_admin_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Sub Admin Id"
+          },
+          "location_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Location Id"
+          },
+          "assigned_by": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Assigned By"
+          },
+          "assigned_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Assigned At"
+          },
+          "revoked_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revoked At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "sub_admin_id",
+          "location_id",
+          "assigned_by",
+          "assigned_at",
+          "revoked_at"
+        ],
+        "title": "SubAdminScopeOut"
+      },
+      "SubmitPaymentIn": {
+        "properties": {
+          "maintenance_due_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Maintenance Due Id"
+          },
+          "payment_method": {
+            "$ref": "#/components/schemas/PaymentMethod"
+          },
+          "reference_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference Number"
+          },
+          "idempotency_key": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Idempotency Key"
+          },
+          "proof_type": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProofType"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "proof_file_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proof File Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "maintenance_due_id",
+          "payment_method",
+          "idempotency_key"
+        ],
+        "title": "SubmitPaymentIn"
+      },
+      "SwitchRoleIn": {
+        "properties": {
+          "active_role": {
+            "$ref": "#/components/schemas/Role"
+          }
+        },
+        "type": "object",
+        "required": [
+          "active_role"
+        ],
+        "title": "SwitchRoleIn"
+      },
+      "TaskSuggestionCreateIn": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          }
+        },
+        "type": "object",
+        "required": [
+          "title"
+        ],
+        "title": "TaskSuggestionCreateIn"
+      },
+      "TaskSuggestionOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "created_by",
+          "created_at"
+        ],
+        "title": "TaskSuggestionOut"
+      },
+      "TodoStatus": {
+        "type": "string",
+        "enum": [
+          "PENDING",
+          "IN_PROGRESS",
+          "DONE"
+        ],
+        "title": "TodoStatus"
+      },
+      "TokenOut": {
+        "properties": {
+          "access_token": {
+            "type": "string",
+            "title": "Access Token"
+          },
+          "refresh_token": {
+            "type": "string",
+            "title": "Refresh Token"
+          },
+          "token_type": {
+            "type": "string",
+            "title": "Token Type",
+            "default": "bearer"
+          },
+          "active_role": {
+            "$ref": "#/components/schemas/Role"
+          },
+          "available_roles": {
+            "items": {
+              "$ref": "#/components/schemas/Role"
+            },
+            "type": "array",
+            "title": "Available Roles"
+          }
+        },
+        "type": "object",
+        "required": [
+          "access_token",
+          "refresh_token",
+          "active_role",
+          "available_roles"
+        ],
+        "title": "TokenOut"
+      },
+      "UserStatus": {
+        "type": "string",
+        "enum": [
+          "PENDING",
+          "ACTIVE",
+          "REJECTED",
+          "INACTIVE"
+        ],
+        "title": "UserStatus"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "VisitorOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "society_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Society Id"
+          },
+          "property_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Property Id"
+          },
+          "resident_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Resident Id"
+          },
+          "visitor_name": {
+            "type": "string",
+            "title": "Visitor Name"
+          },
+          "visitor_mobile": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visitor Mobile"
+          },
+          "visit_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Visit Date"
+          },
+          "status": {
+            "$ref": "#/components/schemas/VisitorStatus"
+          },
+          "purpose": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Purpose"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "society_id",
+          "property_id",
+          "resident_id",
+          "visitor_name",
+          "visitor_mobile",
+          "visit_date",
+          "status",
+          "purpose",
+          "created_at"
+        ],
+        "title": "VisitorOut"
+      },
+      "VisitorPreApproveIn": {
+        "properties": {
+          "property_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Property Id"
+          },
+          "visitor_name": {
+            "type": "string",
+            "title": "Visitor Name"
+          },
+          "visitor_mobile": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visitor Mobile"
+          },
+          "visit_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Visit Date"
+          },
+          "purpose": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Purpose"
+          }
+        },
+        "type": "object",
+        "required": [
+          "property_id",
+          "visitor_name",
+          "visit_date"
+        ],
+        "title": "VisitorPreApproveIn"
+      },
+      "VisitorStatus": {
+        "type": "string",
+        "enum": [
+          "PRE_APPROVED",
+          "EXPECTED",
+          "ENTERED",
+          "EXITED",
+          "CANCELLED"
+        ],
+        "title": "VisitorStatus"
+      },
+      "Vote": {
+        "type": "string",
+        "enum": [
+          "APPROVE",
+          "REJECT"
+        ],
+        "title": "Vote"
+      },
+      "VoteOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "proposal_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Proposal Id"
+          },
+          "voter_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Voter Id"
+          },
+          "vote": {
+            "$ref": "#/components/schemas/Vote"
+          },
+          "voted_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Voted At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "proposal_id",
+          "voter_id",
+          "vote",
+          "voted_at"
+        ],
+        "title": "VoteOut"
+      },
+      "WalletOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "resident_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Resident Id"
+          },
+          "balance": {
+            "type": "number",
+            "title": "Balance"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "resident_id",
+          "balance"
+        ],
+        "title": "WalletOut"
+      }
+    },
+    "securitySchemes": {
+      "HTTPBearer": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  }
+}
