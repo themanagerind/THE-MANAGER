@@ -12,10 +12,15 @@ Place it in the **root of the project** (the folder that contains both `backend/
 
 A multi-role housing society management platform:
 
-- **Backend:** FastAPI REST API — 79 production-ready endpoints
+- **Backend:** FastAPI REST API (endpoint count drifts as modules are added — check
+  `app.openapi()`'s path count rather than a number here, which goes stale)
 - **Frontend:** React PWA (installable, offline-capable)
-- **Status:** Both backend and frontend are production-ready. The project is in
-  **Phase 5 — Production Readiness**, executing a 5-gate verification framework (Gate 0–4).
+- **Status:** Backend is mature and covers every module. Frontend is behind it —
+  Resident is essentially complete; Admin has several `PlaceholderPage` routes still
+  (Complaints, Visitors, Notices, Amenities, Proposals, Expense Bills, Accounts);
+  Sub-admin, Guard, and most of Platform Owner are still placeholders too. Closing
+  that gap (wiring each placeholder to its already-built backend API) is the
+  current priority — see the note at the end of Section 7.
 
 ### User roles
 | Role | Purpose |
@@ -54,7 +59,7 @@ and the UI (role-based routing/menus).
 
 ---
 
-## 3. API modules (79 endpoints)
+## 3. API modules
 
 | Module | Covers |
 |---|---|
@@ -162,6 +167,25 @@ docker compose up --build
 
 Track progress in `GATE_0_EXECUTION_WORKSHEET.md`.
 
+### Current engineering priority: finish the frontend
+
+The backend covers every module; the frontend doesn't yet call all of it.
+Still `PlaceholderPage`, each with a working backend API already sitting
+idle behind it:
+
+- **Admin:** Complaints, Visitors, Notices, Amenities, Proposals, Expense
+  Bills, Accounts
+- **Sub-admin:** almost everything (Overview, Dues, Complaints, Proposals,
+  Expense Bills)
+- **Security Guard:** Visitors (gate entry/exit)
+- **Platform Owner:** mostly done (Societies page is now real) — nothing
+  else exists yet for this role beyond Societies
+
+Resident is essentially complete and is the reference pattern for how a
+module should look (list → detail/create modal → mutation, `Page[T]` for
+paginated endpoints, `Table`/`Badge`/`Modal`/`Button` from `components/`).
+Build the remaining ones the same way, one module at a time.
+
 ---
 
 ## 8. Key documents
@@ -171,7 +195,7 @@ Track progress in `GATE_0_EXECUTION_WORKSHEET.md`.
 | `WEEK_2_START_HERE.md` | Quick reference guide for Week 2 |
 | `WEEK_2_GATE_0_EXECUTION_GUIDE.md` | Detailed Gate 0 infrastructure verification procedure |
 | `GATE_0_EXECUTION_WORKSHEET.md` | Live tracking sheet for the 7 infrastructure checks |
-| `HOUSING_BACKEND_COMPLETE_API_REFERENCE.md` | Full documentation of all 79 endpoints |
+| `HOUSING_BACKEND_COMPLETE_API_REFERENCE.md` | Full endpoint documentation (not yet in this repo — generate from `app.openapi()` when needed) |
 | `PHASE_5_COMPLETE_EXECUTION_PLAYBOOK.md` | Complete Week 2–3 strategy with decision trees |
 | `PHASE_5_FINAL_DELIVERY_SUMMARY.md` | Week 1 completion summary |
 
