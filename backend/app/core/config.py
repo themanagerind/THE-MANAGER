@@ -35,6 +35,11 @@ class Settings(BaseSettings):
     web_push_vapid_public_key: str | None = None
     web_push_vapid_private_key: str | None = None
 
+    # Payment proof uploads (Section 14.2/14.3) — local disk for now,
+    # served back via StaticFiles at /uploads; swap for object storage
+    # (S3/GCS) in production without changing the upload_service API.
+    upload_dir: str = "uploads"
+
 
 @lru_cache
 def get_settings() -> Settings:

@@ -11,7 +11,13 @@ keeps working unchanged.
 """
 from app.services.payment_service.approval import approve_payment
 from app.services.payment_service.correction import correct_payment
-from app.services.payment_service.queries import list_payments_for_society, list_pending_payments
+from app.services.payment_service.queries import (
+    get_payment,
+    list_all_payments_for_society,
+    list_payments_for_society,
+    list_pending_payments,
+    list_proofs_for_payment,
+)
 from app.services.payment_service.rejection import reject_payment
 from app.services.payment_service.submission import submit_payment
 
@@ -21,5 +27,8 @@ __all__ = [
     "reject_payment",
     "correct_payment",
     "list_payments_for_society",
+    "list_all_payments_for_society",
     "list_pending_payments",
+    "get_payment",
+    "list_proofs_for_payment",
 ]

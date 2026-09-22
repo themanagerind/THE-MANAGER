@@ -13,14 +13,45 @@ from datetime import date, datetime, timezone
 
 from fastapi import HTTPException, status
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.enums import RelationshipType, Role, UserStatus
-from app.models.identity import Property, PropertyResident, User, UserRole
+from app.core.redis_client import get_redis
+from app.models.enums import RelationshipType, Role, SocietyStatus, UserStatus
+from app.models.identity import Property, PropertyResident, Society, User, UserRole
 from app.schemas.resident import PropertyResidentLinkIn, ResidentSignupIn
+
+_SIGNUP_MAX_PER_HOUR = 5
+_SIGNUP_RATE_WINDOW_SECONDS = 3600
+
+
+def _signup_rate_key(mobile: str) -> str:
+    return f"resident_signup:rate:{mobile}"
 
 
 async def signup_resident(db: AsyncSession, body: ResidentSignupIn) -> User:
+    # Audit fix: public, unauthenticated endpoint had no rate limiting at
+    # all — same pattern as otp_service's request rate limit, keyed by
+    # mobile so it can't be trivially bypassed by varying society_id.
+    r = get_redis()
+    attempts = await r.incr(_signup_rate_key(body.mobile))
+    if attempts == 1:
+        await r.expire(_signup_rate_key(body.mobile), _SIGNUP_RATE_WINDOW_SECONDS)
+    if attempts > _SIGNUP_MAX_PER_HOUR:
+        raise HTTPException(
+            status.HTTP_429_TOO_MANY_REQUESTS, "Too many signup attempts — try again in an hour"
+        )
+
+    # Audit fix: society_id was trusted blindly — a nonexistent society_id
+    # surfaced as a raw FK-violation 500, and a real but PENDING/SUSPENDED
+    # society had no gate at all (self-signup into a society that hasn't
+    # even been approved yet, or has been suspended).
+    society = (await db.execute(select(Society).where(Society.id == body.society_id))).scalar_one_or_none()
+    if society is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Society not found")
+    if society.status != SocietyStatus.ACTIVE:
+        raise HTTPException(status.HTTP_409_CONFLICT, "This society isn't accepting signups right now")
+
     resident = User(
         society_id=body.society_id,
         full_name=body.full_name,
@@ -29,7 +60,17 @@ async def signup_resident(db: AsyncSession, body: ResidentSignupIn) -> User:
         status=UserStatus.PENDING,
     )
     db.add(resident)
-    await db.flush()
+    try:
+        await db.flush()
+    except IntegrityError as exc:
+        # Audit fix: a duplicate (society_id, mobile) signup previously
+        # bubbled up as an unhandled 500 instead of a clean error — the DB
+        # unique index (ux_users_society_mobile) is what actually blocks it.
+        await db.rollback()
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, "A signup already exists for this mobile number in this society"
+        ) from exc
+
     db.add(
         UserRole(
             user_id=resident.id,

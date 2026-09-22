@@ -1,8 +1,10 @@
 """FastAPI application entrypoint."""
 import logging
+from pathlib import Path
 
 from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.api.v1.account_entries import router as account_entries_router
 from app.api.v1.amenities import router as amenities_router
@@ -17,6 +19,7 @@ from app.api.v1.proposals import router as proposals_router
 from app.api.v1.residents import router as residents_router
 from app.api.v1.societies import router as societies_router
 from app.api.v1.subadmins import router as subadmins_router
+from app.api.v1.uploads import router as uploads_router
 from app.api.v1.visitors import router as visitors_router
 from app.core.config import get_settings
 
@@ -31,6 +34,7 @@ app.include_router(properties_router, prefix="/api/v1")
 app.include_router(residents_router, prefix="/api/v1")
 app.include_router(subadmins_router, prefix="/api/v1")
 app.include_router(payments_router, prefix="/api/v1")
+app.include_router(uploads_router, prefix="/api/v1")
 app.include_router(proposals_router, prefix="/api/v1")
 app.include_router(expense_bills_router, prefix="/api/v1")
 app.include_router(manager_todos_router, prefix="/api/v1")
@@ -39,6 +43,12 @@ app.include_router(visitors_router, prefix="/api/v1")
 app.include_router(notices_router, prefix="/api/v1")
 app.include_router(amenities_router, prefix="/api/v1")
 app.include_router(account_entries_router, prefix="/api/v1")
+
+# Serves uploaded payment-proof files back at /uploads/... — same origin as
+# /api/v1 in dev; a production reverse proxy must route /uploads/* to this
+# service too (see frontend/vite.config.ts's proxy comment).
+Path(settings.upload_dir).mkdir(parents=True, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=settings.upload_dir), name="uploads")
 
 
 @app.exception_handler(Exception)

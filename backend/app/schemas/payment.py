@@ -64,6 +64,21 @@ class PaymentOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class PaymentProofOut(BaseModel):
+    id: uuid.UUID
+    payment_id: uuid.UUID
+    proof_type: ProofType
+    file_url: str
+    uploaded_at: datetime
+    uploaded_by: uuid.UUID
+
+    model_config = {"from_attributes": True}
+
+
+class UploadProofOut(BaseModel):
+    file_url: str
+
+
 class RejectPaymentIn(BaseModel):
     rejection_reason: str
 

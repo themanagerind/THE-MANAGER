@@ -7,7 +7,7 @@ OTP generation/verification — hardened per production security checklist:
 """
 import hashlib
 import hmac
-import random
+import secrets
 import string
 
 from fastapi import HTTPException, status
@@ -51,7 +51,10 @@ def _hash_otp(mobile: str, otp: str) -> str:
 
 
 def _generate_otp() -> str:
-    return "".join(random.choices(string.digits, k=settings.otp_length))
+    # Audit fix: random.choices() is not cryptographically secure — an OTP
+    # is an auth credential, so it needs a CSPRNG (secrets module) the same
+    # way a password reset token would.
+    return "".join(secrets.choice(string.digits) for _ in range(settings.otp_length))
 
 
 async def request_otp(mobile: str) -> str:

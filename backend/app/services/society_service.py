@@ -105,10 +105,28 @@ async def update_society_status(
 ) -> Society:
     """Section 25: PENDING -> ACTIVE -> SUSPENDED, Platform Owner controls it.
     (Use /approve for the initial PENDING->ACTIVE + admin-activation step;
-    this endpoint is for subsequent SUSPENDED<->ACTIVE transitions.)"""
+    this endpoint is for subsequent SUSPENDED<->ACTIVE transitions.)
+
+    Audit fix: the docstring's contract wasn't enforced — new_status was
+    assigned unconditionally, so a Platform Owner could send PENDING at any
+    time (ACTIVE -> PENDING, SUSPENDED -> PENDING), or "approve" an already
+    non-PENDING society through this endpoint. PENDING is only ever reached
+    via signup, and only ever left via /approve."""
     society = (await db.execute(select(Society).where(Society.id == society_id))).scalar_one_or_none()
     if society is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Society not found")
+
+    if new_status == SocietyStatus.PENDING:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "Cannot set status to PENDING — that's the initial signup state, not a transition target",
+        )
+    if society.status == SocietyStatus.PENDING:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "Society is still PENDING — use POST /societies/{id}/approve first",
+        )
+
     society.status = new_status
     await db.commit()
     await db.refresh(society)
