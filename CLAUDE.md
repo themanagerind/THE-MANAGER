@@ -42,7 +42,7 @@ and the UI (role-based routing/menus).
 - **JWT** authentication
 - Security hardening: OWASP compliance, rate limiting, audit logging
 - **Docker** deployment
-- Test suite: **45 critical tests — all must stay passing**
+- Test suite: **the full `pytest` suite must stay passing** (grows as coverage is added — check `pytest -q`'s own count rather than a number here, which goes stale)
 
 ### Frontend
 - **React 18.3** + **TypeScript** + **Vite**
@@ -85,7 +85,7 @@ Full endpoint documentation: `HOUSING_BACKEND_COMPLETE_API_REFERENCE.md`
 ├── backend/
 │   ├── app/              # FastAPI app: routers, models, schemas, services, core (config, security)
 │   ├── alembic/          # Migration scripts
-│   ├── tests/            # pytest suite (45 critical tests)
+│   ├── tests/            # pytest suite
 │   ├── requirements.txt
 │   └── Dockerfile
 ├── frontend/
@@ -130,7 +130,7 @@ docker compose up --build
 
 ## 6. Rules for working in this repo
 
-1. **Never break the 45 critical tests.** Run `pytest` after any backend change and `npm run test` after frontend changes. Don't mark work done while tests fail.
+1. **Never break the test suite.** Run `pytest` after any backend change and `npm run test` after frontend changes. Don't mark work done while tests fail.
 2. **Every schema change needs an Alembic migration.** Never edit the database by hand or modify old migrations that may already be applied in production.
 3. **Security is non-negotiable:**
    - Every new endpoint needs JWT auth + a role/permission check (unless it's explicitly public, like login).
