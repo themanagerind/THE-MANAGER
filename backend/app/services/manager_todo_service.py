@@ -10,6 +10,17 @@ from app.models.enums import Role, TodoStatus
 from app.models.operations import ManagerTodo, TaskSuggestion
 from app.services.scope_service import user_has_active_role
 
+# Audit findings C7/C8: status was previously overwritten unconditionally,
+# allowing DONE -> PENDING/IN_PROGRESS or PENDING -> DONE, and leaving a
+# stale completed_at behind after a reversal. DONE is terminal — a task
+# that's finished can't move back, and the one-step progression below is
+# the only path forward.
+_ALLOWED_TRANSITIONS: dict[TodoStatus, set[TodoStatus]] = {
+    TodoStatus.PENDING: {TodoStatus.IN_PROGRESS},
+    TodoStatus.IN_PROGRESS: {TodoStatus.DONE},
+    TodoStatus.DONE: set(),
+}
+
 
 async def add_task_suggestion(db: AsyncSession, created_by: uuid.UUID, title: str) -> TaskSuggestion:
     """Platform-global — any society's Admin adding a task makes it visible
@@ -101,6 +112,12 @@ async def update_todo_status(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "To-do not found in this society")
     if todo.manager_id != manager_id:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "You can only update your own assigned tasks")
+
+    if new_status not in _ALLOWED_TRANSITIONS[todo.status]:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"Cannot move a task from {todo.status.value} to {new_status.value}",
+        )
 
     todo.status = new_status
     if new_status == TodoStatus.DONE:
