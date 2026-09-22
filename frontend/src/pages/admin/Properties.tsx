@@ -28,7 +28,7 @@ export function AdminProperties() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <h1 className="text-xl font-semibold text-navy">Properties</h1>
         <div className="flex gap-2">
           <Button variant="secondary" onClick={() => setAddingLocation(true)}>Add wing/row</Button>

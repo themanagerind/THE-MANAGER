@@ -38,7 +38,7 @@ export function AdminDues() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <h1 className="text-xl font-semibold text-navy">Maintenance Dues</h1>
         <Button onClick={() => setGenerating(true)}>Generate monthly bills</Button>
       </div>

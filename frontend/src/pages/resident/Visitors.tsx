@@ -27,7 +27,7 @@ export function ResidentVisitors() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <h1 className="text-xl font-semibold text-navy">Visitors</h1>
         <Button onClick={() => setShowCreate(true)}>Pre-approve visitor</Button>
       </div>
