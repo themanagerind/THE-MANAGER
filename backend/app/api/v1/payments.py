@@ -3,11 +3,13 @@ import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_db
 from app.core.security import CurrentUser, require_role
 from app.models.enums import Role
+from app.models.payments import Payment
 from app.schemas.pagination import Page, Pagination, pagination_params
 from app.schemas.payment import (
     CorrectPaymentIn,
@@ -19,7 +21,7 @@ from app.schemas.payment import (
     SubmitPaymentIn,
     WalletOut,
 )
-from app.services import maintenance_service, payment_service, wallet_service
+from app.services import maintenance_service, payment_service, upload_service, wallet_service
 from app.services.scope_service import resident_owns_or_rents_property, subadmin_has_scope_over_property
 
 router = APIRouter(prefix="/payments", tags=["payments"])
@@ -186,19 +188,12 @@ async def correct(
     }
 
 
-@router.get("/{payment_id}/proofs", response_model=list[PaymentProofOut])
-async def list_proofs(
-    payment_id: uuid.UUID,
-    db: Annotated[AsyncSession, Depends(get_db)],
-    current: Annotated[
-        CurrentUser, Depends(require_role(Role.ADMIN, Role.SUB_ADMIN, Role.RESIDENT))
-    ],
-) -> list[PaymentProofOut]:
-    """Audit fix: this endpoint didn't exist at all — the frontend has
-    called it since payment proof upload was added, but nothing backed it.
-    A Resident may only see proofs for their own payment; Sub-admin is
-    scope-restricted like every other payment endpoint; Admin has full
-    access."""
+async def _authorize_proof_access(
+    db: AsyncSession, current: CurrentUser, payment_id: uuid.UUID
+) -> Payment:
+    """Shared by both proof endpoints below — a Resident may only reach
+    proofs for their own payment; Sub-admin is scope-restricted like every
+    other payment endpoint; Admin has full access."""
     payment = await payment_service.get_payment(db, current.society_id, payment_id)
     if payment is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Payment not found in this society")
@@ -209,9 +204,54 @@ async def list_proofs(
         db, current.user_id, payment.property_id, current.society_id
     ):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Payment's property is outside your assigned scope")
+    return payment
 
+
+@router.get("/{payment_id}/proofs", response_model=list[PaymentProofOut])
+async def list_proofs(
+    payment_id: uuid.UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current: Annotated[
+        CurrentUser, Depends(require_role(Role.ADMIN, Role.SUB_ADMIN, Role.RESIDENT))
+    ],
+) -> list[PaymentProofOut]:
+    """Audit fix: this endpoint didn't exist at all — the frontend has
+    called it since payment proof upload was added, but nothing backed it."""
+    await _authorize_proof_access(db, current, payment_id)
     proofs = await payment_service.list_proofs_for_payment(db, payment_id)
-    return [PaymentProofOut.model_validate(p) for p in proofs]
+    # Audit fix: file_url used to be the raw on-disk storage key, served
+    # back by a public StaticFiles mount — no authentication needed to
+    # read someone else's payment screenshot/receipt. It's now the
+    # authenticated endpoint below; the storage key itself is never
+    # exposed to the client.
+    return [
+        PaymentProofOut(
+            id=p.id, payment_id=p.payment_id, proof_type=p.proof_type,
+            file_url=f"/payments/{payment_id}/proofs/{p.id}/file",
+            uploaded_at=p.uploaded_at, uploaded_by=p.uploaded_by,
+        )
+        for p in proofs
+    ]
+
+
+@router.get("/{payment_id}/proofs/{proof_id}/file")
+async def get_proof_file(
+    payment_id: uuid.UUID,
+    proof_id: uuid.UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current: Annotated[
+        CurrentUser, Depends(require_role(Role.ADMIN, Role.SUB_ADMIN, Role.RESIDENT))
+    ],
+) -> FileResponse:
+    """The only way to read a payment-proof file's bytes — same
+    authorization as list_proofs above, checked fresh on every request."""
+    await _authorize_proof_access(db, current, payment_id)
+    proofs = await payment_service.list_proofs_for_payment(db, payment_id)
+    proof = next((p for p in proofs if p.id == proof_id), None)
+    if proof is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Proof not found for this payment")
+    path = upload_service.resolve_payment_proof_path(proof.file_url)
+    return FileResponse(path)
 
 
 @router.get("/wallet/me", response_model=WalletOut)

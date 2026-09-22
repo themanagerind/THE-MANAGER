@@ -332,15 +332,18 @@ async def test_payment_proof_upload_and_retrieval(
         headers=headers,
     )
     assert resp.status_code == 200
-    file_url = resp.json()["file_url"]
-    assert file_url.startswith("/uploads/payment_proofs/")
+    storage_key = resp.json()["file_url"]
+    # Audit fix: this used to be a directly-fetchable public URL
+    # (/uploads/payment_proofs/...) — it's now an opaque storage key, only
+    # ever resolved server-side by the authenticated file endpoint below.
+    assert not storage_key.startswith("/uploads/")
 
     resp = await client.post(
         "/api/v1/payments",
         json={
             "maintenance_due_id": str(due.id), "payment_method": "MANUAL_UPI",
             "idempotency_key": str(uuid.uuid4()), "proof_type": "UPI_SCREENSHOT",
-            "proof_file_url": file_url,
+            "proof_file_url": storage_key,
         },
         headers=headers,
     )
@@ -352,9 +355,17 @@ async def test_payment_proof_upload_and_retrieval(
     assert resp.status_code == 200
     proofs = resp.json()
     assert len(proofs) == 1
-    assert proofs[0]["file_url"] == file_url
+    proof_id = proofs[0]["id"]
+    # file_url now points at the authenticated endpoint, not the raw
+    # storage key or a public path.
+    assert proofs[0]["file_url"] == f"/payments/{payment_id}/proofs/{proof_id}/file"
 
-    # An unrelated Resident cannot see this payment's proofs.
+    resp = await client.get(f"/api/v1/payments/{payment_id}/proofs/{proof_id}/file", headers=headers)
+    assert resp.status_code == 200
+    assert resp.content == fake_jpeg
+
+    # An unrelated Resident cannot see this payment's proofs, or fetch the
+    # file directly even knowing its exact URL.
     other_resident = User(society_id=society_id, full_name="Other Resident", mobile="9500000002", status=UserStatus.ACTIVE)
     db_session.add(other_resident)
     await db_session.flush()
@@ -363,6 +374,12 @@ async def test_payment_proof_upload_and_retrieval(
     other_headers = auth_headers(other_resident.id, society_id, Role.RESIDENT, [Role.RESIDENT])
     resp = await client.get(f"/api/v1/payments/{payment_id}/proofs", headers=other_headers)
     assert resp.status_code == 403
+    resp = await client.get(f"/api/v1/payments/{payment_id}/proofs/{proof_id}/file", headers=other_headers)
+    assert resp.status_code == 403
+
+    # And an entirely unauthenticated request is rejected too.
+    resp = await client.get(f"/api/v1/payments/{payment_id}/proofs/{proof_id}/file")
+    assert resp.status_code == 401
 
 
 async def test_payment_proof_upload_rejects_non_image(
@@ -375,6 +392,24 @@ async def test_payment_proof_upload_rejects_non_image(
     resp = await client.post(
         "/api/v1/uploads/payment-proof",
         files={"file": ("proof.txt", b"not an image", "text/plain")},
+        headers=headers,
+    )
+    assert resp.status_code == 400
+
+
+async def test_payment_proof_upload_rejects_spoofed_content_type(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    """Regression test: validation used to trust file.content_type alone —
+    a client-supplied header — so a non-image file labeled "image/png"
+    would have been accepted. The actual bytes are checked now."""
+    society_id = two_societies_with_admins["a"]["society_id"]
+    _prop, resident = await _seed_resident_with_property(db_session, society_id)
+    headers = auth_headers(resident.id, society_id, Role.RESIDENT, [Role.RESIDENT])
+
+    resp = await client.post(
+        "/api/v1/uploads/payment-proof",
+        files={"file": ("proof.png", b"this is not actually a PNG file", "image/png")},
         headers=headers,
     )
     assert resp.status_code == 400

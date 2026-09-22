@@ -4,7 +4,6 @@ from pathlib import Path
 
 from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
-from fastapi.staticfiles import StaticFiles
 
 from app.api.v1.account_entries import router as account_entries_router
 from app.api.v1.amenities import router as amenities_router
@@ -44,11 +43,12 @@ app.include_router(notices_router, prefix="/api/v1")
 app.include_router(amenities_router, prefix="/api/v1")
 app.include_router(account_entries_router, prefix="/api/v1")
 
-# Serves uploaded payment-proof files back at /uploads/... — same origin as
-# /api/v1 in dev; a production reverse proxy must route /uploads/* to this
-# service too (see frontend/vite.config.ts's proxy comment).
+# Audit fix: uploaded payment-proof files used to be served by a public
+# StaticFiles mount here with no authentication at all. Files are now only
+# readable through GET /payments/{payment_id}/proofs/{proof_id}/file
+# (app/api/v1/payments.py), which enforces the same authorization as the
+# proof-listing endpoint. This just ensures the storage directory exists.
 Path(settings.upload_dir).mkdir(parents=True, exist_ok=True)
-app.mount("/uploads", StaticFiles(directory=settings.upload_dir), name="uploads")
 
 
 @app.exception_handler(Exception)

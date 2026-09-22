@@ -48,6 +48,10 @@ export interface PaymentProofOut {
   id: string;
   payment_id: string;
   proof_type: ProofType;
+  /** An authenticated API path (audit fix — no longer a public static
+   * URL), e.g. "/payments/{id}/proofs/{proofId}/file". Not directly
+   * usable as an <img src> — fetch it via apiClient (see
+   * components/AuthenticatedImage.tsx), which attaches the bearer token. */
   file_url: string;
   uploaded_at: string;
   uploaded_by: string;
@@ -77,8 +81,9 @@ export const paymentsApi = {
   myWallet: () => apiClient.get<WalletOut>("/payments/wallet/me"),
 
   /** Section 14.2/14.3 — real multipart upload (audit fix: the payment
-   * screen previously just asked for a pasted URL). Returns a file_url to
-   * pass as SubmitPaymentIn.proof_file_url. */
+   * screen previously just asked for a pasted URL). Returns an opaque
+   * storage key (not a fetchable URL — audit fix) to pass straight
+   * through as SubmitPaymentIn.proof_file_url; never render it directly. */
   uploadProof: (file: File) => {
     const form = new FormData();
     form.append("file", file);

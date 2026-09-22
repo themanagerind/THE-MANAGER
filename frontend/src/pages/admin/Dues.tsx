@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { paymentsApi, type PaymentOut } from "@/api/payments";
 import { Loader, EmptyState, ErrorState, apiErrorMessage } from "@/components/States";
+import { AuthenticatedImage } from "@/components/AuthenticatedImage";
 import { Badge } from "@/components/Badge";
 import { Table } from "@/components/Table";
 import { Modal } from "@/components/Modal";
@@ -173,9 +174,7 @@ function ProofModal({ payment, onClose }: { payment: PaymentOut; onClose: () => 
               {proof.proof_type === "UPI_SCREENSHOT" ? "UPI screenshot" : "Cash receipt"} · uploaded{" "}
               {new Date(proof.uploaded_at).toLocaleString("en-IN")}
             </p>
-            <a href={proof.file_url} target="_blank" rel="noreferrer">
-              <img src={proof.file_url} alt="Payment proof" className="max-h-96 rounded border border-line" />
-            </a>
+            <AuthenticatedImage src={proof.file_url} alt="Payment proof" className="max-h-96 rounded border border-line" />
           </div>
         ))}
         <div className="flex justify-end pt-2">
