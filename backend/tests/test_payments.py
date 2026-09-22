@@ -238,3 +238,34 @@ async def test_resident_cannot_view_other_propertys_dues(
     resp = await client.get(f"/api/v1/payments/maintenance-dues/by-property/{prop.id}", headers=headers)
     assert resp.status_code == 200
     assert len(resp.json()) == 1
+
+
+async def test_manager_can_view_property_dues_but_not_generate_or_correct(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    """Regression test — audit finding C5/C6: Manager needs view-only access
+    to property-level maintenance dues, but no write access to payments
+    (generate/correct/reject stay Admin/Sub-admin only)."""
+    society_id = two_societies_with_admins["a"]["society_id"]
+    prop, resident = await _seed_resident_with_property(db_session, society_id)
+    await _seed_due(db_session, society_id, prop.id, amount=2200.0)
+
+    manager = User(society_id=society_id, full_name="Manager", mobile="9400000001", status=UserStatus.ACTIVE)
+    db_session.add(manager)
+    await db_session.flush()
+    db_session.add(UserRole(user_id=manager.id, role=Role.MANAGER, assigned_at=datetime.now(timezone.utc)))
+    await db_session.commit()
+    await db_session.refresh(manager)
+
+    headers = auth_headers(manager.id, society_id, Role.MANAGER, [Role.MANAGER])
+
+    resp = await client.get(f"/api/v1/payments/maintenance-dues/by-property/{prop.id}", headers=headers)
+    assert resp.status_code == 200
+    assert len(resp.json()) == 1
+
+    resp = await client.post(
+        "/api/v1/payments/maintenance-dues/generate",
+        json={"amount": 1000.0, "billing_month": date.today().replace(day=1).isoformat()},
+        headers=headers,
+    )
+    assert resp.status_code == 403

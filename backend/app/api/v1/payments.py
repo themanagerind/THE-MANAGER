@@ -51,14 +51,18 @@ async def list_dues_for_property(
     property_id: uuid.UUID,
     db: Annotated[AsyncSession, Depends(get_db)],
     current: Annotated[
-        CurrentUser, Depends(require_role(Role.ADMIN, Role.SUB_ADMIN, Role.RESIDENT))
+        CurrentUser,
+        Depends(require_role(Role.ADMIN, Role.SUB_ADMIN, Role.MANAGER, Role.RESIDENT)),
     ],
 ) -> list[MaintenanceDueOut]:
-    # CRITICAL fix (audit finding C2): a Resident could previously name ANY
-    # property in their own society and read its dues, not just one they're
-    # linked to — same ownership check already used for complaints/visitors/
-    # amenities. Admin/Sub-admin are exempt: they legitimately manage every
-    # property in the society.
+    # Audit finding C5/C6: Manager gets view-only access here per the
+    # finalized requirement (property-level dues, no write access — Manager
+    # has no route to generate/correct/reject payments anywhere in this
+    # router). CRITICAL fix (audit finding C2): a Resident could previously
+    # name ANY property in their own society and read its dues, not just one
+    # they're linked to — same ownership check already used for
+    # complaints/visitors/amenities. Admin/Sub-admin/Manager are exempt:
+    # they legitimately manage every property in the society.
     if current.active_role == Role.RESIDENT and not await resident_owns_or_rents_property(
         db, current.user_id, property_id, current.society_id
     ):
