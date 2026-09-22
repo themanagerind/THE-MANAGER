@@ -11,7 +11,40 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.enums import Role, SocietyStatus, UserStatus
 from app.models.identity import Society, User, UserRole
-from app.schemas.society import SocietySignupIn
+from app.schemas.society import SocietyCreateIn, SocietySignupIn
+
+
+async def create_society(db: AsyncSession, body: SocietyCreateIn) -> Society:
+    """Platform Owner creates a society directly — this is the only path
+    for a society to exist now that Admin signup targets an existing one
+    instead of bundling a new society with it. Goes straight to ACTIVE:
+    the Platform Owner creating it from their own dashboard IS the
+    approval, there's no one else who needs to sign off on it."""
+    existing = (
+        await db.execute(select(Society).where(Society.code == body.code))
+    ).scalar_one_or_none()
+    if existing is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Society code already in use")
+
+    society = Society(
+        name=body.name, code=body.code, status=SocietyStatus.ACTIVE,
+        address=body.address, city=body.city, state=body.state, pincode=body.pincode,
+    )
+    db.add(society)
+    await db.commit()
+    await db.refresh(society)
+    return society
+
+
+async def lookup_society_by_code(db: AsyncSession, code: str) -> Society | None:
+    """Public lookup for the Admin/Resident signup forms — only returns an
+    ACTIVE society (a PENDING or SUSPENDED one isn't accepting anyone
+    signing up against it)."""
+    return (
+        await db.execute(
+            select(Society).where(Society.code == code, Society.status == SocietyStatus.ACTIVE)
+        )
+    ).scalar_one_or_none()
 
 
 async def signup_society_and_admin(db: AsyncSession, body: SocietySignupIn) -> tuple[Society, User]:

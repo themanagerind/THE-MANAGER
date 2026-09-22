@@ -2,12 +2,14 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.core.db import get_db
 from app.core.security import CurrentUser, require_role
 from app.models.enums import Role
 from app.schemas.society import (
+    SocietyCreateIn,
+    SocietyLookupOut,
     SocietyOut,
     SocietySignupIn,
     SocietySignupOut,
@@ -17,6 +19,17 @@ from app.services import society_service
 from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter(prefix="/societies", tags=["societies"])
+
+
+@router.get("/lookup/{code}", response_model=SocietyLookupOut)
+async def lookup(code: str, db: Annotated[AsyncSession, Depends(get_db)]) -> SocietyLookupOut:
+    """Public — used by the Admin/Resident signup forms to find their
+    society by its code without needing its internal UUID, and without
+    exposing the full society list."""
+    society = await society_service.lookup_society_by_code(db, code)
+    if society is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Society not found")
+    return SocietyLookupOut(id=society.id, name=society.name)
 
 
 @router.post("/signup", response_model=SocietySignupOut)
@@ -36,6 +49,20 @@ async def list_all(
 ) -> list[SocietyOut]:
     societies = await society_service.list_societies(db)
     return [SocietyOut.model_validate(s) for s in societies]
+
+
+@router.post("", response_model=SocietyOut)
+async def create(
+    body: SocietyCreateIn,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current: Annotated[CurrentUser, Depends(require_role(Role.PLATFORM_OWNER))],
+) -> SocietyOut:
+    """A society now only comes into existence this way — created directly
+    by the Platform Owner from their dashboard, ACTIVE immediately. Admin
+    signup (POST /admins/signup) targets an existing society created here;
+    it no longer creates one itself."""
+    society = await society_service.create_society(db, body)
+    return SocietyOut.model_validate(society)
 
 
 @router.post("/{society_id}/approve", response_model=SocietyOut)

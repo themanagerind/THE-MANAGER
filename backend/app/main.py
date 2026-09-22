@@ -6,6 +6,7 @@ from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
 
 from app.api.v1.account_entries import router as account_entries_router
+from app.api.v1.admins import router as admins_router
 from app.api.v1.amenities import router as amenities_router
 from app.api.v1.auth import router as auth_router
 from app.api.v1.complaints import router as complaints_router
@@ -28,6 +29,7 @@ logger = logging.getLogger("app")
 app = FastAPI(title=settings.app_name)
 
 app.include_router(auth_router, prefix="/api/v1")
+app.include_router(admins_router, prefix="/api/v1")
 app.include_router(societies_router, prefix="/api/v1")
 app.include_router(properties_router, prefix="/api/v1")
 app.include_router(residents_router, prefix="/api/v1")

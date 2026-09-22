@@ -30,6 +30,30 @@ class SocietySignupOut(BaseModel):
     message: str = "Submitted — awaiting Platform Owner approval"
 
 
+class SocietyCreateIn(BaseModel):
+    """Platform Owner creates a society directly from their dashboard —
+    the only way a society comes into existence now (SocietySignupIn's
+    bundled self-service flow above stays for API compatibility but isn't
+    linked from the signup page anymore). Goes straight to ACTIVE: the
+    Platform Owner creating it IS the approval."""
+
+    name: str
+    code: str
+    address: str | None = None
+    city: str | None = None
+    state: str | None = None
+    pincode: str | None = None
+
+
+class SocietyLookupOut(BaseModel):
+    """Public, minimal — used by the Admin/Resident signup forms to find
+    their society by its code without needing its internal UUID, and
+    without exposing the full society list (that stays Platform-Owner-only)."""
+
+    id: uuid.UUID
+    name: str
+
+
 class SocietyOut(BaseModel):
     id: uuid.UUID
     name: str

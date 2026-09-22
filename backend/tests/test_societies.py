@@ -81,3 +81,77 @@ async def test_society_can_still_toggle_active_and_suspended(
     resp = await client.patch(f"/api/v1/societies/{society_id}/status", json={"status": "ACTIVE"}, headers=headers)
     assert resp.status_code == 200
     assert resp.json()["status"] == "ACTIVE"
+
+
+async def test_platform_owner_can_create_society_directly(
+    client: AsyncClient, db_session: AsyncSession
+):
+    """New flow: a society is only ever created this way now — directly by
+    the Platform Owner, ACTIVE immediately (no separate approval step,
+    since creating it from their own dashboard IS the approval)."""
+    owner = await _seed_platform_owner(db_session, "9700000004")
+    headers = auth_headers(owner.id, None, Role.PLATFORM_OWNER, [Role.PLATFORM_OWNER])
+
+    resp = await client.post(
+        "/api/v1/societies",
+        json={"name": "Green Meadows", "code": "SOC-GM-001", "city": "Pune"},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["status"] == "ACTIVE"
+    assert body["name"] == "Green Meadows"
+
+
+async def test_society_code_must_be_unique(
+    client: AsyncClient, db_session: AsyncSession
+):
+    owner = await _seed_platform_owner(db_session, "9700000005")
+    headers = auth_headers(owner.id, None, Role.PLATFORM_OWNER, [Role.PLATFORM_OWNER])
+
+    body = {"name": "Sunrise Apartments", "code": "SOC-SUN-001"}
+    resp1 = await client.post("/api/v1/societies", json=body, headers=headers)
+    assert resp1.status_code == 200
+
+    resp2 = await client.post("/api/v1/societies", json=body, headers=headers)
+    assert resp2.status_code == 409
+
+
+async def test_non_platform_owner_cannot_create_society(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    admin_id = two_societies_with_admins["a"]["admin_id"]
+    society_id = two_societies_with_admins["a"]["society_id"]
+    headers = auth_headers(admin_id, society_id, Role.ADMIN, [Role.ADMIN])
+
+    resp = await client.post(
+        "/api/v1/societies", json={"name": "Rogue Society", "code": "SOC-ROGUE-1"}, headers=headers
+    )
+    assert resp.status_code == 403
+
+
+async def test_society_lookup_by_code_is_public_and_scoped_to_active(
+    client: AsyncClient, db_session: AsyncSession
+):
+    """Used by the Admin/Resident signup forms — public (no auth), and
+    only ever resolves an ACTIVE society."""
+    owner = await _seed_platform_owner(db_session, "9700000006")
+    headers = auth_headers(owner.id, None, Role.PLATFORM_OWNER, [Role.PLATFORM_OWNER])
+    resp = await client.post(
+        "/api/v1/societies", json={"name": "Lakeview Society", "code": "SOC-LAKE-001"}, headers=headers
+    )
+    society_id = resp.json()["id"]
+
+    resp = await client.get("/api/v1/societies/lookup/SOC-LAKE-001")
+    assert resp.status_code == 200
+    assert resp.json() == {"id": society_id, "name": "Lakeview Society"}
+
+    resp = await client.get("/api/v1/societies/lookup/SOC-DOES-NOT-EXIST")
+    assert resp.status_code == 404
+
+    # A PENDING society (old bundled signup flow) isn't found either.
+    pending = Society(name="Pending One", code="SOC-PEND-LOOKUP", status=SocietyStatus.PENDING)
+    db_session.add(pending)
+    await db_session.commit()
+    resp = await client.get("/api/v1/societies/lookup/SOC-PEND-LOOKUP")
+    assert resp.status_code == 404
