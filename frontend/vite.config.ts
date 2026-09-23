@@ -56,8 +56,12 @@ export default defineConfig({
     port: 3000,
     allowedHosts: true,
     proxy: {
+      // Default matches the backend's own default port (`uvicorn
+      // app.main:app --reload`, no --port flag, per CLAUDE.md's Common
+      // commands) — override with VITE_API_PROXY_TARGET if the backend
+      // runs elsewhere.
       "/api": {
-        target: process.env.VITE_API_PROXY_TARGET || "http://localhost:8001",
+        target: process.env.VITE_API_PROXY_TARGET || "http://localhost:8000",
         changeOrigin: true,
       },
       // Payment-proof files served by the backend's StaticFiles mount
@@ -65,7 +69,7 @@ export default defineConfig({
       // reverse proxy routes /api/v1/* to the backend must also route
       // /uploads/* there.
       "/uploads": {
-        target: process.env.VITE_API_PROXY_TARGET || "http://localhost:8001",
+        target: process.env.VITE_API_PROXY_TARGET || "http://localhost:8000",
         changeOrigin: true,
       },
     },
