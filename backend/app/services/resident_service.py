@@ -19,7 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.redis_client import get_redis
 from app.models.enums import RelationshipType, Role, SocietyStatus, UserStatus
 from app.models.identity import Property, PropertyResident, Society, User, UserRole
-from app.schemas.resident import PropertyResidentLinkIn, ResidentSignupIn
+from app.schemas.resident import AdminSelfResidentLinkIn, PropertyResidentLinkIn, ResidentSignupIn
 
 _SIGNUP_MAX_PER_HOUR = 5
 _SIGNUP_RATE_WINDOW_SECONDS = 3600
@@ -166,6 +166,66 @@ async def link_resident_to_property(
         relationship_type=body.relationship_type,
         is_active=True,
         start_date=body.start_date or date.today(),
+        created_at=datetime.now(timezone.utc),
+    )
+    db.add(link)
+    await db.commit()
+    await db.refresh(link)
+    return link
+
+
+async def link_admin_as_resident(
+    db: AsyncSession, society_id: uuid.UUID, admin_user_id: uuid.UUID, body: AdminSelfResidentLinkIn
+) -> PropertyResident:
+    """Admin links themselves to a property in their own society (Section
+    4's dual-role model, e.g. an Admin who also owns a flat there). Grants
+    a RESIDENT role on their existing account if they don't already have
+    one — never a new User row, unlike the public Resident signup form —
+    so the same account can switch between Admin and Resident dashboards
+    (RoleSwitcher) right after this call."""
+    prop = (
+        await db.execute(
+            select(Property).where(Property.id == body.property_id, Property.society_id == society_id)
+        )
+    ).scalar_one_or_none()
+    if prop is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Property not found in this society")
+
+    if body.relationship_type == RelationshipType.TENANT and not await _has_active_owner(
+        db, body.property_id
+    ):
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "Cannot add an active Tenant: property has no active Owner (Section 12 invariant)",
+        )
+
+    existing_resident_role = (
+        await db.execute(
+            select(UserRole).where(
+                UserRole.user_id == admin_user_id,
+                UserRole.role == Role.RESIDENT,
+                UserRole.revoked_at.is_(None),
+            )
+        )
+    ).scalar_one_or_none()
+    if existing_resident_role is None:
+        db.add(
+            UserRole(
+                user_id=admin_user_id,
+                role=Role.RESIDENT,
+                assigned_by=admin_user_id,
+                assigned_at=datetime.now(timezone.utc),
+            )
+        )
+
+    link = PropertyResident(
+        society_id=society_id,
+        property_id=body.property_id,
+        resident_id=admin_user_id,
+        relationship_type=body.relationship_type,
+        is_active=True,
+        start_date=date.today(),
+        created_at=datetime.now(timezone.utc),
     )
     db.add(link)
     await db.commit()

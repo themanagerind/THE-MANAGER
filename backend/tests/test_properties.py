@@ -91,3 +91,22 @@ async def test_property_status_update_scoped_to_society(
     headers_b = auth_headers(fixtures["b"]["admin_id"], fixtures["b"]["society_id"], Role.ADMIN, [Role.ADMIN])
     resp = await client.patch(f"/api/v1/properties/{prop.id}/status", json={"status": "INACTIVE"}, headers=headers_b)
     assert resp.status_code == 404
+
+
+async def test_resident_can_list_properties_for_own_dashboard(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    """Bug found while building Admin-self-link-as-Resident (Section 4
+    dual-role): GET /properties was ADMIN/SUB_ADMIN-only, but the
+    Resident dashboard (hooks/useActiveProperty.ts) depends on it to
+    resolve house_number/floor labels for the Resident's own linked
+    properties — every Resident's Home page 403'd on this call. Same
+    "society-wide, no financial/personal data" read pattern already used
+    for GET /notices and GET /amenities."""
+    society_id = two_societies_with_admins["a"]["society_id"]
+    prop, resident = await _seed_resident_with_property(db_session, society_id)
+
+    resident_headers = auth_headers(resident.id, society_id, Role.RESIDENT, [Role.RESIDENT])
+    resp = await client.get("/api/v1/properties", headers=resident_headers)
+    assert resp.status_code == 200
+    assert any(p["id"] == str(prop.id) for p in resp.json())

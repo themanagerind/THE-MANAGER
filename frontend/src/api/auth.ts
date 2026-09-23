@@ -23,6 +23,15 @@ export interface OTPVerifyOut {
   otp_session_token: string | null;
 }
 
+export interface CurrentUserOut {
+  user_id: string;
+  society_id: string | null;
+  active_role: Role;
+  /** Re-derived from the DB on every request (see app/core/security.py
+   * get_current_user) — never a stale snapshot from token-issue time. */
+  available_roles: Role[];
+}
+
 export const authApi = {
   requestOtp: (mobile: string) => apiClient.post<{ message: string }>("/auth/otp/request", { mobile }),
 
@@ -39,5 +48,5 @@ export const authApi = {
 
   logout: (refreshToken: string) => apiClient.post("/auth/logout", { refresh_token: refreshToken }),
 
-  me: () => apiClient.get("/auth/me"),
+  me: () => apiClient.get<CurrentUserOut>("/auth/me"),
 };

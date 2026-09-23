@@ -9,6 +9,7 @@ from app.core.db import get_db
 from app.core.security import CurrentUser, require_role
 from app.models.enums import Role
 from app.schemas.resident import (
+    AdminSelfResidentLinkIn,
     PropertyResidentLinkIn,
     PropertyResidentOut,
     ResidentApprovalIn,
@@ -51,6 +52,20 @@ async def decide_approval(
         db, current.society_id, resident_id, body.approve, current.user_id
     )
     return ResidentOut.model_validate(resident)
+
+
+@router.post("/self-link", response_model=PropertyResidentOut)
+async def link_self(
+    body: AdminSelfResidentLinkIn,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current: Annotated[CurrentUser, Depends(require_role(Role.ADMIN))],
+) -> PropertyResidentOut:
+    """Admin links themselves (not another user) to a property in their own
+    society as Owner/Tenant, gaining a RESIDENT role on their existing
+    account — no separate approval needed, since the caller already runs
+    the society. See resident_service.link_admin_as_resident."""
+    link = await resident_service.link_admin_as_resident(db, current.society_id, current.user_id, body)
+    return PropertyResidentOut.model_validate(link)
 
 
 @router.post("/property-links", response_model=PropertyResidentOut)

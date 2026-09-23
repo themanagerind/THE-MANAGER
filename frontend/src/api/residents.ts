@@ -55,6 +55,14 @@ export const residentsApi = {
       property_id: propertyId, resident_id: residentId, relationship_type: relationshipType,
     }),
   unlinkProperty: (linkId: string) => apiClient.delete<PropertyResidentOut>(`/residents/property-links/${linkId}`),
+  /** Admin-only — links the CALLER (not another user) to a property in
+   * their own society, granting a RESIDENT role on their existing account
+   * if they don't already have one (Section 4 dual-role: ADMIN+RESIDENT).
+   * No approval step — the caller already runs the society. */
+  linkSelf: (propertyId: string, relationshipType: RelationshipType) =>
+    apiClient.post<PropertyResidentOut>("/residents/self-link", {
+      property_id: propertyId, relationship_type: relationshipType,
+    }),
   byProperty: (propertyId: string) => apiClient.get<PropertyResidentOut[]>(`/residents/by-property/${propertyId}`),
 };
 

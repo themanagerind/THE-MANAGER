@@ -47,6 +47,13 @@ export const tokenStorage = {
     localStorage.setItem(AVAILABLE_ROLES_KEY, JSON.stringify(availableRoles));
   },
 
+  /** Updates just the cached role list — for when a mid-session action
+   * (e.g. an Admin self-linking as a Resident) grants a new role without
+   * a fresh login/switch-role response to carry it. */
+  setAvailableRoles: (availableRoles: Role[]) => {
+    localStorage.setItem(AVAILABLE_ROLES_KEY, JSON.stringify(availableRoles));
+  },
+
   clear: () => {
     localStorage.removeItem(ACCESS_KEY);
     localStorage.removeItem(REFRESH_KEY);

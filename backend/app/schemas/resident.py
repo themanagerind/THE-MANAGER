@@ -44,6 +44,19 @@ class PropertyResidentLinkIn(BaseModel):
     start_date: date | None = None
 
 
+class AdminSelfResidentLinkIn(BaseModel):
+    """Admin links THEMSELVES to a property in their own society as Owner
+    or Tenant (Section 4: UserRole is explicitly a dual-role model —
+    "ADMIN+RESIDENT, SUB_ADMIN+RESIDENT etc."). No `resident_id` — the
+    caller's own user_id is used, and a RESIDENT role is granted on it if
+    they don't already hold one, same pattern as
+    subadmin_service.promote_to_subadmin adding SUB_ADMIN to an existing
+    Resident."""
+
+    property_id: uuid.UUID
+    relationship_type: RelationshipType
+
+
 class PropertyResidentOut(BaseModel):
     id: uuid.UUID
     property_id: uuid.UUID

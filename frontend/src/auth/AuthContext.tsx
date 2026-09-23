@@ -37,6 +37,12 @@ interface AuthContextValue extends AuthState {
   selectAccount: (userId: string) => Promise<void>;
   switchRole: (role: Role) => Promise<void>;
   logout: () => Promise<void>;
+  /** Re-pulls available_roles from GET /auth/me (always fresh from the
+   * DB — see CurrentUser's docstring) and updates local state/storage.
+   * Needed because a mid-session action can grant a new role (e.g. an
+   * Admin self-linking as a Resident) without a login/switch-role
+   * response to carry the update. */
+  refreshAvailableRoles: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -196,6 +202,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // (RoleSwitcher) right after this resolves — fix #6, confirmed intact.
   }, []);
 
+  const refreshAvailableRoles = useCallback(async () => {
+    const { data } = await authApi.me();
+    tokenStorage.setAvailableRoles(data.available_roles);
+    setState((prev) => ({ ...prev, availableRoles: data.available_roles }));
+  }, []);
+
   const logout = useCallback(async () => {
     const refreshToken = tokenStorage.getRefreshToken();
     if (refreshToken) {
@@ -212,8 +224,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ ...state, requestOtp, verifyOtp, selectAccount, switchRole, logout }),
-    [state, requestOtp, verifyOtp, selectAccount, switchRole, logout]
+    () => ({ ...state, requestOtp, verifyOtp, selectAccount, switchRole, logout, refreshAvailableRoles }),
+    [state, requestOtp, verifyOtp, selectAccount, switchRole, logout, refreshAvailableRoles]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

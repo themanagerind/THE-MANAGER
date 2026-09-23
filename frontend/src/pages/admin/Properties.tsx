@@ -2,17 +2,20 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { locationsApi, propertyAdminApi, type SocietyLocationOut } from "@/api/societies";
 import { propertiesApi, type PropertyOut } from "@/api/properties";
+import { residentsApi } from "@/api/residents";
+import { useAuth } from "@/auth/AuthContext";
 import { Loader, EmptyState, ErrorState, apiErrorMessage } from "@/components/States";
 import { Table } from "@/components/Table";
 import { Modal } from "@/components/Modal";
 import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
-import type { HouseType, LocationType } from "@/types/enums";
+import type { HouseType, LocationType, RelationshipType } from "@/types/enums";
 
 export function AdminProperties() {
   const queryClient = useQueryClient();
   const [addingLocation, setAddingLocation] = useState(false);
   const [addingProperty, setAddingProperty] = useState(false);
+  const [linkingSelfTo, setLinkingSelfTo] = useState<PropertyOut | null>(null);
 
   const locationsQuery = useQuery({
     queryKey: ["admin", "locations"],
@@ -67,6 +70,16 @@ export function AdminProperties() {
               { header: "Type", render: (p) => (p.house_type === "FLAT" ? "Flat" : "Bungalow") },
               { header: "Floor", render: (p) => p.floor_number ?? "—" },
               { header: "Status", render: (p) => p.status },
+              {
+                header: "",
+                render: (p) => (
+                  <div className="flex justify-end">
+                    <Button variant="secondary" onClick={() => setLinkingSelfTo(p)}>
+                      Link as Resident
+                    </Button>
+                  </div>
+                ),
+              },
             ]}
             rows={propertiesQuery.data}
           />
@@ -93,7 +106,71 @@ export function AdminProperties() {
           }}
         />
       )}
+
+      {linkingSelfTo && (
+        <LinkSelfModal property={linkingSelfTo} onClose={() => setLinkingSelfTo(null)} />
+      )}
     </div>
+  );
+}
+
+function LinkSelfModal({ property, onClose }: { property: PropertyOut; onClose: () => void }) {
+  const { refreshAvailableRoles } = useAuth();
+  const [relationshipType, setRelationshipType] = useState<RelationshipType>("OWNER");
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState(false);
+
+  const link = useMutation({
+    mutationFn: () => residentsApi.linkSelf(property.id, relationshipType),
+    onSuccess: async () => {
+      await refreshAvailableRoles();
+      setDone(true);
+    },
+    onError: (e) => setError(apiErrorMessage(e, "Couldn't link you to this property.")),
+  });
+
+  return (
+    <Modal open onClose={onClose} title={`Link as Resident — ${property.house_number}`}>
+      {done ? (
+        <div className="space-y-4">
+          <p className="text-sm text-ink">
+            Done — you're now linked to {property.house_number}. Use the "View as" switcher at the top to
+            open the Resident dashboard whenever you need it.
+          </p>
+          <div className="flex justify-end">
+            <Button onClick={onClose}>Close</Button>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <p className="text-sm text-navy-muted">
+            Links your own Admin account to this property as an Owner or Tenant — no separate approval
+            needed. You'll be able to switch to a Resident view of it any time.
+          </p>
+          <div>
+            <label className="block text-sm text-navy-muted mb-1">Relationship</label>
+            <div className="flex gap-2">
+              {(["OWNER", "TENANT"] as RelationshipType[]).map((opt) => (
+                <button
+                  key={opt}
+                  onClick={() => setRelationshipType(opt)}
+                  className={`px-3 py-1.5 rounded text-sm border ${
+                    relationshipType === opt ? "bg-navy text-white border-navy" : "border-line text-navy-muted"
+                  }`}
+                >
+                  {opt === "OWNER" ? "Owner" : "Tenant"}
+                </button>
+              ))}
+            </div>
+          </div>
+          {error && <p className="text-sm text-danger">{error}</p>}
+          <div className="flex gap-2 justify-end pt-2">
+            <Button variant="secondary" onClick={onClose}>Cancel</Button>
+            <Button loading={link.isPending} onClick={() => link.mutate()}>Link myself</Button>
+          </div>
+        </div>
+      )}
+    </Modal>
   );
 }
 
