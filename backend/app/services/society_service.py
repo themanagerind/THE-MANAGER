@@ -156,24 +156,30 @@ _STRUCTURE_CONFLICT_MESSAGE = (
 async def generate_flats_structure(
     db: AsyncSession, society_id: uuid.UUID, body: FlatsStructureIn
 ) -> list[Property]:
-    """Bulk-generates `tower_count` Wings, each with `floors_per_tower`
-    floors of `flats_per_floor` FLAT properties — every tower/floor/flat
-    combination in one atomic transaction (single final commit, only
-    flush() for the intermediate Wing ids, same pattern as
-    create_society's locations loop above)."""
+    """Bulk-generates one Wing per entry in `body.wings`, each with its own
+    floor_count x flats_per_floor grid of FLAT properties — every
+    tower/floor/flat combination in one atomic transaction (single final
+    commit, only flush() for the intermediate Wing ids, same pattern as
+    create_society's locations loop above). Wings don't have to match each
+    other (see FlatsStructureIn's docstring) — a taller tower next to a
+    shorter one is exactly what this is for."""
     await _get_society_or_404(db, society_id)
 
     towers = [
-        SocietyLocation(society_id=society_id, name=f"Tower {t}", location_type=LocationType.WING)
-        for t in range(1, body.tower_count + 1)
+        SocietyLocation(
+            society_id=society_id,
+            name=(wing.name or "").strip() or f"Tower {idx}",
+            location_type=LocationType.WING,
+        )
+        for idx, wing in enumerate(body.wings, start=1)
     ]
     db.add_all(towers)
     await db.flush()  # need tower.id before adding flats below
 
     properties: list[Property] = []
-    for t_idx, tower in enumerate(towers, start=1):
-        for floor in range(1, body.floors_per_tower + 1):
-            for unit in range(1, body.flats_per_floor + 1):
+    for t_idx, (wing, tower) in enumerate(zip(body.wings, towers), start=1):
+        for floor in range(1, wing.floor_count + 1):
+            for unit in range(1, wing.flats_per_floor + 1):
                 properties.append(
                     Property(
                         society_id=society_id,

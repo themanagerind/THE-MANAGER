@@ -76,16 +76,40 @@ _MAX_FLATS_PER_FLOOR = 50
 _MAX_ROWS = 100
 _MAX_HOUSES_PER_ROW = 200
 _MAX_FLOORS_ABOVE_GROUND = 20
+# A society's towers are rarely identical (a taller tower, a shorter one, a
+# wing with bigger flats and fewer per floor) — real total is bounded by the
+# per-wing caps below anyway, this just stops one request from generating an
+# absurd number of rows if several wings all max out their own fields.
+_MAX_TOTAL_FLATS_PER_REQUEST = 5000
+
+
+class WingSpec(BaseModel):
+    """One Wing's own shape — every Wing can differ (Tower A has 10 floors,
+    Tower B has 15; one Wing has 2 flats/floor, another has 4)."""
+
+    name: str | None = Field(default=None, max_length=100)
+    floor_count: int = Field(ge=1, le=_MAX_FLOORS_PER_TOWER)
+    flats_per_floor: int = Field(ge=1, le=_MAX_FLATS_PER_FLOOR)
 
 
 class FlatsStructureIn(BaseModel):
-    """Generates `tower_count` Wings, each with `floors_per_tower` floors of
-    `flats_per_floor` FLAT properties — every tower/floor/flat combination,
-    all at once, in a single transaction."""
+    """Generates one Wing per entry in `wings`, each with its own
+    floor_count x flats_per_floor grid of FLAT properties — every
+    tower/floor/flat combination, all at once, in a single transaction.
+    An entry with no `name` gets an auto-generated one ("Tower N", by
+    position in the list)."""
 
-    tower_count: int = Field(ge=1, le=_MAX_TOWERS)
-    floors_per_tower: int = Field(ge=1, le=_MAX_FLOORS_PER_TOWER)
-    flats_per_floor: int = Field(ge=1, le=_MAX_FLATS_PER_FLOOR)
+    wings: list[WingSpec] = Field(min_length=1, max_length=_MAX_TOWERS)
+
+    @model_validator(mode="after")
+    def _total_within_cap(self) -> "FlatsStructureIn":
+        total = sum(w.floor_count * w.flats_per_floor for w in self.wings)
+        if total > _MAX_TOTAL_FLATS_PER_REQUEST:
+            raise ValueError(
+                f"This would generate {total} flats in one request — "
+                f"the limit is {_MAX_TOTAL_FLATS_PER_REQUEST}. Split it across a few requests."
+            )
+        return self
 
 
 class BungalowStructureIn(BaseModel):

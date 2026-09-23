@@ -198,6 +198,68 @@ interface LocationRow {
   location_type: LocationType;
 }
 
+interface WingSpecRow {
+  name: string;
+  floorCount: string;
+  flatsPerFloor: string;
+}
+
+/** Shared by CreateSocietyModal/BulkStructureSection's Flats generator —
+ * one row per Wing, each with its own floor count and flats/floor (a
+ * taller tower next to a shorter one, or one with bigger flats and fewer
+ * per floor, is the whole point — see backend WingSpec's docstring).
+ * Name is optional per row; a blank one gets an auto-generated
+ * "Tower N" server-side. */
+function WingRowsEditor({ wings, onChange }: { wings: WingSpecRow[]; onChange: (wings: WingSpecRow[]) => void }) {
+  function addWing() {
+    onChange([...wings, { name: "", floorCount: "", flatsPerFloor: "" }]);
+  }
+  function updateWing(index: number, patch: Partial<WingSpecRow>) {
+    onChange(wings.map((w, i) => (i === index ? { ...w, ...patch } : w)));
+  }
+  function removeWing(index: number) {
+    onChange(wings.filter((_, i) => i !== index));
+  }
+
+  return (
+    <div className="space-y-2">
+      {wings.map((wing, i) => (
+        <div key={i} className="flex gap-2 items-center">
+          <input
+            value={wing.name}
+            onChange={(e) => updateWing(i, { name: e.target.value })}
+            placeholder={`Tower ${i + 1} (name optional)`}
+            className="flex-1 px-2 py-1.5 border border-line rounded text-sm text-ink bg-white focus:border-navy"
+          />
+          <input
+            type="number"
+            value={wing.floorCount}
+            onChange={(e) => updateWing(i, { floorCount: e.target.value })}
+            placeholder="Floors"
+            className="w-20 px-2 py-1.5 border border-line rounded text-sm text-ink bg-white focus:border-navy"
+          />
+          <input
+            type="number"
+            value={wing.flatsPerFloor}
+            onChange={(e) => updateWing(i, { flatsPerFloor: e.target.value })}
+            placeholder="Flats/floor"
+            className="w-24 px-2 py-1.5 border border-line rounded text-sm text-ink bg-white focus:border-navy"
+          />
+          <button
+            type="button"
+            onClick={() => removeWing(i)}
+            aria-label="Remove wing"
+            className="text-navy-muted hover:text-danger text-lg leading-none px-1"
+          >
+            &times;
+          </button>
+        </div>
+      ))}
+      <Button variant="secondary" onClick={addWing}>Add wing</Button>
+    </div>
+  );
+}
+
 function CreateSocietyModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
   const [name, setName] = useState("");
   const [city, setCity] = useState("");
@@ -209,9 +271,7 @@ function CreateSocietyModal({ onClose, onSuccess }: { onClose: () => void; onSuc
   const [longitude, setLongitude] = useState("");
   const { detect, detecting, detectError } = useDetectGpsLocation(setLatitude, setLongitude);
   const [structureType, setStructureType] = useState<"FLATS" | "BUNGALOW">("FLATS");
-  const [towerCount, setTowerCount] = useState("");
-  const [floorsPerTower, setFloorsPerTower] = useState("");
-  const [flatsPerFloor, setFlatsPerFloor] = useState("");
+  const [wings, setWings] = useState<WingSpecRow[]>([]);
   const [rowCount, setRowCount] = useState("");
   const [housesPerRow, setHousesPerRow] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -220,8 +280,8 @@ function CreateSocietyModal({ onClose, onSuccess }: { onClose: () => void; onSuc
   const [createdHouses, setCreatedHouses] = useState<PropertyOut[] | null>(null);
   const [structureError, setStructureError] = useState<string | null>(null);
 
-  const flatsFieldsFilled = [towerCount, floorsPerTower, flatsPerFloor].filter((v) => v.trim() !== "").length;
-  const flatsPartial = flatsFieldsFilled > 0 && flatsFieldsFilled < 3;
+  const completeWings = wings.filter((w) => w.floorCount.trim() !== "" && w.flatsPerFloor.trim() !== "");
+  const flatsPartial = wings.length > 0 && completeWings.length !== wings.length;
   const bungalowFieldsFilled = [rowCount, housesPerRow].filter((v) => v.trim() !== "").length;
   const bungalowPartial = bungalowFieldsFilled > 0 && bungalowFieldsFilled < 2;
   const structureIncomplete = structureType === "FLATS" ? flatsPartial : bungalowPartial;
@@ -239,10 +299,15 @@ function CreateSocietyModal({ onClose, onSuccess }: { onClose: () => void; onSuc
 
       let houses: PropertyOut[] | null = null;
       let structureErr: string | null = null;
-      if (structureType === "FLATS" && flatsFieldsFilled === 3) {
+      if (structureType === "FLATS" && completeWings.length > 0 && !flatsPartial) {
         try {
           await societiesApi.generateFlatsStructure(
-            society.id, Number(towerCount), Number(floorsPerTower), Number(flatsPerFloor)
+            society.id,
+            completeWings.map((w) => ({
+              name: w.name.trim() || undefined,
+              floor_count: Number(w.floorCount),
+              flats_per_floor: Number(w.flatsPerFloor),
+            }))
           );
         } catch (e) {
           structureErr = apiErrorMessage(
@@ -392,21 +457,15 @@ function CreateSocietyModal({ onClose, onSuccess }: { onClose: () => void; onSuc
           </div>
 
           {structureType === "FLATS" ? (
-            <div className="grid grid-cols-3 gap-2">
-              <Input label="Towers" type="number" value={towerCount} onChange={(e) => setTowerCount(e.target.value)} />
-              <Input
-                label="Floors/tower"
-                type="number"
-                value={floorsPerTower}
-                onChange={(e) => setFloorsPerTower(e.target.value)}
-              />
-              <Input
-                label="Flats/floor"
-                type="number"
-                value={flatsPerFloor}
-                onChange={(e) => setFlatsPerFloor(e.target.value)}
-              />
-            </div>
+            <>
+              {wings.length === 0 && (
+                <p className="text-xs text-navy-muted mb-2">
+                  Add a Wing for each tower — they don't have to match (a 10-floor tower and a 15-floor one
+                  are both fine). Skip this if you don't have the details yet.
+                </p>
+              )}
+              <WingRowsEditor wings={wings} onChange={setWings} />
+            </>
           ) : (
             <>
               <div className="grid grid-cols-2 gap-2">
@@ -424,10 +483,14 @@ function CreateSocietyModal({ onClose, onSuccess }: { onClose: () => void; onSuc
             </>
           )}
           {structureIncomplete ? (
-            <p className="text-xs text-danger mt-1">Fill in all the fields above, or clear them to skip.</p>
+            <p className="text-xs text-danger mt-1">
+              {structureType === "FLATS"
+                ? "Every Wing needs both a floor count and flats/floor — fill them in or remove that Wing."
+                : "Fill in all the fields above, or clear them to skip."}
+            </p>
           ) : (
             <p className="text-xs text-navy-muted mt-1">
-              Leave these blank to skip — you can bulk-generate the structure later from Edit.
+              Leave this empty to skip — you can bulk-generate the structure later from Edit.
             </p>
           )}
         </div>
@@ -683,9 +746,7 @@ function BulkStructureSection({
 }: { societyId: string; locationsQueryKey: QueryKey }) {
   const queryClient = useQueryClient();
   const [structureType, setStructureType] = useState<"FLATS" | "BUNGALOW">("FLATS");
-  const [towerCount, setTowerCount] = useState("");
-  const [floorsPerTower, setFloorsPerTower] = useState("");
-  const [flatsPerFloor, setFlatsPerFloor] = useState("");
+  const [wings, setWings] = useState<WingSpecRow[]>([]);
   const [rowCount, setRowCount] = useState("");
   const [housesPerRow, setHousesPerRow] = useState("");
   const [structureError, setStructureError] = useState<string | null>(null);
@@ -697,17 +758,23 @@ function BulkStructureSection({
     queryFn: () => societiesApi.listProperties(societyId).then((r) => r.data),
   });
 
+  const completeWings = wings.filter((w) => w.floorCount.trim() !== "" && w.flatsPerFloor.trim() !== "");
+  const wingsIncomplete = wings.length > 0 && completeWings.length !== wings.length;
+
   const generateFlats = useMutation({
     mutationFn: () =>
       societiesApi.generateFlatsStructure(
-        societyId, Number(towerCount), Number(floorsPerTower), Number(flatsPerFloor)
+        societyId,
+        completeWings.map((w) => ({
+          name: w.name.trim() || undefined,
+          floor_count: Number(w.floorCount),
+          flats_per_floor: Number(w.flatsPerFloor),
+        }))
       ),
     onSuccess: (r) => {
-      setStructureSuccess(`Created ${r.data.length} flats across ${towerCount} tower(s).`);
+      setStructureSuccess(`Created ${r.data.length} flats across ${completeWings.length} wing(s).`);
       setStructureError(null);
-      setTowerCount("");
-      setFloorsPerTower("");
-      setFlatsPerFloor("");
+      setWings([]);
       void queryClient.invalidateQueries({ queryKey: locationsQueryKey });
       void queryClient.invalidateQueries({ queryKey: propertiesQueryKey });
     },
@@ -728,7 +795,7 @@ function BulkStructureSection({
   });
 
   const bungalowHouses = (propertiesQuery.data ?? []).filter((p) => p.house_type === "BUNGALOW");
-  const canGenerateFlats = [towerCount, floorsPerTower, flatsPerFloor].every((v) => Number(v) > 0);
+  const canGenerateFlats = completeWings.length > 0 && !wingsIncomplete;
   const canGenerateBungalows = [rowCount, housesPerRow].every((v) => Number(v) > 0);
 
   return (
@@ -750,20 +817,19 @@ function BulkStructureSection({
       </div>
 
       {structureType === "FLATS" ? (
-        <div className="grid grid-cols-3 gap-2 mb-2">
-          <Input label="Towers" type="number" value={towerCount} onChange={(e) => setTowerCount(e.target.value)} />
-          <Input
-            label="Floors/tower"
-            type="number"
-            value={floorsPerTower}
-            onChange={(e) => setFloorsPerTower(e.target.value)}
-          />
-          <Input
-            label="Flats/floor"
-            type="number"
-            value={flatsPerFloor}
-            onChange={(e) => setFlatsPerFloor(e.target.value)}
-          />
+        <div className="mb-2">
+          {wings.length === 0 && (
+            <p className="text-xs text-navy-muted mb-2">
+              Add a Wing for each tower — they don't have to match (a 10-floor tower and a 15-floor one
+              are both fine).
+            </p>
+          )}
+          <WingRowsEditor wings={wings} onChange={setWings} />
+          {wingsIncomplete && (
+            <p className="text-xs text-danger mt-1">
+              Every Wing needs both a floor count and flats/floor — fill them in or remove that Wing.
+            </p>
+          )}
         </div>
       ) : (
         <>

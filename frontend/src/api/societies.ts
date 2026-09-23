@@ -94,11 +94,11 @@ export const societiesApi = {
       name, location_type: locationType,
     }),
   /** Bulk-generates every tower/floor/flat combination in one request —
-   * see backend FlatsStructureIn's docstring for the numbering scheme. */
-  generateFlatsStructure: (id: string, towerCount: number, floorsPerTower: number, flatsPerFloor: number) =>
-    apiClient.post<PropertyOut[]>(`/societies/${id}/structure/flats`, {
-      tower_count: towerCount, floors_per_tower: floorsPerTower, flats_per_floor: flatsPerFloor,
-    }),
+   * one Wing per entry in `wings`, each with its own floor count and
+   * flats/floor (a taller tower next to a shorter one is fine). A Wing
+   * with no name gets an auto-generated one server-side ("Tower N"). */
+  generateFlatsStructure: (id: string, wings: { name?: string; floor_count: number; flats_per_floor: number }[]) =>
+    apiClient.post<PropertyOut[]>(`/societies/${id}/structure/flats`, { wings }),
   /** Bulk-generates every row/house at ground-floor-only — extra storeys
    * per house are set afterward via updatePropertyFloors. */
   generateBungalowStructure: (id: string, rowCount: number, housesPerRow: number) =>

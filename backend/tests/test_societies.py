@@ -394,7 +394,7 @@ async def test_platform_owner_cannot_retype_a_location_already_in_use(
 
     resp = await client.post(
         f"/api/v1/societies/{society_id}/structure/flats",
-        json={"tower_count": 1, "floors_per_tower": 1, "flats_per_floor": 1},
+        json={"wings": [{"floor_count": 1, "flats_per_floor": 1}]},
         headers=headers,
     )
     location_id = resp.json()[0]["location_id"]
@@ -446,19 +446,25 @@ async def test_non_platform_owner_cannot_edit_society_location(
     assert resp.status_code == 403
 
 
-async def test_platform_owner_can_generate_flats_structure(
+async def test_platform_owner_can_generate_flats_structure_with_per_wing_shape(
     client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
 ):
     """Bulk-generates every tower/floor/flat combination in one request —
-    2 towers x 2 floors x 3 flats/floor = 12 FLAT properties, each with
-    the right floor_number and a house_number unique across the society."""
+    each Wing can have its own floor count and flats/floor (a taller
+    tower next to a shorter one), and a Wing can be given a custom name;
+    one left blank falls back to an auto-generated "Tower N"."""
     society_id = two_societies_with_admins["a"]["society_id"]
     owner = await _seed_platform_owner(db_session, "9700000015")
     headers = auth_headers(owner.id, None, Role.PLATFORM_OWNER, [Role.PLATFORM_OWNER])
 
     resp = await client.post(
         f"/api/v1/societies/{society_id}/structure/flats",
-        json={"tower_count": 2, "floors_per_tower": 2, "flats_per_floor": 3},
+        json={
+            "wings": [
+                {"name": "Sunrise Tower", "floor_count": 3, "flats_per_floor": 2},  # 6 flats
+                {"floor_count": 2, "flats_per_floor": 3},  # 6 flats, name auto-generated
+            ]
+        },
         headers=headers,
     )
     assert resp.status_code == 200
@@ -472,8 +478,23 @@ async def test_platform_owner_can_generate_flats_structure(
     locations = (
         await db_session.execute(select(SocietyLocation).where(SocietyLocation.society_id == society_id))
     ).scalars().all()
-    assert {loc.name for loc in locations} == {"Tower 1", "Tower 2"}
+    assert {loc.name for loc in locations} == {"Sunrise Tower", "Tower 2"}
     assert all(loc.location_type == "WING" for loc in locations)
+
+
+async def test_generate_flats_structure_rejects_total_over_cap(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    society_id = two_societies_with_admins["a"]["society_id"]
+    owner = await _seed_platform_owner(db_session, "9700000029")
+    headers = auth_headers(owner.id, None, Role.PLATFORM_OWNER, [Role.PLATFORM_OWNER])
+
+    resp = await client.post(
+        f"/api/v1/societies/{society_id}/structure/flats",
+        json={"wings": [{"floor_count": 100, "flats_per_floor": 50} for _ in range(2)]},
+        headers=headers,
+    )
+    assert resp.status_code == 422
 
 
 async def test_platform_owner_can_generate_bungalow_structure_and_set_floors(
@@ -526,7 +547,7 @@ async def test_floors_above_ground_rejected_for_flat_house(
 
     resp = await client.post(
         f"/api/v1/societies/{society_id}/structure/flats",
-        json={"tower_count": 1, "floors_per_tower": 1, "flats_per_floor": 1},
+        json={"wings": [{"floor_count": 1, "flats_per_floor": 1}]},
         headers=headers,
     )
     flat_id = resp.json()[0]["id"]
@@ -548,7 +569,14 @@ async def test_generate_structure_rejects_out_of_bounds_counts(
 
     resp = await client.post(
         f"/api/v1/societies/{society_id}/structure/flats",
-        json={"tower_count": 0, "floors_per_tower": 1, "flats_per_floor": 1},
+        json={"wings": [{"floor_count": 0, "flats_per_floor": 1}]},
+        headers=headers,
+    )
+    assert resp.status_code == 422
+
+    resp = await client.post(
+        f"/api/v1/societies/{society_id}/structure/flats",
+        json={"wings": []},
         headers=headers,
     )
     assert resp.status_code == 422
@@ -560,7 +588,7 @@ async def test_generate_structure_404_for_unknown_society(client: AsyncClient, d
 
     resp = await client.post(
         f"/api/v1/societies/{uuid.uuid4()}/structure/flats",
-        json={"tower_count": 1, "floors_per_tower": 1, "flats_per_floor": 1},
+        json={"wings": [{"floor_count": 1, "flats_per_floor": 1}]},
         headers=headers,
     )
     assert resp.status_code == 404
@@ -575,7 +603,7 @@ async def test_non_platform_owner_cannot_generate_structure(
 
     resp = await client.post(
         f"/api/v1/societies/{society_id}/structure/flats",
-        json={"tower_count": 1, "floors_per_tower": 1, "flats_per_floor": 1},
+        json={"wings": [{"floor_count": 1, "flats_per_floor": 1}]},
         headers=headers,
     )
     assert resp.status_code == 403
