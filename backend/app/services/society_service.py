@@ -18,6 +18,7 @@ from app.models.identity import Property, Society, SocietyLocation, User, UserRo
 from app.schemas.property import (
     BungalowStructureIn,
     FlatsStructureIn,
+    PropertyCreateIn,
     SocietyLocationCreateIn,
     SocietyLocationUpdateIn,
 )
@@ -136,6 +137,18 @@ async def add_society_location(
     page too; both paths write the same table."""
     await _get_society_or_404(db, society_id)
     return await property_service.create_location(db, society_id, body)
+
+
+async def add_society_property(
+    db: AsyncSession, society_id: uuid.UUID, body: PropertyCreateIn
+) -> Property:
+    """Platform Owner adding one Property with a hand-typed house_number
+    from the Society Mapping page's Flats-mapping step —
+    property_service.create_property is society-scoped, not
+    current-user-scoped, so it's reused as-is here (same as
+    add_society_location above)."""
+    await _get_society_or_404(db, society_id)
+    return await property_service.create_property(db, society_id, body)
 
 
 async def update_society_location(

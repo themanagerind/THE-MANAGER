@@ -6,6 +6,7 @@ import { Login } from "@/pages/Login";
 import { Signup } from "@/pages/Signup";
 import { PlaceholderPage } from "@/pages/PlaceholderPage";
 import { PlatformSocieties } from "@/pages/platform/Societies";
+import { SocietyMapping } from "@/pages/platform/SocietyMapping";
 import { ResidentDashboard } from "@/pages/resident/Dashboard";
 import { ResidentDues } from "@/pages/resident/Dues";
 import { ResidentWallet } from "@/pages/resident/Wallet";
@@ -58,6 +59,7 @@ export function App() {
 
           <Route element={<ProtectedRoute allow={["PLATFORM_OWNER"]} />}>
             <Route path="/platform/societies" element={<PlatformSocieties />} />
+            <Route path="/platform/societies/:societyId/mapping" element={<SocietyMapping />} />
           </Route>
 
           <Route element={<ProtectedRoute allow={["ADMIN"]} />}>

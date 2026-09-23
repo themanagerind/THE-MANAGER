@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient, type QueryKey } from "@tanstack/react-query";
 import { societiesApi, type SocietyLocationOut, type SocietyOut } from "@/api/societies";
 import type { PropertyOut } from "@/api/properties";
@@ -108,6 +109,12 @@ export function PlatformSocieties() {
                 header: "",
                 render: (s) => (
                   <div className="flex gap-2 justify-end">
+                    <Link
+                      to={`/platform/societies/${s.id}/mapping`}
+                      className="px-4 py-2 rounded text-sm font-medium bg-white text-navy border border-line hover:border-navy"
+                    >
+                      Mapping
+                    </Link>
                     <Button variant="secondary" onClick={() => setEditing(s)}>Edit</Button>
                     {s.status !== "PENDING" && (
                       <Button
@@ -198,145 +205,6 @@ interface LocationRow {
   location_type: LocationType;
 }
 
-interface FloorOverrideRow {
-  floorNumber: string;
-  flats: string;
-}
-
-interface WingSpecRow {
-  name: string;
-  floorCount: string;
-  flatsPerFloor: string;
-  overrides: FloorOverrideRow[];
-}
-
-function isWingComplete(wing: WingSpecRow): boolean {
-  return wing.floorCount.trim() !== "" && wing.flatsPerFloor.trim() !== "";
-}
-
-function wingHasIncompleteOverride(wing: WingSpecRow): boolean {
-  return wing.overrides.some((o) => (o.floorNumber.trim() !== "") !== (o.flats.trim() !== ""));
-}
-
-function wingRowToPayload(wing: WingSpecRow) {
-  return {
-    name: wing.name.trim() || undefined,
-    floor_count: Number(wing.floorCount),
-    flats_per_floor: Number(wing.flatsPerFloor),
-    floor_overrides: wing.overrides
-      .filter((o) => o.floorNumber.trim() !== "" && o.flats.trim() !== "")
-      .map((o) => ({ floor_number: Number(o.floorNumber), flats: Number(o.flats) })),
-  };
-}
-
-/** Shared by CreateSocietyModal/BulkStructureSection's Flats generator —
- * one row per Wing, each with its own floor count and flats/floor (a
- * taller tower next to a shorter one, or one with bigger flats and fewer
- * per floor, is the whole point — see backend WingSpec's docstring).
- * Name is optional per row; a blank one gets an auto-generated
- * "Tower N" server-side. Each Wing can also list specific floors that
- * don't match its default flats/floor (e.g. a ground floor with fewer
- * flats than the rest of the tower), via "Customize a floor". */
-function WingRowsEditor({ wings, onChange }: { wings: WingSpecRow[]; onChange: (wings: WingSpecRow[]) => void }) {
-  function addWing() {
-    onChange([...wings, { name: "", floorCount: "", flatsPerFloor: "", overrides: [] }]);
-  }
-  function updateWing(index: number, patch: Partial<WingSpecRow>) {
-    onChange(wings.map((w, i) => (i === index ? { ...w, ...patch } : w)));
-  }
-  function removeWing(index: number) {
-    onChange(wings.filter((_, i) => i !== index));
-  }
-  function addOverride(wingIndex: number) {
-    updateWing(wingIndex, { overrides: [...wings[wingIndex].overrides, { floorNumber: "", flats: "" }] });
-  }
-  function updateOverride(wingIndex: number, overrideIndex: number, patch: Partial<FloorOverrideRow>) {
-    updateWing(wingIndex, {
-      overrides: wings[wingIndex].overrides.map((o, i) => (i === overrideIndex ? { ...o, ...patch } : o)),
-    });
-  }
-  function removeOverride(wingIndex: number, overrideIndex: number) {
-    updateWing(wingIndex, { overrides: wings[wingIndex].overrides.filter((_, i) => i !== overrideIndex) });
-  }
-
-  return (
-    <div className="space-y-2">
-      {wings.map((wing, i) => (
-        <div key={i} className="border border-line rounded p-2 space-y-1.5">
-          <div className="flex gap-2 items-center">
-            <input
-              value={wing.name}
-              onChange={(e) => updateWing(i, { name: e.target.value })}
-              placeholder={`Tower ${i + 1} (name optional)`}
-              className="flex-1 px-2 py-1.5 border border-line rounded text-sm text-ink bg-white focus:border-navy"
-            />
-            <input
-              type="number"
-              value={wing.floorCount}
-              onChange={(e) => updateWing(i, { floorCount: e.target.value })}
-              placeholder="Floors"
-              className="w-20 px-2 py-1.5 border border-line rounded text-sm text-ink bg-white focus:border-navy"
-            />
-            <input
-              type="number"
-              value={wing.flatsPerFloor}
-              onChange={(e) => updateWing(i, { flatsPerFloor: e.target.value })}
-              placeholder="Flats/floor"
-              className="w-24 px-2 py-1.5 border border-line rounded text-sm text-ink bg-white focus:border-navy"
-            />
-            <button
-              type="button"
-              onClick={() => removeWing(i)}
-              aria-label="Remove wing"
-              className="text-navy-muted hover:text-danger text-lg leading-none px-1"
-            >
-              &times;
-            </button>
-          </div>
-
-          {wing.overrides.map((override, oi) => (
-            <div key={oi} className="flex gap-2 items-center pl-4">
-              <span className="text-xs text-navy-muted whitespace-nowrap">Floor #</span>
-              <input
-                type="number"
-                value={override.floorNumber}
-                onChange={(e) => updateOverride(i, oi, { floorNumber: e.target.value })}
-                placeholder="e.g. 1"
-                className="w-16 px-2 py-1 border border-line rounded text-sm text-ink bg-white focus:border-navy"
-              />
-              <span className="text-xs text-navy-muted whitespace-nowrap">has</span>
-              <input
-                type="number"
-                value={override.flats}
-                onChange={(e) => updateOverride(i, oi, { flats: e.target.value })}
-                placeholder="Flats"
-                className="w-20 px-2 py-1 border border-line rounded text-sm text-ink bg-white focus:border-navy"
-              />
-              <span className="text-xs text-navy-muted whitespace-nowrap">flats</span>
-              <button
-                type="button"
-                onClick={() => removeOverride(i, oi)}
-                aria-label="Remove floor override"
-                className="text-navy-muted hover:text-danger text-lg leading-none px-1"
-              >
-                &times;
-              </button>
-            </div>
-          ))}
-          <button
-            type="button"
-            onClick={() => addOverride(i)}
-            className="text-xs text-navy-muted hover:text-navy underline pl-4"
-          >
-            + Customize a floor
-          </button>
-        </div>
-      ))}
-      <Button variant="secondary" onClick={addWing}>Add wing</Button>
-    </div>
-  );
-}
-
 function CreateSocietyModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
   const [name, setName] = useState("");
   const [city, setCity] = useState("");
@@ -348,7 +216,6 @@ function CreateSocietyModal({ onClose, onSuccess }: { onClose: () => void; onSuc
   const [longitude, setLongitude] = useState("");
   const { detect, detecting, detectError } = useDetectGpsLocation(setLatitude, setLongitude);
   const [structureType, setStructureType] = useState<"FLATS" | "BUNGALOW">("FLATS");
-  const [wings, setWings] = useState<WingSpecRow[]>([]);
   const [rowCount, setRowCount] = useState("");
   const [housesPerRow, setHousesPerRow] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -357,11 +224,9 @@ function CreateSocietyModal({ onClose, onSuccess }: { onClose: () => void; onSuc
   const [createdHouses, setCreatedHouses] = useState<PropertyOut[] | null>(null);
   const [structureError, setStructureError] = useState<string | null>(null);
 
-  const completeWings = wings.filter(isWingComplete);
-  const flatsPartial = (wings.length > 0 && completeWings.length !== wings.length) || wings.some(wingHasIncompleteOverride);
   const bungalowFieldsFilled = [rowCount, housesPerRow].filter((v) => v.trim() !== "").length;
   const bungalowPartial = bungalowFieldsFilled > 0 && bungalowFieldsFilled < 2;
-  const structureIncomplete = structureType === "FLATS" ? flatsPartial : bungalowPartial;
+  const structureIncomplete = structureType === "BUNGALOW" && bungalowPartial;
 
   const create = useMutation({
     mutationFn: async () => {
@@ -376,15 +241,7 @@ function CreateSocietyModal({ onClose, onSuccess }: { onClose: () => void; onSuc
 
       let houses: PropertyOut[] | null = null;
       let structureErr: string | null = null;
-      if (structureType === "FLATS" && completeWings.length > 0 && !flatsPartial) {
-        try {
-          await societiesApi.generateFlatsStructure(society.id, completeWings.map(wingRowToPayload));
-        } catch (e) {
-          structureErr = apiErrorMessage(
-            e, "Society was created, but the Flats structure couldn't be generated — add it from Edit."
-          );
-        }
-      } else if (structureType === "BUNGALOW" && bungalowFieldsFilled === 2) {
+      if (structureType === "BUNGALOW" && bungalowFieldsFilled === 2) {
         try {
           const r = await societiesApi.generateBungalowStructure(society.id, Number(rowCount), Number(housesPerRow));
           houses = r.data;
@@ -433,6 +290,14 @@ function CreateSocietyModal({ onClose, onSuccess }: { onClose: () => void; onSuc
           <p className="text-xs text-navy-muted">
             Share this code with the society's Admin and Residents so they can find it when signing up.
           </p>
+          {createdSocietyId && (
+            <Link
+              to={`/platform/societies/${createdSocietyId}/mapping`}
+              className="block text-center px-4 py-2 rounded text-sm font-medium bg-navy text-white hover:bg-navy-light"
+            >
+              Go to Society Mapping — add Wings, floors &amp; flats
+            </Link>
+          )}
           {structureError && <p className="text-sm text-danger">{structureError}</p>}
           {createdHouses && createdHouses.length > 0 && createdSocietyId && (
             <div className="border-t border-line pt-3">
@@ -527,15 +392,11 @@ function CreateSocietyModal({ onClose, onSuccess }: { onClose: () => void; onSuc
           </div>
 
           {structureType === "FLATS" ? (
-            <>
-              {wings.length === 0 && (
-                <p className="text-xs text-navy-muted mb-2">
-                  Add a Wing for each tower — they don't have to match (a 10-floor tower and a 15-floor one
-                  are both fine). Skip this if you don't have the details yet.
-                </p>
-              )}
-              <WingRowsEditor wings={wings} onChange={setWings} />
-            </>
+            <p className="text-xs text-navy-muted">
+              Wings, floors and flat numbers are set up after creating the society, from its "Mapping" page
+              (button next to the society in the table) — this lets you type each flat's real number instead
+              of a generated one.
+            </p>
           ) : (
             <>
               <div className="grid grid-cols-2 gap-2">
@@ -550,18 +411,14 @@ function CreateSocietyModal({ onClose, onSuccess }: { onClose: () => void; onSuc
               <p className="text-xs text-navy-muted mt-1">
                 Every house starts at ground floor only — set additional storeys per house after creating.
               </p>
+              {structureIncomplete ? (
+                <p className="text-xs text-danger mt-1">Fill in all the fields above, or clear them to skip.</p>
+              ) : (
+                <p className="text-xs text-navy-muted mt-1">
+                  Leave this empty to skip — you can bulk-generate the structure later from Edit.
+                </p>
+              )}
             </>
-          )}
-          {structureIncomplete ? (
-            <p className="text-xs text-danger mt-1">
-              {structureType === "FLATS"
-                ? "Every Wing needs both a floor count and flats/floor, and every floor override needs both a floor # and a flat count — fill them in or remove the incomplete one."
-                : "Fill in all the fields above, or clear them to skip."}
-            </p>
-          ) : (
-            <p className="text-xs text-navy-muted mt-1">
-              Leave this empty to skip — you can bulk-generate the structure later from Edit.
-            </p>
           )}
         </div>
 
@@ -816,7 +673,6 @@ function BulkStructureSection({
 }: { societyId: string; locationsQueryKey: QueryKey }) {
   const queryClient = useQueryClient();
   const [structureType, setStructureType] = useState<"FLATS" | "BUNGALOW">("FLATS");
-  const [wings, setWings] = useState<WingSpecRow[]>([]);
   const [rowCount, setRowCount] = useState("");
   const [housesPerRow, setHousesPerRow] = useState("");
   const [structureError, setStructureError] = useState<string | null>(null);
@@ -826,21 +682,6 @@ function BulkStructureSection({
   const propertiesQuery = useQuery({
     queryKey: propertiesQueryKey,
     queryFn: () => societiesApi.listProperties(societyId).then((r) => r.data),
-  });
-
-  const completeWings = wings.filter(isWingComplete);
-  const wingsIncomplete = (wings.length > 0 && completeWings.length !== wings.length) || wings.some(wingHasIncompleteOverride);
-
-  const generateFlats = useMutation({
-    mutationFn: () => societiesApi.generateFlatsStructure(societyId, completeWings.map(wingRowToPayload)),
-    onSuccess: (r) => {
-      setStructureSuccess(`Created ${r.data.length} flats across ${completeWings.length} wing(s).`);
-      setStructureError(null);
-      setWings([]);
-      void queryClient.invalidateQueries({ queryKey: locationsQueryKey });
-      void queryClient.invalidateQueries({ queryKey: propertiesQueryKey });
-    },
-    onError: (e) => setStructureError(apiErrorMessage(e, "Couldn't generate the structure.")),
   });
 
   const generateBungalows = useMutation({
@@ -857,7 +698,6 @@ function BulkStructureSection({
   });
 
   const bungalowHouses = (propertiesQuery.data ?? []).filter((p) => p.house_type === "BUNGALOW");
-  const canGenerateFlats = completeWings.length > 0 && !wingsIncomplete;
   const canGenerateBungalows = [rowCount, housesPerRow].every((v) => Number(v) > 0);
 
   return (
@@ -880,19 +720,16 @@ function BulkStructureSection({
 
       {structureType === "FLATS" ? (
         <div className="mb-2">
-          {wings.length === 0 && (
-            <p className="text-xs text-navy-muted mb-2">
-              Add a Wing for each tower — they don't have to match (a 10-floor tower and a 15-floor one
-              are both fine).
-            </p>
-          )}
-          <WingRowsEditor wings={wings} onChange={setWings} />
-          {wingsIncomplete && (
-            <p className="text-xs text-danger mt-1">
-              Every Wing needs both a floor count and flats/floor, and every floor override needs both a
-              floor # and a flat count — fill them in or remove the incomplete one.
-            </p>
-          )}
+          <p className="text-xs text-navy-muted mb-2">
+            Wings, floors and flat numbers are managed from this society's Mapping page, not here — it lets
+            you type each flat's real number instead of a generated one.
+          </p>
+          <Link
+            to={`/platform/societies/${societyId}/mapping`}
+            className="inline-block px-4 py-2 rounded text-sm font-medium bg-white text-navy border border-line hover:border-navy"
+          >
+            Go to Society Mapping
+          </Link>
         </div>
       ) : (
         <>
@@ -908,30 +745,18 @@ function BulkStructureSection({
           <p className="text-xs text-navy-muted mb-2">
             Every house starts at ground floor only — set additional storeys per house below, after generating.
           </p>
+          <div className="flex justify-end">
+            <Button
+              variant="secondary"
+              loading={generateBungalows.isPending}
+              disabled={!canGenerateBungalows}
+              onClick={() => generateBungalows.mutate()}
+            >
+              Generate
+            </Button>
+          </div>
         </>
       )}
-
-      <div className="flex justify-end">
-        {structureType === "FLATS" ? (
-          <Button
-            variant="secondary"
-            loading={generateFlats.isPending}
-            disabled={!canGenerateFlats}
-            onClick={() => generateFlats.mutate()}
-          >
-            Generate
-          </Button>
-        ) : (
-          <Button
-            variant="secondary"
-            loading={generateBungalows.isPending}
-            disabled={!canGenerateBungalows}
-            onClick={() => generateBungalows.mutate()}
-          >
-            Generate
-          </Button>
-        )}
-      </div>
 
       {structureError && <p className="text-sm text-danger mt-1">{structureError}</p>}
       {structureSuccess && <p className="text-sm text-success mt-1">{structureSuccess}</p>}

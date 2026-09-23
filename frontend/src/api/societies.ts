@@ -119,6 +119,12 @@ export const societiesApi = {
     apiClient.patch<PropertyOut>(`/societies/${societyId}/properties/${propertyId}/floors`, {
       floors_above_ground: floorsAboveGround,
     }),
+  /** The Society Mapping page's Flats-mapping step — one Property with a
+   * specific, hand-typed house_number on a chosen Wing + floor. */
+  addProperty: (societyId: string, locationId: string, houseNumber: string, floorNumber: number) =>
+    apiClient.post<PropertyOut>(`/societies/${societyId}/properties`, {
+      location_id: locationId, house_number: houseNumber, house_type: "FLAT", floor_number: floorNumber,
+    }),
 };
 
 export const locationsApi = {

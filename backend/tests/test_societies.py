@@ -700,6 +700,80 @@ async def test_platform_owner_can_list_society_properties(
     assert len(resp.json()) == 2
 
 
+async def test_platform_owner_can_add_a_property_with_a_custom_house_number(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    """The Society Mapping page's Flats-mapping step — a Wing/floor
+    combination where the flat numbers aren't the bulk generator's simple
+    sequential scheme (e.g. "12-A", "Penthouse")."""
+    society_id = two_societies_with_admins["a"]["society_id"]
+    owner = await _seed_platform_owner(db_session, "9700000033")
+    headers = auth_headers(owner.id, None, Role.PLATFORM_OWNER, [Role.PLATFORM_OWNER])
+
+    resp = await client.post(
+        f"/api/v1/societies/{society_id}/locations",
+        json={"name": "Wing A", "location_type": "WING"},
+        headers=headers,
+    )
+    location_id = resp.json()["id"]
+
+    resp = await client.post(
+        f"/api/v1/societies/{society_id}/properties",
+        json={"location_id": location_id, "house_number": "12-A", "house_type": "FLAT", "floor_number": 3},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["house_number"] == "12-A"
+    assert body["floor_number"] == 3
+    assert body["house_type"] == "FLAT"
+
+    # A duplicate house_number in the same society is rejected.
+    resp = await client.post(
+        f"/api/v1/societies/{society_id}/properties",
+        json={"location_id": location_id, "house_number": "12-A", "house_type": "FLAT", "floor_number": 3},
+        headers=headers,
+    )
+    assert resp.status_code == 409
+
+
+async def test_add_society_property_rejects_house_type_location_type_mismatch(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    society_id = two_societies_with_admins["a"]["society_id"]
+    owner = await _seed_platform_owner(db_session, "9700000034")
+    headers = auth_headers(owner.id, None, Role.PLATFORM_OWNER, [Role.PLATFORM_OWNER])
+
+    resp = await client.post(
+        f"/api/v1/societies/{society_id}/locations",
+        json={"name": "Row A", "location_type": "ROW"},
+        headers=headers,
+    )
+    location_id = resp.json()["id"]
+
+    resp = await client.post(
+        f"/api/v1/societies/{society_id}/properties",
+        json={"location_id": location_id, "house_number": "1", "house_type": "FLAT", "floor_number": 1},
+        headers=headers,
+    )
+    assert resp.status_code == 400
+
+
+async def test_non_platform_owner_cannot_add_society_property(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    admin_id = two_societies_with_admins["a"]["admin_id"]
+    society_id = two_societies_with_admins["a"]["society_id"]
+    headers = auth_headers(admin_id, society_id, Role.ADMIN, [Role.ADMIN])
+
+    resp = await client.post(
+        f"/api/v1/societies/{society_id}/properties",
+        json={"location_id": str(uuid.uuid4()), "house_number": "1", "house_type": "FLAT", "floor_number": 1},
+        headers=headers,
+    )
+    assert resp.status_code == 403
+
+
 async def test_society_lookup_by_code_is_public_and_scoped_to_active(
     client: AsyncClient, db_session: AsyncSession
 ):

@@ -10,6 +10,7 @@ from app.models.enums import Role
 from app.schemas.property import (
     BungalowStructureIn,
     FlatsStructureIn,
+    PropertyCreateIn,
     PropertyFloorsUpdateIn,
     PropertyOut,
     SocietyLocationCreateIn,
@@ -189,9 +190,25 @@ async def list_society_properties(
 ) -> list[PropertyOut]:
     """Platform Owner viewing a society's generated houses — mainly so the
     Edit modal can offer the per-house floors_above_ground follow-up step
-    after a bulk BUNGALOW generation."""
+    after a bulk BUNGALOW generation, and so the Society Mapping page can
+    show what's already on record."""
     properties = await property_service.list_properties(db, society_id)
     return [PropertyOut.model_validate(p) for p in properties]
+
+
+@router.post("/{society_id}/properties", response_model=PropertyOut)
+async def add_society_property(
+    society_id: uuid.UUID,
+    body: PropertyCreateIn,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current: Annotated[CurrentUser, Depends(require_role(Role.PLATFORM_OWNER))],
+) -> PropertyOut:
+    """Platform Owner adding one Property with a specific, hand-typed
+    house_number — the Society Mapping page's Flats-mapping step, for a
+    Wing/floor combination where the numbering isn't the simple
+    sequential scheme the bulk generator assumes."""
+    prop = await society_service.add_society_property(db, society_id, body)
+    return PropertyOut.model_validate(prop)
 
 
 @router.patch("/{society_id}/properties/{property_id}/floors", response_model=PropertyOut)

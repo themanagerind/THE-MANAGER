@@ -119,7 +119,13 @@ async def create_property(
         status="ACTIVE",
     )
     db.add(prop)
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, f"House number '{body.house_number}' is already in use in this society"
+        )
     await db.refresh(prop)
     return prop
 
