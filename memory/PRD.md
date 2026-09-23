@@ -24,12 +24,23 @@ The repo's native stack differs from the Emergent default (Mongo/CRA). Adapted t
 - Backend running on :8001 — `/health` OK, `/docs` 200, OTP→verify→JWT login verified e2e.
 - Frontend running on :3000 — login page ("Society Manager") renders.
 
-## ⚠️ Caveat
-PostgreSQL & Redis were started manually (not under the read-only supervisor).
-After a pod restart, restart them:
-```bash
-pg_ctlcluster 15 main start ; redis-server --daemonize yes --port 6379
-```
+## Infra auto-recovery (fixed 2026-09-23)
+User reported "preview nhi dikh rha hai". RCA: Redis + Postgres were not running
+(started manually earlier, not under the read-only supervisor), so all
+/api/v1/auth/* calls returned 500.
+
+Durable fix:
+- Postgres data moved to **persistent `/app/.pgdata`** (survives pod restarts; gitignored).
+- `/app/backend/server.py` now calls `_ensure_infra()` before importing the app;
+  if :5432 or :6379 are down it runs `/app/backend/bootstrap_env.sh`, which
+  (idempotently) starts Redis, inits/starts Postgres@/app/.pgdata, runs
+  `alembic upgrade head`, and seeds the Platform Owner.
+- Because supervisor autostarts the backend, this makes Redis+Postgres come up
+  automatically on every backend start / pod restart — no manual steps.
+- Verified (testing iteration_2): hard-killed redis+postgres, `supervisorctl
+  restart backend` brought both back and OTP login worked end-to-end.
+
+Redis is ephemeral (OTP/cache) — fine to lose. Postgres data persists in /app/.pgdata.
 
 ## Backlog / next
 - P1: Finish Admin/Sub-admin/Guard placeholder pages (wire to existing backend APIs).
