@@ -31,3 +31,6 @@ credentials.json
 *.pem
 *.key
 .credentials
+
+# Persistent Postgres data dir (managed by backend/bootstrap_env.sh)
+.pgdata/

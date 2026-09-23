@@ -1,0 +1,46 @@
+{
+  "summary": "Root cause of user's 'preview not showing' localized: Redis and PostgreSQL were NOT running in the container. Backend was up but every /api/v1 request that touched Redis (all auth endpoints) returned 500, and Postgres user/db/schema did not exist. After starting redis-server + postgresql, creating the 'housing' user/db, running `alembic upgrade head`, and re-seeding the Platform Owner (mobile 9999999999), the full OTP login flow works end-to-end. Frontend loads at the external preview URL and renders the login and signup pages correctly.",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "infra:redis", "issue": "redis-server was not running. All OTP endpoints returned 500 ('Connection refused connecting to localhost:6379'). Fixed by `service redis-server start`.", "priority": "CRITICAL"},
+      {"endpoint": "infra:postgres", "issue": "PostgreSQL was not running and the `housing` role + `housing` db did not exist. Fixed by starting postgresql, creating role/db, and running `alembic upgrade head`.", "priority": "CRITICAL"},
+      {"endpoint": "seed:platform_owner", "issue": "Seeded Platform Owner (mobile 9999999999) was missing from DB after fresh migrations. Recreated via `python -m scripts.seed_platform_owner --mobile 9999999999 --name 'Platform Owner'`.", "priority": "HIGH"}
+    ],
+    "minor": [
+      {"endpoint": "POST /api/v1/auth/otp/request", "issue": "Accepts obviously invalid mobile numbers (e.g. '123') and returns 200. No length/format validation on the Pydantic model — should be exactly 10 digits."},
+      {"endpoint": "GET /health", "issue": "Exposed at app root without the /api prefix, so it is not reachable through the Kubernetes ingress (which only routes /api/*). Health probes from outside cannot hit it. Consider mounting it as /api/health as well."},
+      {"endpoint": "app startup", "issue": "SQLAlchemy `echo=True` appears enabled — backend logs are extremely noisy with full SQL dumps on every request. Should be disabled outside of DEBUG."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/tests/test_smoke.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "Make redis + postgres start automatically (supervisor entry) so this container doesn't silently break auth on every restart — this is the actual RCA of the user's 'preview nhi dikh rha hai' report.",
+    "Add mobile-number validation (regex ^[0-9]{10}$) to /api/v1/auth/otp/request request model.",
+    "Expose health at /api/health (in addition to /health) so ingress-level probes work.",
+    "Turn off SQLAlchemy echo in non-debug environments."
+  ],
+  "critical_code_review_comments": [
+    "Auth service depends on Redis but the container had no autostart for redis/postgres — a single container restart takes the whole app down with 500s. Add these to supervisor or a boot script.",
+    "OTP request endpoint has no input validation on `mobile` (accepts '123'), which increases abuse surface and Redis key pollution.",
+    "`/health` is not under `/api` so external LB probes cannot reach it through ingress.",
+    "SQLAlchemy `echo=True` is on by default in this env — leaks queries + parameters into logs."
+  ],
+  "updated_files": [
+    "/app/tests/test_smoke.py (new pytest suite hitting the external preview URL)"
+  ],
+  "success_rate": {"backend": "87.5% (7/8 pytest cases pass; the 1 failure documents the mobile-validation gap)", "frontend": "100% (login + signup render, OTP request wired to backend, error state 'Please wait before requesting another OTP' shown on cooldown)"},
+  "test_credentials": "mobile 9999999999 (Platform Owner). OTP obtained by clearing redis `otp:*` keys and calling `app.services.otp_service.request_otp('9999999999')` directly — SMS is mocked.",
+  "seed_data_creation": "Ran alembic migrations from scratch and `python -m scripts.seed_platform_owner --mobile 9999999999 --name 'Platform Owner'`.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "External preview URL: https://d722f5c7-54d2-4f4a-aa3e-268a02a998e1.preview.emergentagent.com . Backend API prefix is /api/v1. Health is at /health (NOT reachable through ingress; only /api/* is proxied). To run OTP tests: `redis-cli --scan --pattern 'otp:*' | xargs -r redis-cli del` then generate OTP via subprocess with REDIS_URL=redis://localhost:6379/0 and DATABASE_URL=postgresql+asyncpg://housing:housing@localhost:5432/housing (the repo's tests/conftest.py forces DB 15 + a test DB via os.environ.setdefault — that's why /app/tests/test_smoke.py lives OUTSIDE /app/backend/tests to bypass that conftest). Run with `pytest /app/tests/test_smoke.py -v`. Redis and Postgres must be running — they do NOT autostart on container boot.",
+  "rca of the issue": "User reported preview not loading. Frontend actually serves 200. Real breakage was backend-side: every /api/v1/auth/* call returned {\"detail\":\"Internal server error\"} because redis-server was down (Errno 111 Connection refused to localhost:6379). Additionally postgresql was down and even after start had no `housing` role/db. Steps to reproduce before fix: `curl -X POST $URL/api/v1/auth/otp/request -d '{\"mobile\":\"9999999999\"}' -H 'Content-Type: application/json'` → 500. Backend log: `redis.exceptions.ConnectionError`. Mitigation applied: (1) `service redis-server start`; (2) `service postgresql start`; (3) `psql -c \"CREATE USER housing WITH PASSWORD 'housing' CREATEDB; CREATE DATABASE housing OWNER housing;\"`; (4) `alembic upgrade head`; (5) `python -m scripts.seed_platform_owner --mobile 9999999999 --name 'Platform Owner'`. Post-fix: OTP request → 200, OTP verify → JWT tokens issued, `/api/v1/societies` accessible with bearer. Long-term fix (main agent): add redis + postgres to supervisor autostart."
+}
