@@ -14,7 +14,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.redis_client import get_redis
 from app.models.enums import Role, SocietyStatus, UserStatus
 from app.models.identity import Society, SocietyLocation, User, UserRole
+from app.schemas.property import SocietyLocationCreateIn
 from app.schemas.society import SocietyCreateIn, SocietySignupIn, SocietyUpdateIn
+from app.services import property_service
 
 _CODE_SUFFIX_LENGTH = 5
 _CODE_GENERATION_MAX_ATTEMPTS = 10
@@ -82,13 +84,19 @@ async def create_society(db: AsyncSession, body: SocietyCreateIn) -> Society:
     return society
 
 
-async def update_society_profile(db: AsyncSession, society_id: uuid.UUID, body: SocietyUpdateIn) -> Society:
-    """Platform Owner edits a society's profile after creation — name and
-    address details only; `code` stays fixed (see SocietyUpdateIn's
-    docstring) and locations are the Admin's own Properties page."""
+async def _get_society_or_404(db: AsyncSession, society_id: uuid.UUID) -> Society:
     society = (await db.execute(select(Society).where(Society.id == society_id))).scalar_one_or_none()
     if society is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Society not found")
+    return society
+
+
+async def update_society_profile(db: AsyncSession, society_id: uuid.UUID, body: SocietyUpdateIn) -> Society:
+    """Platform Owner edits a society's profile after creation — name and
+    address details only; `code` stays fixed (see SocietyUpdateIn's
+    docstring). Locations are edited separately, via
+    list_society_locations/add_society_location below."""
+    society = await _get_society_or_404(db, society_id)
 
     society.name = body.name
     society.address = body.address
@@ -98,6 +106,25 @@ async def update_society_profile(db: AsyncSession, society_id: uuid.UUID, body: 
     await db.commit()
     await db.refresh(society)
     return society
+
+
+async def list_society_locations(db: AsyncSession, society_id: uuid.UUID) -> list[SocietyLocation]:
+    """Platform Owner viewing a society's Wings/Rows from the Societies
+    page's Edit modal — the same rows the Admin sees on their own
+    Properties page (property_service.list_locations is society-scoped,
+    not current-user-scoped, so it's reused as-is here)."""
+    await _get_society_or_404(db, society_id)
+    return await property_service.list_locations(db, society_id)
+
+
+async def add_society_location(
+    db: AsyncSession, society_id: uuid.UUID, body: SocietyLocationCreateIn
+) -> SocietyLocation:
+    """Platform Owner adding a Wing/Row to an existing society from the
+    Edit modal — the Admin can still do this from their own Properties
+    page too; both paths write the same table."""
+    await _get_society_or_404(db, society_id)
+    return await property_service.create_location(db, society_id, body)
 
 
 async def lookup_society_by_code(db: AsyncSession, code: str) -> Society | None:

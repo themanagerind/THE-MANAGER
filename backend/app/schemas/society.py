@@ -42,10 +42,11 @@ class SocietyCreateIn(BaseModel):
     auto-generates one and guarantees uniqueness, so two societies can
     never collide. Every field here is required EXCEPT `locations`: a
     society's identity/address should always be captured properly, but
-    Wings/Rows are a genuine convenience — the Admin can always add them
-    later from the Properties page, so forcing them at creation time
-    would just get in the way for a Platform Owner who doesn't have that
-    detail yet."""
+    Wings/Rows are a genuine convenience — they can always be added later
+    (either the Admin from their own Properties page, or the Platform
+    Owner from the society's Edit view — see list_society_locations/
+    add_society_location), so forcing them at creation time would just
+    get in the way for a Platform Owner who doesn't have that detail yet."""
 
     name: str
     address: str
@@ -59,8 +60,9 @@ class SocietyUpdateIn(BaseModel):
     """Platform Owner edits a society's profile after creation. `code` is
     deliberately not editable here — it's already shared with the
     society's Admin/Residents as their signup key; changing it would
-    break their ability to find the society again. Locations aren't
-    edited here either — that's the Admin's own Properties page."""
+    break their ability to find the society again. Locations aren't part
+    of this request body either — they're listed/added via the separate
+    GET/POST /societies/{id}/locations endpoints instead."""
 
     name: str
     address: str

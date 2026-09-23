@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { societiesApi, type SocietyOut } from "@/api/societies";
+import { societiesApi, type SocietyLocationOut, type SocietyOut } from "@/api/societies";
 import { adminsApi, type AdminOut } from "@/api/admins";
 import { Loader, EmptyState, ErrorState, apiErrorMessage } from "@/components/States";
 import { Badge } from "@/components/Badge";
@@ -284,12 +284,22 @@ function CreateSocietyModal({ onClose, onSuccess }: { onClose: () => void; onSuc
 function EditSocietyModal({
   society, onClose, onSuccess,
 }: { society: SocietyOut; onClose: () => void; onSuccess: () => void }) {
+  const queryClient = useQueryClient();
   const [name, setName] = useState(society.name);
   const [city, setCity] = useState(society.city ?? "");
   const [state, setState] = useState(society.state ?? "");
   const [address, setAddress] = useState(society.address ?? "");
   const [pincode, setPincode] = useState(society.pincode ?? "");
   const [error, setError] = useState<string | null>(null);
+  const [newLocationName, setNewLocationName] = useState("");
+  const [newLocationType, setNewLocationType] = useState<LocationType>("WING");
+  const [locationError, setLocationError] = useState<string | null>(null);
+
+  const locationsQueryKey = ["platform", "societies", society.id, "locations"];
+  const locationsQuery = useQuery({
+    queryKey: locationsQueryKey,
+    queryFn: () => societiesApi.listLocations(society.id).then((r) => r.data),
+  });
 
   const update = useMutation({
     mutationFn: () =>
@@ -299,6 +309,16 @@ function EditSocietyModal({
       }),
     onSuccess,
     onError: (e) => setError(apiErrorMessage(e, "Couldn't update the society.")),
+  });
+
+  const addLocation = useMutation({
+    mutationFn: () => societiesApi.addLocation(society.id, newLocationName.trim(), newLocationType),
+    onSuccess: () => {
+      setNewLocationName("");
+      setLocationError(null);
+      void queryClient.invalidateQueries({ queryKey: locationsQueryKey });
+    },
+    onError: (e) => setLocationError(apiErrorMessage(e, "Couldn't add the wing/row.")),
   });
 
   const canSubmit = [name, city, state, address, pincode].every((f) => f.trim().length > 0);
@@ -318,6 +338,52 @@ function EditSocietyModal({
           <Button loading={update.isPending} disabled={!canSubmit} onClick={() => update.mutate()}>
             Save
           </Button>
+        </div>
+
+        <div className="border-t border-line pt-3">
+          <label className="block text-sm text-navy-muted mb-2">Wings/Rows</label>
+          {locationsQuery.isLoading && <Loader />}
+          {locationsQuery.isError && (
+            <ErrorState message="Couldn't load wings/rows." onRetry={() => locationsQuery.refetch()} />
+          )}
+          {locationsQuery.data && locationsQuery.data.length === 0 && (
+            <p className="text-xs text-navy-muted mb-2">No wings/rows yet.</p>
+          )}
+          {locationsQuery.data && locationsQuery.data.length > 0 && (
+            <ul className="space-y-1 mb-2">
+              {locationsQuery.data.map((l: SocietyLocationOut) => (
+                <li key={l.id} className="text-sm text-ink flex items-center gap-2">
+                  <span>{l.name}</span>
+                  <span className="text-xs text-navy-muted">({l.location_type === "WING" ? "Wing" : "Row"})</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="flex gap-2 items-center">
+            <input
+              value={newLocationName}
+              onChange={(e) => setNewLocationName(e.target.value)}
+              placeholder="e.g. Wing A"
+              className="flex-1 px-3 py-2 border border-line rounded text-sm text-ink bg-white focus:border-navy"
+            />
+            <select
+              value={newLocationType}
+              onChange={(e) => setNewLocationType(e.target.value as LocationType)}
+              className="px-2 py-2 border border-line rounded text-sm text-ink bg-white focus:border-navy"
+            >
+              <option value="WING">Wing</option>
+              <option value="ROW">Row</option>
+            </select>
+            <Button
+              variant="secondary"
+              loading={addLocation.isPending}
+              disabled={!newLocationName.trim()}
+              onClick={() => addLocation.mutate()}
+            >
+              Add
+            </Button>
+          </div>
+          {locationError && <p className="text-sm text-danger mt-1">{locationError}</p>}
         </div>
       </div>
     </Modal>

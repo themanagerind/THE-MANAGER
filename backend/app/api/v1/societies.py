@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from app.core.db import get_db
 from app.core.security import CurrentUser, require_role
 from app.models.enums import Role
+from app.schemas.property import SocietyLocationCreateIn, SocietyLocationOut
 from app.schemas.society import (
     SocietyCreateIn,
     SocietyLookupOut,
@@ -105,6 +106,31 @@ async def update_profile(
     editable here (see SocietyUpdateIn's docstring)."""
     society = await society_service.update_society_profile(db, society_id, body)
     return SocietyOut.model_validate(society)
+
+
+@router.get("/{society_id}/locations", response_model=list[SocietyLocationOut])
+async def list_locations(
+    society_id: uuid.UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current: Annotated[CurrentUser, Depends(require_role(Role.PLATFORM_OWNER))],
+) -> list[SocietyLocationOut]:
+    """Platform Owner viewing a society's Wings/Rows from the Societies
+    page's Edit modal, without switching into that society's Admin role."""
+    locations = await society_service.list_society_locations(db, society_id)
+    return [SocietyLocationOut.model_validate(loc) for loc in locations]
+
+
+@router.post("/{society_id}/locations", response_model=SocietyLocationOut)
+async def add_location(
+    society_id: uuid.UUID,
+    body: SocietyLocationCreateIn,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current: Annotated[CurrentUser, Depends(require_role(Role.PLATFORM_OWNER))],
+) -> SocietyLocationOut:
+    """Platform Owner adding a Wing/Row to an existing society — same
+    table the Admin's own POST /properties/locations writes to."""
+    location = await society_service.add_society_location(db, society_id, body)
+    return SocietyLocationOut.model_validate(location)
 
 
 @router.patch("/{society_id}/status", response_model=SocietyOut)

@@ -71,6 +71,12 @@ export const societiesApi = {
   approve: (id: string) => apiClient.post<SocietyOut>(`/societies/${id}/approve`),
   updateStatus: (id: string, status: SocietyStatus) =>
     apiClient.patch<SocietyOut>(`/societies/${id}/status`, { status }),
+  /** Platform Owner viewing/adding a society's Wings/Rows straight from
+   * the Societies page's Edit modal — same data the Admin manages from
+   * their own Properties page, reachable without switching roles. */
+  listLocations: (id: string) => apiClient.get<SocietyLocationOut[]>(`/societies/${id}/locations`),
+  addLocation: (id: string, name: string, locationType: LocationType) =>
+    apiClient.post<SocietyLocationOut>(`/societies/${id}/locations`, { name, location_type: locationType }),
 };
 
 export const locationsApi = {

@@ -210,6 +210,63 @@ async def test_non_platform_owner_cannot_edit_society_profile(
     assert resp.status_code == 403
 
 
+async def test_platform_owner_can_list_and_add_society_locations(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    """The Societies page's Edit modal — a Platform Owner can view and add
+    Wings/Rows for any society directly, without switching into that
+    society's Admin role."""
+    society_id = two_societies_with_admins["a"]["society_id"]
+    owner = await _seed_platform_owner(db_session, "9700000013")
+    headers = auth_headers(owner.id, None, Role.PLATFORM_OWNER, [Role.PLATFORM_OWNER])
+
+    resp = await client.get(f"/api/v1/societies/{society_id}/locations", headers=headers)
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+    resp = await client.post(
+        f"/api/v1/societies/{society_id}/locations",
+        json={"name": "Wing A", "location_type": "WING"},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    assert resp.json()["name"] == "Wing A"
+
+    resp = await client.get(f"/api/v1/societies/{society_id}/locations", headers=headers)
+    assert resp.status_code == 200
+    assert [loc["name"] for loc in resp.json()] == ["Wing A"]
+
+
+async def test_society_locations_404_for_unknown_society(client: AsyncClient, db_session: AsyncSession):
+    owner = await _seed_platform_owner(db_session, "9700000014")
+    headers = auth_headers(owner.id, None, Role.PLATFORM_OWNER, [Role.PLATFORM_OWNER])
+
+    resp = await client.get(f"/api/v1/societies/{uuid.uuid4()}/locations", headers=headers)
+    assert resp.status_code == 404
+
+    resp = await client.post(
+        f"/api/v1/societies/{uuid.uuid4()}/locations",
+        json={"name": "Wing A", "location_type": "WING"},
+        headers=headers,
+    )
+    assert resp.status_code == 404
+
+
+async def test_non_platform_owner_cannot_add_society_location(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    admin_id = two_societies_with_admins["a"]["admin_id"]
+    society_id = two_societies_with_admins["a"]["society_id"]
+    headers = auth_headers(admin_id, society_id, Role.ADMIN, [Role.ADMIN])
+
+    resp = await client.post(
+        f"/api/v1/societies/{society_id}/locations",
+        json={"name": "Wing A", "location_type": "WING"},
+        headers=headers,
+    )
+    assert resp.status_code == 403
+
+
 async def test_society_lookup_by_code_is_public_and_scoped_to_active(
     client: AsyncClient, db_session: AsyncSession
 ):
