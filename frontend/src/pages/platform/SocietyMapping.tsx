@@ -461,10 +461,15 @@ function UnitsStep({
     setUnitNumbers((prev) => Array.from({ length: n }, (_, i) => prev[i] ?? ""));
   }
 
+  const unitPrefix = selectedLocation ? `${selectedLocation.name}-` : "";
+
   async function saveUnits() {
     setError(null);
     setSaving(true);
-    const toSave = unitNumbers.map((n) => n.trim()).filter((n) => n.length > 0);
+    const toSave = unitNumbers
+      .map((n) => n.trim())
+      .filter((n) => n.length > 0)
+      .map((n) => `${unitPrefix}${n}`);
     const houseType: HouseType = isWing ? "FLAT" : "BUNGALOW";
     const floorArg = isWing ? Number(selectedFloor) : undefined;
     const results = await Promise.allSettled(
@@ -592,18 +597,25 @@ function UnitsStep({
           />
           {unitNumbers.length > 0 && (
             <div className="space-y-2">
-              <label className="block text-sm text-navy-muted">{isWing ? "Flat numbers" : "House numbers"}</label>
+              <label className="block text-sm text-navy-muted">
+                {isWing ? "Flat numbers" : "House numbers"} — "{unitPrefix}" is added automatically, just type the
+                rest
+              </label>
               <div className="grid grid-cols-2 gap-2">
                 {unitNumbers.map((n, i) => (
-                  <input
-                    key={i}
-                    value={n}
-                    onChange={(e) =>
-                      setUnitNumbers((prev) => prev.map((v, vi) => (vi === i ? e.target.value : v)))
-                    }
-                    placeholder={isWing ? `e.g. ${selectedFloor}0${i + 1}` : `e.g. ${i + 1}`}
-                    className="px-2 py-1.5 border border-line rounded text-sm text-ink bg-white focus:border-navy"
-                  />
+                  <div key={i} className="flex">
+                    <span className="px-2 py-1.5 border border-r-0 border-line rounded-l text-sm text-navy-muted bg-paper whitespace-nowrap overflow-hidden text-ellipsis max-w-[45%]">
+                      {unitPrefix}
+                    </span>
+                    <input
+                      value={n}
+                      onChange={(e) =>
+                        setUnitNumbers((prev) => prev.map((v, vi) => (vi === i ? e.target.value : v)))
+                      }
+                      placeholder={isWing ? `e.g. ${selectedFloor}0${i + 1}` : `e.g. ${i + 1}`}
+                      className="flex-1 min-w-0 px-2 py-1.5 border border-line rounded-r text-sm text-ink bg-white focus:border-navy"
+                    />
+                  </div>
                 ))}
               </div>
               <Button loading={saving} disabled={unitNumbers.every((n) => !n.trim())} onClick={() => void saveUnits()}>

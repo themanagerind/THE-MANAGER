@@ -25,6 +25,14 @@ function sortLocations(locations: SocietyLocationOut[]) {
   return [...locations].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }));
 }
 
+/** House/flat numbers now usually carry a "Tower A-" prefix, so a fixed
+ * box width clips or overlaps longer ones — size each diagram's boxes to
+ * fit its own longest label instead. */
+function boxWidthFor(labels: string[], base: number): number {
+  const longest = labels.reduce((max, l) => Math.max(max, l.length), 0);
+  return Math.max(base, longest * 6 + 16);
+}
+
 /**
  * A small building-elevation / row-of-houses diagram of everything mapped
  * so far — one card per Wing (floors stacked, flats as windows) or Row
@@ -102,8 +110,9 @@ function BuildingCard({
   const floors = groupFlatsByFloor(properties);
   if (floors.length === 0) return <EmptyCard label={wing.name} />;
 
+  const winW = boxWidthFor(properties.map((p) => p.house_number), WIN_W);
   const maxFlats = Math.max(...floors.map((f) => f.flats.length), 1);
-  const width = SIDE_PAD * 2 + maxFlats * WIN_W + (maxFlats - 1) * WIN_GAP;
+  const width = SIDE_PAD * 2 + maxFlats * winW + (maxFlats - 1) * WIN_GAP;
   const height = floors.length * FLOOR_H;
 
   return (
@@ -114,14 +123,14 @@ function BuildingCard({
         {floors.map((floor, i) => {
           const floorTop = i * FLOOR_H;
           const n = floor.flats.length;
-          const rowW = n * WIN_W + (n - 1) * WIN_GAP;
+          const rowW = n * winW + (n - 1) * WIN_GAP;
           const startX = (width - rowW) / 2;
           const wy = floorTop + (FLOOR_H - WIN_H) / 2;
           return (
             <g key={floor.floorNumber}>
               {i > 0 && <line x1={0} y1={floorTop} x2={width} y2={floorTop} stroke="#E3E6EB" strokeWidth={1} />}
               {floor.flats.map((p, j) => {
-                const wx = startX + j * (WIN_W + WIN_GAP);
+                const wx = startX + j * (winW + WIN_GAP);
                 const occ = p.is_occupied;
                 return (
                   <g
@@ -131,11 +140,11 @@ function BuildingCard({
                   >
                     <title>{`${p.house_number} — ${occ ? "occupied" : "vacant"}`}</title>
                     <rect
-                      x={wx} y={wy} width={WIN_W} height={WIN_H} rx={2}
+                      x={wx} y={wy} width={winW} height={WIN_H} rx={2}
                       fill={occ ? OCC_FILL : VAC_FILL} stroke={occ ? OCC_STROKE : VAC_STROKE} strokeWidth={1.4}
                     />
                     <text
-                      x={wx + WIN_W / 2} y={wy + WIN_H / 2 + 4} textAnchor="middle" fontSize={10} fontWeight={600}
+                      x={wx + winW / 2} y={wy + WIN_H / 2 + 4} textAnchor="middle" fontSize={10} fontWeight={600}
                       fill={occ ? OCC_TEXT : VAC_TEXT}
                     >
                       {p.house_number}
@@ -176,8 +185,9 @@ export function WingPreview({
   const PREVIEW_FLOOR_H = 54; // taller than FLOOR_H — leaves room for the "F<n>" label above the windows
   const sortedFloors = [...floors].sort((a, b) => b - a); // highest at the top
   const flatsPerFloor = sortedFloors.map((f) => properties.filter((p) => p.floor_number === f).sort(byHouseNumber));
+  const winW = boxWidthFor(properties.map((p) => p.house_number), WIN_W);
   const maxFlats = Math.max(...flatsPerFloor.map((f) => f.length), 1);
-  const width = SIDE_PAD * 2 + maxFlats * WIN_W + (maxFlats - 1) * WIN_GAP;
+  const width = SIDE_PAD * 2 + maxFlats * winW + (maxFlats - 1) * WIN_GAP;
   const height = sortedFloors.length * PREVIEW_FLOOR_H;
 
   return (
@@ -190,7 +200,7 @@ export function WingPreview({
           const flats = flatsPerFloor[i];
           const highlighted = highlightFloor === floorNumber;
           const n = flats.length;
-          const rowW = n * WIN_W + (n - 1) * WIN_GAP;
+          const rowW = n * winW + (n - 1) * WIN_GAP;
           const startX = (width - rowW) / 2;
           const wy = floorTop + 22;
           return (
@@ -211,16 +221,16 @@ export function WingPreview({
                 </text>
               ) : (
                 flats.map((p, j) => {
-                  const wx = startX + j * (WIN_W + WIN_GAP);
+                  const wx = startX + j * (winW + WIN_GAP);
                   const occ = p.is_occupied;
                   return (
                     <g key={p.id}>
                       <rect
-                        x={wx} y={wy} width={WIN_W} height={WIN_H} rx={2}
+                        x={wx} y={wy} width={winW} height={WIN_H} rx={2}
                         fill={occ ? OCC_FILL : VAC_FILL} stroke={occ ? OCC_STROKE : VAC_STROKE} strokeWidth={1.4}
                       />
                       <text
-                        x={wx + WIN_W / 2} y={wy + WIN_H / 2 + 4} textAnchor="middle" fontSize={10} fontWeight={600}
+                        x={wx + winW / 2} y={wy + WIN_H / 2 + 4} textAnchor="middle" fontSize={10} fontWeight={600}
                         fill={occ ? OCC_TEXT : VAC_TEXT}
                       >
                         {p.house_number}
@@ -243,14 +253,15 @@ export function RowCard({
   if (properties.length === 0) return <EmptyCard label={row.name} />;
 
   const houses = [...properties].sort(byHouseNumber);
-  const width = houses.length * HOUSE_W + (houses.length - 1) * HOUSE_GAP;
+  const houseW = boxWidthFor(houses.map((p) => p.house_number), HOUSE_W);
+  const width = houses.length * houseW + (houses.length - 1) * HOUSE_GAP;
 
   return (
     <div className="flex flex-col items-center">
       <div className="text-sm font-bold text-navy mb-1">{row.name}</div>
       <svg width={width} height={HOUSE_H} viewBox={`0 0 ${width} ${HOUSE_H}`}>
         {houses.map((p, i) => {
-          const x = i * (HOUSE_W + HOUSE_GAP);
+          const x = i * (houseW + HOUSE_GAP);
           const occ = p.is_occupied;
           return (
             <g
@@ -260,10 +271,10 @@ export function RowCard({
             >
               <title>{`${p.house_number} — ${occ ? "occupied" : "vacant"}`}</title>
               <rect
-                x={x} y={0} width={HOUSE_W} height={HOUSE_H} rx={4}
+                x={x} y={0} width={houseW} height={HOUSE_H} rx={4}
                 fill={occ ? OCC_FILL : VAC_FILL} stroke={occ ? OCC_STROKE : VAC_STROKE} strokeWidth={1.4}
               />
-              <text x={x + HOUSE_W / 2} y={HOUSE_H / 2 + 4} textAnchor="middle" fontSize={10} fontWeight={600} fill={occ ? OCC_TEXT : VAC_TEXT}>
+              <text x={x + houseW / 2} y={HOUSE_H / 2 + 4} textAnchor="middle" fontSize={10} fontWeight={600} fill={occ ? OCC_TEXT : VAC_TEXT}>
                 {p.house_number}
               </text>
             </g>
