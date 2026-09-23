@@ -53,6 +53,11 @@ export const residentsApi = {
     full_name: string; mobile: string; email?: string; society_id: string;
     property_id: string; relationship_type: RelationshipType;
   }) => apiClient.post<ResidentOut>("/residents/signup", input),
+  /** Admin's resident directory — e.g. the "Make Sub-admin" picker
+   * (status="ACTIVE"), separate from pending() below which is
+   * specifically the approval queue. Omit status for every resident
+   * regardless of approval state. */
+  list: (status?: UserStatus) => apiClient.get<ResidentOut[]>("/residents", { params: { status } }),
   pending: () => apiClient.get<ResidentOut[]>("/residents/pending"),
   decideApproval: (id: string, approve: boolean, rejectionReason?: string) =>
     apiClient.post<ResidentOut>(`/residents/${id}/approval`, { approve, rejection_reason: rejectionReason }),

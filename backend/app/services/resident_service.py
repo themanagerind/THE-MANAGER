@@ -125,6 +125,27 @@ async def list_pending_residents(db: AsyncSession, society_id: uuid.UUID) -> lis
     ).scalars().all()
 
 
+async def list_residents(db: AsyncSession, society_id: uuid.UUID, status_filter: UserStatus | None = None) -> list[User]:
+    """Admin's own full resident directory — e.g. the "Make Sub-admin"
+    picker on the Residents page needs every ACTIVE resident, not just the
+    PENDING ones list_pending_residents above returns. Scoped to users
+    currently holding an active RESIDENT role (not just any society
+    member — an Admin/Sub-admin/Manager/Guard without a RESIDENT role
+    shouldn't show up here), same dual-role-aware pattern as
+    subadmin_service.promote_to_subadmin adding SUB_ADMIN alongside an
+    existing RESIDENT role rather than replacing it."""
+    conditions = [User.society_id == society_id]
+    if status_filter is not None:
+        conditions.append(User.status == status_filter)
+    return (
+        await db.execute(
+            select(User)
+            .join(UserRole, UserRole.user_id == User.id)
+            .where(*conditions, UserRole.role == Role.RESIDENT, UserRole.revoked_at.is_(None))
+        )
+    ).scalars().all()
+
+
 async def decide_resident_approval(
     db: AsyncSession,
     society_id: uuid.UUID,

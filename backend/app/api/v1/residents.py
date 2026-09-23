@@ -2,12 +2,12 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_db
 from app.core.security import CurrentUser, require_role
-from app.models.enums import Role
+from app.models.enums import Role, UserStatus
 from app.schemas.resident import (
     AdminSelfResidentLinkIn,
     PropertyResidentLinkIn,
@@ -30,6 +30,19 @@ async def signup(
     (Section 26)."""
     resident = await resident_service.signup_resident(db, body)
     return ResidentOut.model_validate(resident)
+
+
+@router.get("", response_model=list[ResidentOut])
+async def list_all(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current: Annotated[CurrentUser, Depends(require_role(Role.ADMIN))],
+    status_filter: Annotated[UserStatus | None, Query(alias="status")] = None,
+) -> list[ResidentOut]:
+    """Admin's resident directory — e.g. the "Make Sub-admin" picker on
+    the Residents page (?status=ACTIVE), separate from list_pending below
+    which is specifically the approval queue."""
+    residents = await resident_service.list_residents(db, current.society_id, status_filter)
+    return [ResidentOut.model_validate(r) for r in residents]
 
 
 @router.get("/pending", response_model=list[ResidentOut])
