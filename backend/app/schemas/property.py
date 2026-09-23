@@ -46,6 +46,23 @@ class PropertyCreateIn(BaseModel):
         return self
 
 
+class PropertyUpdateIn(BaseModel):
+    """Correcting a typo made while mapping a society — wrong house number,
+    wrong floor, or wrong Wing/Row — full replace, same convention as
+    SocietyLocationUpdateIn."""
+
+    location_id: uuid.UUID
+    house_number: str
+    house_type: HouseType
+    floor_number: int | None = None
+
+    @model_validator(mode="after")
+    def _floor_required_for_flat(self) -> "PropertyUpdateIn":
+        if self.house_type == HouseType.FLAT and self.floor_number is None:
+            raise ValueError("floor_number is mandatory for FLAT")
+        return self
+
+
 class PropertyStatusUpdateIn(BaseModel):
     status: PropertyStatus
 

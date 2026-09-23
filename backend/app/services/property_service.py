@@ -16,7 +16,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.enums import HouseType, LocationType
 from app.models.identity import Property, SocietyLocation
-from app.schemas.property import PropertyCreateIn, SocietyLocationCreateIn, SocietyLocationUpdateIn
+from app.schemas.property import (
+    PropertyCreateIn,
+    PropertyUpdateIn,
+    SocietyLocationCreateIn,
+    SocietyLocationUpdateIn,
+)
 
 # Section 11: FLAT belongs to a Wing, Bungalow belongs to a Row. Public —
 # also used by admin_service.signup_admin's optional property capture,
@@ -128,6 +133,79 @@ async def create_property(
         )
     await db.refresh(prop)
     return prop
+
+
+async def update_property(
+    db: AsyncSession, society_id: uuid.UUID, property_id: uuid.UUID, body: PropertyUpdateIn
+) -> Property:
+    """Correcting a Wing/floor/house-number typo from the Society Mapping
+    page's Flats-mapping step — full replace, same shape/validation as
+    create_property above."""
+    prop = (
+        await db.execute(
+            select(Property).where(Property.id == property_id, Property.society_id == society_id)
+        )
+    ).scalar_one_or_none()
+    if prop is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Property not found in this society")
+
+    location = (
+        await db.execute(
+            select(SocietyLocation).where(
+                SocietyLocation.id == body.location_id,
+                SocietyLocation.society_id == society_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if location is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Location not found in this society")
+
+    expected = EXPECTED_LOCATION_TYPE[body.house_type]
+    if location.location_type != expected:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"{body.house_type.value} must be under a {expected.value}, "
+            f"but location '{location.name}' is a {location.location_type.value}",
+        )
+
+    prop.location_id = body.location_id
+    prop.house_number = body.house_number
+    prop.house_type = body.house_type
+    prop.floor_number = body.floor_number
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, f"House number '{body.house_number}' is already in use in this society"
+        )
+    await db.refresh(prop)
+    return prop
+
+
+async def delete_property(db: AsyncSession, society_id: uuid.UUID, property_id: uuid.UUID) -> None:
+    """Removing a wrongly-added Property from the Society Mapping page —
+    only safe while nothing else (a Resident link, a payment, a
+    complaint...) references it yet; those are enforced by FK constraints
+    at the DB level, surfaced here as a 409 rather than a raw 500."""
+    prop = (
+        await db.execute(
+            select(Property).where(Property.id == property_id, Property.society_id == society_id)
+        )
+    ).scalar_one_or_none()
+    if prop is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Property not found in this society")
+
+    await db.delete(prop)
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "Can't delete — this property is already linked to a Resident, payment, or other record. "
+            "Mark it INACTIVE instead if it shouldn't be used going forward.",
+        )
 
 
 async def list_properties(db: AsyncSession, society_id: uuid.UUID) -> list[Property]:

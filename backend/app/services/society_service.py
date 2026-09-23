@@ -19,6 +19,7 @@ from app.schemas.property import (
     BungalowStructureIn,
     FlatsStructureIn,
     PropertyCreateIn,
+    PropertyUpdateIn,
     SocietyLocationCreateIn,
     SocietyLocationUpdateIn,
 )
@@ -149,6 +150,22 @@ async def add_society_property(
     add_society_location above)."""
     await _get_society_or_404(db, society_id)
     return await property_service.create_property(db, society_id, body)
+
+
+async def edit_society_property(
+    db: AsyncSession, society_id: uuid.UUID, property_id: uuid.UUID, body: PropertyUpdateIn
+) -> Property:
+    """Platform Owner correcting a Wing/floor/house-number typo made while
+    mapping a society — see property_service.update_property."""
+    await _get_society_or_404(db, society_id)
+    return await property_service.update_property(db, society_id, property_id, body)
+
+
+async def delete_society_property(db: AsyncSession, society_id: uuid.UUID, property_id: uuid.UUID) -> None:
+    """Platform Owner removing a wrongly-added Property from the Society
+    Mapping page — see property_service.delete_property."""
+    await _get_society_or_404(db, society_id)
+    await property_service.delete_property(db, society_id, property_id)
 
 
 async def update_society_location(

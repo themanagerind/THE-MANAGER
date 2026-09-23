@@ -774,6 +774,135 @@ async def test_non_platform_owner_cannot_add_society_property(
     assert resp.status_code == 403
 
 
+async def test_platform_owner_can_edit_a_property_to_fix_a_mapping_typo(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    """Fixing a wrong house number/floor typed during Society Mapping —
+    full replace via PATCH, same convention as editing a Wing/Row."""
+    society_id = two_societies_with_admins["a"]["society_id"]
+    owner = await _seed_platform_owner(db_session, "9700000035")
+    headers = auth_headers(owner.id, None, Role.PLATFORM_OWNER, [Role.PLATFORM_OWNER])
+
+    resp = await client.post(
+        f"/api/v1/societies/{society_id}/locations",
+        json={"name": "Wing A", "location_type": "WING"},
+        headers=headers,
+    )
+    location_id = resp.json()["id"]
+
+    resp = await client.post(
+        f"/api/v1/societies/{society_id}/properties",
+        json={"location_id": location_id, "house_number": "12-A", "house_type": "FLAT", "floor_number": 3},
+        headers=headers,
+    )
+    property_id = resp.json()["id"]
+
+    resp = await client.patch(
+        f"/api/v1/societies/{society_id}/properties/{property_id}",
+        json={"location_id": location_id, "house_number": "12-B", "house_type": "FLAT", "floor_number": 4},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["house_number"] == "12-B"
+    assert body["floor_number"] == 4
+
+
+async def test_editing_a_property_to_a_duplicate_house_number_is_rejected(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    society_id = two_societies_with_admins["a"]["society_id"]
+    owner = await _seed_platform_owner(db_session, "9700000036")
+    headers = auth_headers(owner.id, None, Role.PLATFORM_OWNER, [Role.PLATFORM_OWNER])
+
+    resp = await client.post(
+        f"/api/v1/societies/{society_id}/locations",
+        json={"name": "Wing A", "location_type": "WING"},
+        headers=headers,
+    )
+    location_id = resp.json()["id"]
+
+    await client.post(
+        f"/api/v1/societies/{society_id}/properties",
+        json={"location_id": location_id, "house_number": "1", "house_type": "FLAT", "floor_number": 1},
+        headers=headers,
+    )
+    resp = await client.post(
+        f"/api/v1/societies/{society_id}/properties",
+        json={"location_id": location_id, "house_number": "2", "house_type": "FLAT", "floor_number": 1},
+        headers=headers,
+    )
+    property_id = resp.json()["id"]
+
+    resp = await client.patch(
+        f"/api/v1/societies/{society_id}/properties/{property_id}",
+        json={"location_id": location_id, "house_number": "1", "house_type": "FLAT", "floor_number": 1},
+        headers=headers,
+    )
+    assert resp.status_code == 409
+
+
+async def test_property_edit_404_for_unknown_property(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    society_id = two_societies_with_admins["a"]["society_id"]
+    owner = await _seed_platform_owner(db_session, "9700000037")
+    headers = auth_headers(owner.id, None, Role.PLATFORM_OWNER, [Role.PLATFORM_OWNER])
+
+    resp = await client.patch(
+        f"/api/v1/societies/{society_id}/properties/{uuid.uuid4()}",
+        json={"location_id": str(uuid.uuid4()), "house_number": "1", "house_type": "FLAT", "floor_number": 1},
+        headers=headers,
+    )
+    assert resp.status_code == 404
+
+
+async def test_platform_owner_can_delete_a_wrongly_added_property(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    society_id = two_societies_with_admins["a"]["society_id"]
+    owner = await _seed_platform_owner(db_session, "9700000038")
+    headers = auth_headers(owner.id, None, Role.PLATFORM_OWNER, [Role.PLATFORM_OWNER])
+
+    resp = await client.post(
+        f"/api/v1/societies/{society_id}/locations",
+        json={"name": "Wing A", "location_type": "WING"},
+        headers=headers,
+    )
+    location_id = resp.json()["id"]
+
+    resp = await client.post(
+        f"/api/v1/societies/{society_id}/properties",
+        json={"location_id": location_id, "house_number": "1", "house_type": "FLAT", "floor_number": 1},
+        headers=headers,
+    )
+    property_id = resp.json()["id"]
+
+    resp = await client.delete(f"/api/v1/societies/{society_id}/properties/{property_id}", headers=headers)
+    assert resp.status_code == 204
+
+    resp = await client.get(f"/api/v1/societies/{society_id}/properties", headers=headers)
+    assert all(p["id"] != property_id for p in resp.json())
+
+
+async def test_non_platform_owner_cannot_edit_or_delete_society_property(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    admin_id = two_societies_with_admins["a"]["admin_id"]
+    society_id = two_societies_with_admins["a"]["society_id"]
+    headers = auth_headers(admin_id, society_id, Role.ADMIN, [Role.ADMIN])
+
+    resp = await client.patch(
+        f"/api/v1/societies/{society_id}/properties/{uuid.uuid4()}",
+        json={"location_id": str(uuid.uuid4()), "house_number": "1", "house_type": "FLAT", "floor_number": 1},
+        headers=headers,
+    )
+    assert resp.status_code == 403
+
+    resp = await client.delete(f"/api/v1/societies/{society_id}/properties/{uuid.uuid4()}", headers=headers)
+    assert resp.status_code == 403
+
+
 async def test_society_lookup_by_code_is_public_and_scoped_to_active(
     client: AsyncClient, db_session: AsyncSession
 ):

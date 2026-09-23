@@ -13,6 +13,7 @@ from app.schemas.property import (
     PropertyCreateIn,
     PropertyFloorsUpdateIn,
     PropertyOut,
+    PropertyUpdateIn,
     SocietyLocationCreateIn,
     SocietyLocationOut,
     SocietyLocationUpdateIn,
@@ -209,6 +210,34 @@ async def add_society_property(
     sequential scheme the bulk generator assumes."""
     prop = await society_service.add_society_property(db, society_id, body)
     return PropertyOut.model_validate(prop)
+
+
+@router.patch("/{society_id}/properties/{property_id}", response_model=PropertyOut)
+async def edit_society_property(
+    society_id: uuid.UUID,
+    property_id: uuid.UUID,
+    body: PropertyUpdateIn,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current: Annotated[CurrentUser, Depends(require_role(Role.PLATFORM_OWNER))],
+) -> PropertyOut:
+    """Platform Owner correcting a Wing/floor/house-number typo made while
+    mapping a society — full replace, same convention as PATCH
+    /locations/{location_id}."""
+    prop = await society_service.edit_society_property(db, society_id, property_id, body)
+    return PropertyOut.model_validate(prop)
+
+
+@router.delete("/{society_id}/properties/{property_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_society_property(
+    society_id: uuid.UUID,
+    property_id: uuid.UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current: Annotated[CurrentUser, Depends(require_role(Role.PLATFORM_OWNER))],
+) -> None:
+    """Platform Owner removing a wrongly-added Property — only succeeds
+    while nothing else references it yet (409 otherwise; use the status
+    toggle to mark it INACTIVE instead)."""
+    await society_service.delete_society_property(db, society_id, property_id)
 
 
 @router.patch("/{society_id}/properties/{property_id}/floors", response_model=PropertyOut)

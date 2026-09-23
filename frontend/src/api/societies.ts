@@ -125,6 +125,16 @@ export const societiesApi = {
     apiClient.post<PropertyOut>(`/societies/${societyId}/properties`, {
       location_id: locationId, house_number: houseNumber, house_type: "FLAT", floor_number: floorNumber,
     }),
+  /** Correcting a Wing/floor/house-number typo made while mapping — full
+   * replace, same shape as addProperty. */
+  updateProperty: (societyId: string, propertyId: string, locationId: string, houseNumber: string, floorNumber: number) =>
+    apiClient.patch<PropertyOut>(`/societies/${societyId}/properties/${propertyId}`, {
+      location_id: locationId, house_number: houseNumber, house_type: "FLAT", floor_number: floorNumber,
+    }),
+  /** Removing a wrongly-added Property — only succeeds while nothing else
+   * (a Resident, a payment...) references it yet. */
+  deleteProperty: (societyId: string, propertyId: string) =>
+    apiClient.delete(`/societies/${societyId}/properties/${propertyId}`),
 };
 
 export const locationsApi = {

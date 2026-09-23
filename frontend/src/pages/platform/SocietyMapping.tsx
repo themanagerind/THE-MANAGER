@@ -35,7 +35,9 @@ export function SocietyMapping() {
     queryFn: () => societiesApi.listLocations(societyId!).then((r) => r.data),
     enabled: !!societyId,
   });
-  const wings = (locationsQuery.data ?? []).filter((l) => l.location_type === "WING");
+  const wings = (locationsQuery.data ?? [])
+    .filter((l) => l.location_type === "WING")
+    .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }));
 
   const propertiesQueryKey = ["platform", "societies", societyId, "properties"];
   const propertiesQuery = useQuery({
@@ -59,6 +61,21 @@ export function SocietyMapping() {
     setExtraFloorsByWing((prev) => ({
       ...prev,
       [wingId]: Array.from(new Set([...(prev[wingId] ?? []), floorNumber])),
+    }));
+  }
+  // A floor typed by mistake can only be removed here while nothing's
+  // been added to it yet — once a flat exists on it, delete/move that
+  // flat instead (Flats-mapping tab) and the floor disappears with it.
+  function canRemoveFloor(wingId: string, floorNumber: number): boolean {
+    const hasProperty = (propertiesQuery.data ?? []).some(
+      (p) => p.location_id === wingId && p.floor_number === floorNumber
+    );
+    return !hasProperty;
+  }
+  function removeFloorFromWing(wingId: string, floorNumber: number) {
+    setExtraFloorsByWing((prev) => ({
+      ...prev,
+      [wingId]: (prev[wingId] ?? []).filter((f) => f !== floorNumber),
     }));
   }
 
@@ -109,7 +126,13 @@ export function SocietyMapping() {
       )}
 
       {tab === "FLOORS" && (
-        <FloorsStep wings={wings} floorsForWing={floorsForWing} addFloorToWing={addFloorToWing} />
+        <FloorsStep
+          wings={wings}
+          floorsForWing={floorsForWing}
+          addFloorToWing={addFloorToWing}
+          canRemoveFloor={canRemoveFloor}
+          removeFloorFromWing={removeFloorFromWing}
+        />
       )}
 
       {tab === "FLATS" && (
@@ -148,14 +171,13 @@ function WingsStep({
     <div className="space-y-3 max-w-md">
       <p className="text-sm text-navy-muted">
         Start by naming every Wing/Tower in this society — Floor and Flats mapping (next tabs) pick from this list.
+        Typed a name wrong? Click it to fix it.
       </p>
       {wings.length === 0 && <p className="text-xs text-navy-muted">No Wings yet — add the first one below.</p>}
       {wings.length > 0 && (
         <ul className="space-y-1">
           {wings.map((w) => (
-            <li key={w.id} className="text-sm text-ink px-3 py-2 border border-line rounded">
-              {w.name}
-            </li>
+            <WingRow key={w.id} societyId={societyId} wing={w} locationsQueryKey={locationsQueryKey} />
           ))}
         </ul>
       )}
@@ -170,12 +192,68 @@ function WingsStep({
   );
 }
 
+function WingRow({
+  societyId, wing, locationsQueryKey,
+}: { societyId: string; wing: SocietyLocationOut; locationsQueryKey: unknown[] }) {
+  const queryClient = useQueryClient();
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(wing.name);
+  const [error, setError] = useState<string | null>(null);
+
+  const rename = useMutation({
+    mutationFn: () => societiesApi.updateLocation(societyId, wing.id, name.trim(), "WING"),
+    onSuccess: () => {
+      setEditing(false);
+      setError(null);
+      void queryClient.invalidateQueries({ queryKey: locationsQueryKey });
+    },
+    onError: (e) => setError(apiErrorMessage(e, "Couldn't rename this Wing.")),
+  });
+
+  if (!editing) {
+    return (
+      <li className="text-sm text-ink flex items-center gap-2 px-3 py-2 border border-line rounded">
+        <span className="flex-1">{wing.name}</span>
+        <button
+          type="button"
+          onClick={() => { setName(wing.name); setError(null); setEditing(true); }}
+          className="text-xs text-navy-muted hover:text-navy underline"
+        >
+          Edit
+        </button>
+      </li>
+    );
+  }
+
+  return (
+    <li className="space-y-1 px-3 py-2 border border-navy rounded">
+      <div className="flex gap-2 items-center">
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          autoFocus
+          className="flex-1 px-2 py-1 border border-line rounded text-sm text-ink bg-white focus:border-navy"
+        />
+        <Button variant="secondary" loading={rename.isPending} disabled={!name.trim()} onClick={() => rename.mutate()}>
+          Save
+        </Button>
+        <button type="button" onClick={() => setEditing(false)} className="text-xs text-navy-muted hover:text-danger px-1">
+          Cancel
+        </button>
+      </div>
+      {error && <p className="text-xs text-danger">{error}</p>}
+    </li>
+  );
+}
+
 function FloorsStep({
-  wings, floorsForWing, addFloorToWing,
+  wings, floorsForWing, addFloorToWing, canRemoveFloor, removeFloorFromWing,
 }: {
   wings: SocietyLocationOut[];
   floorsForWing: (wingId: string) => number[];
   addFloorToWing: (wingId: string, floorNumber: number) => void;
+  canRemoveFloor: (wingId: string, floorNumber: number) => boolean;
+  removeFloorFromWing: (wingId: string, floorNumber: number) => void;
 }) {
   const [selectedWingId, setSelectedWingId] = useState("");
   const [newFloor, setNewFloor] = useState("");
@@ -211,8 +289,21 @@ function FloorsStep({
           {floors.length > 0 && (
             <ul className="flex flex-wrap gap-2">
               {floors.map((f) => (
-                <li key={f} className="px-3 py-1 border border-line rounded text-sm text-ink bg-paper">
+                <li
+                  key={f}
+                  className="flex items-center gap-1.5 px-3 py-1 border border-line rounded text-sm text-ink bg-paper"
+                >
                   Floor {f}
+                  {canRemoveFloor(selectedWingId, f) && (
+                    <button
+                      type="button"
+                      onClick={() => removeFloorFromWing(selectedWingId, f)}
+                      aria-label={`Remove floor ${f}`}
+                      className="text-navy-muted hover:text-danger leading-none"
+                    >
+                      &times;
+                    </button>
+                  )}
                 </li>
               ))}
             </ul>
@@ -345,12 +436,19 @@ function FlatsStep({
           {propertiesLoading && <Loader />}
           {existingFlats.length > 0 && (
             <div>
-              <label className="block text-sm text-navy-muted mb-1">Already on record</label>
-              <ul className="flex flex-wrap gap-2">
+              <label className="block text-sm text-navy-muted mb-1">
+                Already on record — click one to fix a typo
+              </label>
+              <ul className="space-y-1">
                 {existingFlats.map((f) => (
-                  <li key={f.id} className="px-3 py-1 border border-line rounded text-sm text-ink bg-paper">
-                    {f.house_number}
-                  </li>
+                  <ExistingFlatRow
+                    key={f.id}
+                    societyId={societyId}
+                    flat={f}
+                    wingId={selectedWingId}
+                    floors={floors}
+                    onChanged={onFlatsChanged}
+                  />
                 ))}
               </ul>
             </div>
@@ -384,6 +482,109 @@ function FlatsStep({
         </>
       )}
     </div>
+  );
+}
+
+function ExistingFlatRow({
+  societyId, flat, wingId, floors, onChanged,
+}: {
+  societyId: string;
+  flat: PropertyOut;
+  wingId: string;
+  floors: number[];
+  onChanged: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [houseNumber, setHouseNumber] = useState(flat.house_number);
+  const [floorNumber, setFloorNumber] = useState(String(flat.floor_number ?? ""));
+  const [error, setError] = useState<string | null>(null);
+
+  const save = useMutation({
+    mutationFn: () => societiesApi.updateProperty(societyId, flat.id, wingId, houseNumber.trim(), Number(floorNumber)),
+    onSuccess: () => {
+      setEditing(false);
+      setError(null);
+      onChanged();
+    },
+    onError: (e) => setError(apiErrorMessage(e, "Couldn't save — that house number may already be in use.")),
+  });
+
+  const remove = useMutation({
+    mutationFn: () => societiesApi.deleteProperty(societyId, flat.id),
+    onSuccess: () => {
+      setError(null);
+      onChanged();
+    },
+    onError: (e) => setError(apiErrorMessage(e, "Couldn't delete — it may already be linked to a Resident.")),
+  });
+
+  function handleDelete() {
+    if (window.confirm(`Delete flat "${flat.house_number}"? This can't be undone.`)) {
+      remove.mutate();
+    }
+  }
+
+  if (!editing) {
+    return (
+      <li className="text-sm text-ink flex items-center gap-2 px-3 py-1.5 border border-line rounded bg-paper">
+        <span className="flex-1">{flat.house_number}</span>
+        <button
+          type="button"
+          onClick={() => {
+            setHouseNumber(flat.house_number);
+            setFloorNumber(String(flat.floor_number ?? ""));
+            setError(null);
+            setEditing(true);
+          }}
+          className="text-xs text-navy-muted hover:text-navy underline"
+        >
+          Edit
+        </button>
+        <button
+          type="button"
+          onClick={handleDelete}
+          disabled={remove.isPending}
+          className="text-xs text-navy-muted hover:text-danger underline"
+        >
+          Delete
+        </button>
+        {error && <span className="text-xs text-danger">{error}</span>}
+      </li>
+    );
+  }
+
+  return (
+    <li className="space-y-1 px-3 py-1.5 border border-navy rounded">
+      <div className="flex gap-2 items-center">
+        <input
+          value={houseNumber}
+          onChange={(e) => setHouseNumber(e.target.value)}
+          autoFocus
+          className="flex-1 px-2 py-1 border border-line rounded text-sm text-ink bg-white focus:border-navy"
+        />
+        <select
+          value={floorNumber}
+          onChange={(e) => setFloorNumber(e.target.value)}
+          className="px-2 py-1 border border-line rounded text-sm text-ink bg-white focus:border-navy"
+        >
+          {floors.map((f) => (
+            <option key={f} value={f}>Floor {f}</option>
+          ))}
+        </select>
+        <Button
+          variant="secondary"
+          loading={save.isPending}
+          disabled={!houseNumber.trim() || !floorNumber}
+          onClick={() => save.mutate()}
+        >
+          Save
+        </Button>
+        <button type="button" onClick={() => setEditing(false)} className="text-xs text-navy-muted hover:text-danger px-1">
+          Cancel
+        </button>
+      </div>
+      {error && <p className="text-xs text-danger">{error}</p>}
+    </li>
   );
 }
 
