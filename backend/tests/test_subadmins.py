@@ -232,3 +232,97 @@ async def test_admin_can_list_and_revoke_scope(client: AsyncClient, db_session: 
 
     resp = await client.get(f"/api/v1/subadmins/{seeded['resident'].id}/scopes", headers=headers)
     assert resp.json() == []  # revoked scopes aren't "active" scopes anymore
+
+
+# --- DELETE /subadmins/{id} (demote) -----------------------------------------
+
+
+async def test_admin_can_demote_a_subadmin(client: AsyncClient, db_session: AsyncSession):
+    seeded = await _seed_admin_and_resident(db_session)
+    headers = auth_headers(seeded["admin"].id, seeded["society"].id, Role.ADMIN, [Role.ADMIN])
+
+    resp = await client.post(
+        "/api/v1/subadmins/promote",
+        json={
+            "resident_id": str(seeded["resident"].id),
+            "location_ids": [str(seeded["wing_a"].id), str(seeded["wing_b"].id)],
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 200
+
+    resp = await client.delete(f"/api/v1/subadmins/{seeded['resident'].id}", headers=headers)
+    assert resp.status_code == 204
+
+    role = (
+        await db_session.execute(
+            select(UserRole).where(
+                UserRole.user_id == seeded["resident"].id, UserRole.role == Role.SUB_ADMIN, UserRole.revoked_at.is_(None)
+            )
+        )
+    ).scalar_one_or_none()
+    assert role is None  # revoked
+
+    scopes = (
+        await db_session.execute(
+            select(SubAdminScope).where(
+                SubAdminScope.sub_admin_id == seeded["resident"].id, SubAdminScope.revoked_at.is_(None)
+            )
+        )
+    ).scalars().all()
+    assert scopes == []  # every scope revoked too
+
+    # Dual-role — RESIDENT role untouched.
+    resident_role = (
+        await db_session.execute(
+            select(UserRole).where(
+                UserRole.user_id == seeded["resident"].id, UserRole.role == Role.RESIDENT, UserRole.revoked_at.is_(None)
+            )
+        )
+    ).scalar_one_or_none()
+    assert resident_role is not None
+
+
+async def test_demote_rejects_resident_who_is_not_a_subadmin(client: AsyncClient, db_session: AsyncSession):
+    seeded = await _seed_admin_and_resident(db_session)
+    headers = auth_headers(seeded["admin"].id, seeded["society"].id, Role.ADMIN, [Role.ADMIN])
+
+    resp = await client.delete(f"/api/v1/subadmins/{seeded['resident'].id}", headers=headers)
+    assert resp.status_code == 404
+
+
+async def test_demote_requires_admin(client: AsyncClient, db_session: AsyncSession):
+    seeded = await _seed_admin_and_resident(db_session)
+    headers = auth_headers(seeded["admin"].id, seeded["society"].id, Role.ADMIN, [Role.ADMIN])
+    await client.post(
+        "/api/v1/subadmins/promote",
+        json={"resident_id": str(seeded["resident"].id), "location_ids": [str(seeded["wing_a"].id)]},
+        headers=headers,
+    )
+
+    resident_headers = auth_headers(
+        seeded["resident"].id, seeded["society"].id, Role.SUB_ADMIN, [Role.RESIDENT, Role.SUB_ADMIN]
+    )
+    resp = await client.delete(f"/api/v1/subadmins/{seeded['resident'].id}", headers=resident_headers)
+    assert resp.status_code == 403
+
+
+async def test_demote_rejects_subadmin_from_another_society(client: AsyncClient, db_session: AsyncSession):
+    seeded = await _seed_admin_and_resident(db_session)
+    other = await _seed_admin_and_resident(db_session)
+    admin_headers = auth_headers(seeded["admin"].id, seeded["society"].id, Role.ADMIN, [Role.ADMIN])
+    other_admin_headers = auth_headers(other["admin"].id, other["society"].id, Role.ADMIN, [Role.ADMIN])
+
+    await client.post(
+        "/api/v1/subadmins/promote",
+        json={"resident_id": str(seeded["resident"].id), "location_ids": [str(seeded["wing_a"].id)]},
+        headers=admin_headers,
+    )
+
+    # Other society's Admin can't demote a Sub-admin that isn't theirs.
+    resp = await client.delete(f"/api/v1/subadmins/{seeded['resident'].id}", headers=other_admin_headers)
+    assert resp.status_code == 404
+
+    # It's still intact from the actual owning Admin's perspective.
+    resp = await client.get(f"/api/v1/subadmins/{seeded['resident'].id}/scopes", headers=admin_headers)
+    assert len(resp.json()) == 1

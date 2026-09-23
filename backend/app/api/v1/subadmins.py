@@ -33,6 +33,19 @@ async def promote(
     return [SubAdminScopeOut.model_validate(s) for s in scopes]
 
 
+@router.delete("/{sub_admin_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def demote(
+    sub_admin_id: uuid.UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current: Annotated[CurrentUser, Depends(require_role(Role.ADMIN))],
+) -> None:
+    """Admin directly removes someone's Sub-admin role and every active
+    scope, in one shot — no resignation request needed (that flow is the
+    Sub-admin's own choice to step down; this is the Admin's own choice to
+    remove them, since promotion is unilateral too)."""
+    await subadmin_service.demote_subadmin(db, current.society_id, sub_admin_id)
+
+
 @router.post("/{sub_admin_id}/scopes", response_model=SubAdminScopeOut)
 async def assign_scope(
     sub_admin_id: uuid.UUID,

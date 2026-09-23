@@ -84,6 +84,9 @@ export const subadminsApi = {
   assignScope: (subAdminId: string, locationId: string) =>
     apiClient.post<SubAdminScopeOut>(`/subadmins/${subAdminId}/scopes`, { location_id: locationId }),
   revokeScope: (scopeId: string) => apiClient.delete<SubAdminScopeOut>(`/subadmins/scopes/${scopeId}`),
+  /** Admin directly removes someone's Sub-admin role and every active
+   * scope, in one shot — no resignation request needed. */
+  demote: (subAdminId: string) => apiClient.delete(`/subadmins/${subAdminId}`),
   submitResignation: (reason?: string) => apiClient.post<RoleRequestOut>("/subadmins/resignation", { reason }),
   pendingResignations: () => apiClient.get<RoleRequestOut[]>("/subadmins/resignations/pending"),
   decideResignation: (requestId: string, approve: boolean, decisionReason?: string) =>

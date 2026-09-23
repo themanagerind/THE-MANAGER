@@ -247,6 +247,7 @@ function PromoteModal({ resident, onClose }: { resident: ResidentOut; onClose: (
   const queryClient = useQueryClient();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
+  const [demoteError, setDemoteError] = useState<string | null>(null);
 
   const locationsQuery = useQuery({
     queryKey: ["admin", "locations"],
@@ -275,6 +276,26 @@ function PromoteModal({ resident, onClose }: { resident: ResidentOut; onClose: (
     onError: (e) => setError(apiErrorMessage(e, "Could not remove scope.")),
   });
 
+  const demote = useMutation({
+    mutationFn: () => subadminsApi.demote(resident.id),
+    onSuccess: () => {
+      // The modal closes right away, but the query cache is app-wide
+      // (QueryClientProvider), not tied to this modal instance — without
+      // invalidating it, reopening "Sub-admin" for the same resident would
+      // show the stale pre-demote scopes until something else happened to
+      // refetch them.
+      void queryClient.invalidateQueries({ queryKey: scopesQueryKey });
+      onClose();
+    },
+    onError: (e) => setDemoteError(apiErrorMessage(e, "Could not remove the Sub-admin role.")),
+  });
+
+  function handleDemote() {
+    if (window.confirm(`Remove ${resident.full_name} as Sub-admin? This clears every Wing/Row they're scoped to.`)) {
+      demote.mutate();
+    }
+  }
+
   function toggle(locationId: string) {
     setSelected((prev) => {
       const next = new Set(prev);
@@ -297,7 +318,17 @@ function PromoteModal({ resident, onClose }: { resident: ResidentOut; onClose: (
 
         {activeScopes.length > 0 && (
           <div>
-            <label className="block text-sm text-navy-muted mb-1">Currently scoped to</label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-sm text-navy-muted">Currently scoped to</label>
+              <button
+                type="button"
+                onClick={handleDemote}
+                disabled={demote.isPending}
+                className="text-xs text-danger underline"
+              >
+                Remove as Sub-admin
+              </button>
+            </div>
             <ul className="space-y-1">
               {activeScopes.map((s) => (
                 <li
@@ -316,6 +347,7 @@ function PromoteModal({ resident, onClose }: { resident: ResidentOut; onClose: (
                 </li>
               ))}
             </ul>
+            {demoteError && <p className="text-xs text-danger mt-1">{demoteError}</p>}
           </div>
         )}
 
