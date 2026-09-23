@@ -564,7 +564,10 @@ function UnitsStep({
       )}
 
       {selectedLocation && !isWing && (
-        <p className="text-xs text-navy-muted">Rows/Bungalows have no floors — go straight to houses below.</p>
+        <p className="text-xs text-navy-muted">
+          Rows/Bungalows have no floors of their own — add the houses below first, then set each one's own
+          "Floors above ground" once it's on record (a Row's houses don't all have to match).
+        </p>
       )}
 
       {ready && (
@@ -644,6 +647,7 @@ function ExistingUnitRow({
   const [editing, setEditing] = useState(false);
   const [houseNumber, setHouseNumber] = useState(unit.house_number);
   const [floorNumber, setFloorNumber] = useState(unit.floor_number != null ? String(unit.floor_number) : "");
+  const [floorsAboveGround, setFloorsAboveGround] = useState(String(unit.floors_above_ground));
   const [error, setError] = useState<string | null>(null);
 
   const save = useMutation({
@@ -668,6 +672,19 @@ function ExistingUnitRow({
     onError: (e) => setError(apiErrorMessage(e, "Couldn't delete — it may already be linked to a Resident.")),
   });
 
+  // Bungalow-only — how many storeys THIS house has above the ground
+  // floor. A Row's houses don't all have the same number of floors, so
+  // this is set per house, after it's created (not up front).
+  const saveFloors = useMutation({
+    mutationFn: () => societiesApi.updatePropertyFloors(societyId, unit.id, Number(floorsAboveGround)),
+    onSuccess: () => {
+      setError(null);
+      onChanged();
+    },
+    onError: (e) => setError(apiErrorMessage(e, "Couldn't update floors.")),
+  });
+  const floorsDirty = Number(floorsAboveGround) !== unit.floors_above_ground;
+
   function handleDelete() {
     if (window.confirm(`Delete "${unit.house_number}"? This can't be undone.`)) {
       remove.mutate();
@@ -678,6 +695,26 @@ function ExistingUnitRow({
     return (
       <li className="text-sm text-ink flex items-center gap-2 px-3 py-1.5 border border-line rounded bg-paper">
         <span className="flex-1">{unit.house_number}</span>
+        {!isWing && (
+          <div className="flex items-center gap-1">
+            <label className="text-xs text-navy-muted whitespace-nowrap">Floors above ground</label>
+            <input
+              type="number"
+              min={0}
+              value={floorsAboveGround}
+              onChange={(e) => setFloorsAboveGround(e.target.value)}
+              className="w-14 px-1.5 py-1 border border-line rounded text-sm text-ink bg-white focus:border-navy"
+            />
+            <Button
+              variant="secondary"
+              loading={saveFloors.isPending}
+              disabled={!floorsDirty}
+              onClick={() => saveFloors.mutate()}
+            >
+              Save
+            </Button>
+          </div>
+        )}
         <button
           type="button"
           onClick={() => {
