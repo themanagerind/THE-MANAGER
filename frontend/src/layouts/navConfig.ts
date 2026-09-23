@@ -3,7 +3,7 @@ import type { Role } from "@/types/enums";
 export interface NavItem {
   label: string;
   path: string;
-  icon: "home" | "dues" | "complaint" | "visitor" | "notice" | "amenity" | "proposal" | "expense" | "people" | "wallet" | "todo" | "society";
+  icon: "home" | "dues" | "complaint" | "visitor" | "notice" | "amenity" | "proposal" | "expense" | "people" | "wallet" | "todo" | "society" | "report";
 }
 
 /**
@@ -13,6 +13,7 @@ export interface NavItem {
 export const navByRole: Record<Role, NavItem[]> = {
   PLATFORM_OWNER: [
     { label: "Societies", path: "/platform/societies", icon: "society" },
+    { label: "Reports", path: "/platform/reports", icon: "report" },
   ],
   ADMIN: [
     { label: "Overview", path: "/admin", icon: "home" },

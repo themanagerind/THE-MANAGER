@@ -133,3 +133,26 @@ class SocietyOut(BaseModel):
 
 class SocietyStatusUpdateIn(BaseModel):
     status: SocietyStatus
+
+
+class SocietyReportOut(BaseModel):
+    """Platform Owner reporting dashboard row (society_service.
+    list_society_reports) — one per society: how many flats/houses are on
+    record, how many Residents are currently actively linked to one, and
+    who to call (the society's Admin). `admin_name`/`admin_mobile` are
+    None if the society has no ACTIVE Admin yet (e.g. still PENDING
+    approval); multiple active Admins on one society are joined with
+    ", " rather than picking one arbitrarily."""
+
+    society_id: uuid.UUID
+    name: str
+    code: str
+    status: SocietyStatus
+    city: str | None
+    state: str | None
+    total_flats: int
+    total_houses: int
+    total_properties: int
+    total_residents: int
+    admin_name: str | None
+    admin_mobile: str | None

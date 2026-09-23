@@ -8,13 +8,13 @@ import uuid
 from datetime import datetime, timezone
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.redis_client import get_redis
 from app.models.enums import HouseType, LocationType, Role, SocietyStatus, UserStatus
-from app.models.identity import Property, Society, SocietyLocation, User, UserRole
+from app.models.identity import Property, PropertyResident, Society, SocietyLocation, User, UserRole
 from app.schemas.property import (
     BungalowStructureIn,
     FlatsStructureIn,
@@ -400,6 +400,64 @@ async def signup_society_and_admin(db: AsyncSession, body: SocietySignupIn) -> t
 
 async def list_societies(db: AsyncSession) -> list[Society]:
     return (await db.execute(select(Society))).scalars().all()
+
+
+async def list_society_reports(db: AsyncSession) -> list[dict]:
+    """Platform Owner reporting dashboard — one summary row per society:
+    flats/houses on record, currently-active Residents, and Admin contact
+    details. Built from a handful of aggregate queries (grouped by
+    society_id) rather than looping per-society, so this stays cheap
+    regardless of how many societies exist."""
+    societies = (await db.execute(select(Society))).scalars().all()
+
+    property_counts = (
+        await db.execute(
+            select(Property.society_id, Property.house_type, func.count())
+            .group_by(Property.society_id, Property.house_type)
+        )
+    ).all()
+    flats_by_society: dict[uuid.UUID, int] = {}
+    houses_by_society: dict[uuid.UUID, int] = {}
+    for society_id, house_type, count in property_counts:
+        bucket = flats_by_society if house_type == HouseType.FLAT else houses_by_society
+        bucket[society_id] = count
+
+    resident_counts = (
+        await db.execute(
+            select(PropertyResident.society_id, func.count(func.distinct(PropertyResident.resident_id)))
+            .where(PropertyResident.is_active.is_(True))
+            .group_by(PropertyResident.society_id)
+        )
+    ).all()
+    residents_by_society = dict(resident_counts)
+
+    admin_rows = (
+        await db.execute(
+            select(User.society_id, User.full_name, User.mobile, User.status)
+            .join(UserRole, UserRole.user_id == User.id)
+            .where(UserRole.role == Role.ADMIN, UserRole.revoked_at.is_(None))
+        )
+    ).all()
+    admins_by_society: dict[uuid.UUID, list[tuple[str, str, UserStatus]]] = {}
+    for society_id, full_name, mobile, admin_status in admin_rows:
+        admins_by_society.setdefault(society_id, []).append((full_name, mobile, admin_status))
+
+    reports = []
+    for society in societies:
+        admins = admins_by_society.get(society.id, [])
+        # Prefer the ACTIVE Admin(s); fall back to whatever's there (e.g. a
+        # still-PENDING signup) so a freshly-created society isn't just
+        # blank while its Admin awaits approval.
+        shown = [a for a in admins if a[2] == UserStatus.ACTIVE] or admins
+        reports.append({
+            "society": society,
+            "total_flats": flats_by_society.get(society.id, 0),
+            "total_houses": houses_by_society.get(society.id, 0),
+            "total_residents": residents_by_society.get(society.id, 0),
+            "admin_name": ", ".join(a[0] for a in shown) or None,
+            "admin_mobile": ", ".join(a[1] for a in shown) or None,
+        })
+    return reports
 
 
 async def approve_society_and_admin(

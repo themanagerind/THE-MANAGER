@@ -22,6 +22,7 @@ from app.schemas.society import (
     SocietyCreateIn,
     SocietyLookupOut,
     SocietyOut,
+    SocietyReportOut,
     SocietySearchResultOut,
     SocietySignupIn,
     SocietySignupOut,
@@ -79,6 +80,33 @@ async def list_all(
 ) -> list[SocietyOut]:
     societies = await society_service.list_societies(db)
     return [SocietyOut.model_validate(s) for s in societies]
+
+
+@router.get("/reports", response_model=list[SocietyReportOut])
+async def list_reports(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current: Annotated[CurrentUser, Depends(require_role(Role.PLATFORM_OWNER))],
+) -> list[SocietyReportOut]:
+    """Platform Owner reporting dashboard — per-society flats/houses on
+    record, active Resident count, and Admin name/mobile, in one call."""
+    reports = await society_service.list_society_reports(db)
+    return [
+        SocietyReportOut(
+            society_id=r["society"].id,
+            name=r["society"].name,
+            code=r["society"].code,
+            status=r["society"].status,
+            city=r["society"].city,
+            state=r["society"].state,
+            total_flats=r["total_flats"],
+            total_houses=r["total_houses"],
+            total_properties=r["total_flats"] + r["total_houses"],
+            total_residents=r["total_residents"],
+            admin_name=r["admin_name"],
+            admin_mobile=r["admin_mobile"],
+        )
+        for r in reports
+    ]
 
 
 @router.post("", response_model=SocietyOut)

@@ -52,6 +52,21 @@ export interface SocietyCreateInput {
   longitude?: number;
 }
 
+export interface SocietyReportOut {
+  society_id: string;
+  name: string;
+  code: string;
+  status: SocietyStatus;
+  city: string | null;
+  state: string | null;
+  total_flats: number;
+  total_houses: number;
+  total_properties: number;
+  total_residents: number;
+  admin_name: string | null;
+  admin_mobile: string | null;
+}
+
 export interface SocietyUpdateInput {
   name: string;
   address: string;
@@ -77,6 +92,9 @@ export const societiesApi = {
    * returns `code` (see SocietySearchResultOut). */
   search: (q: string) => apiClient.get<SocietySearchResultOut[]>("/societies/search", { params: { q } }),
   list: () => apiClient.get<SocietyOut[]>("/societies"),
+  /** Platform Owner reporting dashboard — per-society flats/houses on
+   * record, active Resident count, and Admin name/mobile, in one call. */
+  reports: () => apiClient.get<SocietyReportOut[]>("/societies/reports"),
   approve: (id: string) => apiClient.post<SocietyOut>(`/societies/${id}/approve`),
   updateStatus: (id: string, status: SocietyStatus) =>
     apiClient.patch<SocietyOut>(`/societies/${id}/status`, { status }),

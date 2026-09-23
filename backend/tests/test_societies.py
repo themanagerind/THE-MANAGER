@@ -11,8 +11,8 @@ from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.enums import Role, SocietyStatus, UserStatus
-from app.models.identity import Property, Society, SocietyLocation, User, UserRole
+from app.models.enums import HouseType, LocationType, RelationshipType, Role, SocietyStatus, UserStatus
+from app.models.identity import Property, PropertyResident, Society, SocietyLocation, User, UserRole
 from tests.conftest import auth_headers
 
 pytestmark = pytest.mark.asyncio
@@ -1028,6 +1028,77 @@ async def test_society_search_is_public_and_matches_by_name_substring(
 async def test_society_search_rejects_too_short_query(client: AsyncClient, db_session: AsyncSession):
     resp = await client.get("/api/v1/societies/search", params={"q": "ab"})
     assert resp.status_code == 400
+
+
+async def test_society_reports_summarizes_each_society(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    """Platform Owner reporting dashboard — one row per society with its
+    flats/houses count, active-Resident count, and Admin contact, built
+    from real Property/PropertyResident/Admin rows seeded directly."""
+    society_a_id = two_societies_with_admins["a"]["society_id"]
+
+    wing = SocietyLocation(society_id=society_a_id, name="Wing A", location_type=LocationType.WING)
+    row = SocietyLocation(society_id=society_a_id, name="Row A", location_type=LocationType.ROW)
+    db_session.add_all([wing, row])
+    await db_session.flush()
+
+    flat1 = Property(
+        society_id=society_a_id, location_id=wing.id, house_number="A-101",
+        house_type=HouseType.FLAT, floor_number=1, status="ACTIVE",
+    )
+    flat2 = Property(
+        society_id=society_a_id, location_id=wing.id, house_number="A-102",
+        house_type=HouseType.FLAT, floor_number=1, status="ACTIVE",
+    )
+    house1 = Property(
+        society_id=society_a_id, location_id=row.id, house_number="Row A-1",
+        house_type=HouseType.BUNGALOW, floor_number=None, status="ACTIVE",
+    )
+    db_session.add_all([flat1, flat2, house1])
+    await db_session.flush()
+
+    resident = User(
+        society_id=society_a_id, full_name="Resident One", mobile="9a00000099", status=UserStatus.ACTIVE,
+    )
+    db_session.add(resident)
+    await db_session.flush()
+    db_session.add(UserRole(user_id=resident.id, role=Role.RESIDENT, assigned_at=datetime.now(timezone.utc)))
+    db_session.add(
+        PropertyResident(
+            society_id=society_a_id, property_id=flat1.id, resident_id=resident.id,
+            relationship_type=RelationshipType.OWNER, is_active=True, created_at=datetime.now(timezone.utc),
+        )
+    )
+    await db_session.commit()
+
+    owner = await _seed_platform_owner(db_session, "9700000008")
+    headers = auth_headers(owner.id, None, Role.PLATFORM_OWNER, [Role.PLATFORM_OWNER])
+
+    resp = await client.get("/api/v1/societies/reports", headers=headers)
+    assert resp.status_code == 200
+    body = {r["society_id"]: r for r in resp.json()}
+
+    report_a = body[str(society_a_id)]
+    assert report_a["total_flats"] == 2
+    assert report_a["total_houses"] == 1
+    assert report_a["total_properties"] == 3
+    assert report_a["total_residents"] == 1
+    assert report_a["admin_name"] == "Admin A"
+    assert report_a["admin_mobile"] == "9a00000001"
+
+    report_b = body[str(two_societies_with_admins["b"]["society_id"])]
+    assert report_b["total_flats"] == 0
+    assert report_b["total_houses"] == 0
+    assert report_b["total_properties"] == 0
+    assert report_b["total_residents"] == 0
+    assert report_b["admin_name"] == "Admin B"
+    assert report_b["admin_mobile"] == "9b00000001"
+
+
+async def test_society_reports_requires_platform_owner(client: AsyncClient, db_session: AsyncSession):
+    resp = await client.get("/api/v1/societies/reports")
+    assert resp.status_code == 401
 
 
 async def test_society_search_is_rate_limited_per_ip(client: AsyncClient, db_session: AsyncSession):

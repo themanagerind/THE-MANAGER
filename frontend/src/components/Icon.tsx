@@ -13,6 +13,7 @@ const paths: Record<NavItem["icon"], string> = {
   wallet: "M3 7a2 2 0 012-2h13a1 1 0 011 1v3M3 7v10a2 2 0 002 2h15a1 1 0 001-1v-6a1 1 0 00-1-1h-5a2 2 0 100 4h5",
   todo: "M9 11l3 3L22 4M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11",
   society: "M3 21h18M5 21V7l7-4 7 4v14M9 9h1m4 0h1m-6 4h1m4 0h1m-6 4h1m4 0h1",
+  report: "M4 19V5a1 1 0 011-1h14a1 1 0 011 1v14M4 19h16M4 19l4-6 4 3 5-8",
 };
 
 export function Icon({ name, className = "w-5 h-5" }: { name: NavItem["icon"]; className?: string }) {
