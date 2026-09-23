@@ -63,6 +63,20 @@ async def search(
     return [SocietySearchResultOut(id=s.id, name=s.name, city=s.city) for s in societies]
 
 
+@router.get("/{society_id}/properties/public", response_model=list[PropertyOut])
+async def list_properties_public(
+    society_id: uuid.UUID, db: Annotated[AsyncSession, Depends(get_db)]
+) -> list[PropertyOut]:
+    """Public — no auth required. Powers the property picker on the Admin/
+    Resident signup forms, letting either pick which existing house is
+    theirs (Owner/Tenant) right at signup instead of an Admin manually
+    linking it afterward. ACTIVE properties only, same catalog-only fields
+    (no financial/personal data) already visible to every authenticated
+    role via GET /properties."""
+    properties = await society_service.list_public_properties(db, society_id)
+    return [property_service.property_out(p, occupied) for p, occupied in properties]
+
+
 @router.post("/signup", response_model=SocietySignupOut)
 async def signup(
     body: SocietySignupIn, db: Annotated[AsyncSession, Depends(get_db)]

@@ -92,6 +92,13 @@ export const societiesApi = {
    * returns `code` (see SocietySearchResultOut). */
   search: (q: string) => apiClient.get<SocietySearchResultOut[]>("/societies/search", { params: { q } }),
   list: () => apiClient.get<SocietyOut[]>("/societies"),
+  /** Public — no auth required. Powers the property picker on the Admin/
+   * Resident signup forms (Section 26): every ACTIVE property already on
+   * record for this society, so a signee can pick their own house right
+   * at signup instead of an Admin linking it afterward. Empty for an
+   * unknown or not-yet-ACTIVE society, same as lookup/search. */
+  publicProperties: (societyId: string) =>
+    apiClient.get<PropertyOut[]>(`/societies/${societyId}/properties/public`),
   /** Platform Owner reporting dashboard — per-society flats/houses on
    * record, active Resident count, and Admin name/mobile, in one call. */
   reports: () => apiClient.get<SocietyReportOut[]>("/societies/reports"),

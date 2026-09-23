@@ -308,6 +308,23 @@ async def update_property_floors_above_ground(
     return prop
 
 
+async def list_public_properties(db: AsyncSession, society_id: uuid.UUID) -> list[tuple[Property, bool]]:
+    """Public — powers the property picker on the Admin/Resident signup
+    forms (residents/admins .signup, self-service property linking) before
+    either has an account to call the authenticated GET /properties with.
+    Same restricted catalog-only fields already visible to every
+    authenticated role (house_number/floor/type — no financial/personal
+    data), ACTIVE properties only, same natural-sort order as
+    property_service.list_properties. Only returns anything for an ACTIVE
+    society — same gate as lookup_society_by_code above."""
+    society = (
+        await db.execute(select(Society).where(Society.id == society_id, Society.status == SocietyStatus.ACTIVE))
+    ).scalar_one_or_none()
+    if society is None:
+        return []
+    return await property_service.list_properties(db, society_id, active_only=True)
+
+
 async def lookup_society_by_code(db: AsyncSession, code: str) -> Society | None:
     """Public lookup for the Admin/Resident signup forms — only returns an
     ACTIVE society (a PENDING or SUSPENDED one isn't accepting anyone

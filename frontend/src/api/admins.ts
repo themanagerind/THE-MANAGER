@@ -1,5 +1,5 @@
 import { apiClient } from "@/api/client";
-import type { HouseType, LocationType, UserStatus } from "@/types/enums";
+import type { HouseType, LocationType, RelationshipType, UserStatus } from "@/types/enums";
 
 export interface AdminOut {
   id: string;
@@ -16,11 +16,16 @@ export interface AdminSignupInput {
   mobile: string;
   email?: string;
   society_id: string;
-  /** Optional and all-or-nothing (Section 4 dual-role: ADMIN+RESIDENT) —
-   * describes a unit the Admin also owns in this society. Backend
-   * creates it as a brand-new property with the Admin as Owner; an
-   * existing unit, or a Tenant relationship, goes through
-   * residentsApi.linkSelf after approval instead. */
+  /** Section 4 dual-role (ADMIN+RESIDENT) — two mutually-exclusive,
+   * both-optional ways to describe a unit the Admin also lives in, right
+   * at signup instead of a separate step after approval:
+   * (1) existing_property_id/existing_property_relationship — pick a
+   *     real unit already on record (Owner or Tenant), same picker
+   *     Resident signup uses (societiesApi.publicProperties).
+   * (2) property_location_name/... (all-or-nothing) — describe a
+   *     brand-new unit not yet on record, Owner only. */
+  existing_property_id?: string;
+  existing_property_relationship?: RelationshipType;
   property_location_name?: string;
   property_location_type?: LocationType;
   house_number?: string;

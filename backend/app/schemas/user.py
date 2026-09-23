@@ -18,3 +18,14 @@ class UserOut(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class ProfileUpdateIn(BaseModel):
+    """Self-service profile edit (GET/PATCH /users/me) — full_name/email
+    only. `mobile` is deliberately not editable here: it's the OTP login
+    identity and is uniqueness-constrained per society (and globally for
+    Platform Owner rows), so changing it needs its own re-verification
+    flow, not a plain profile edit — out of scope for this endpoint."""
+
+    full_name: str
+    email: str | None = None

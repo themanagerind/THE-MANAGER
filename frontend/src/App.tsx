@@ -35,6 +35,7 @@ import { SubAdminOverview } from "@/pages/subadmin/Overview";
 import { SubAdminDues } from "@/pages/subadmin/Dues";
 import { SubAdminExpenseBills } from "@/pages/subadmin/ExpenseBills";
 import { GuardVisitors } from "@/pages/guard/Visitors";
+import { Profile } from "@/pages/Profile";
 
 function RoleHomeRedirect() {
   const { activeRole } = useAuth();
@@ -58,6 +59,7 @@ export function App() {
       <Route element={<ProtectedRoute />}>
         <Route element={<AppShell />}>
           <Route path="/" element={<RoleHomeRedirect />} />
+          <Route path="/profile" element={<Profile />} />
 
           <Route element={<ProtectedRoute allow={["PLATFORM_OWNER"]} />}>
             <Route path="/platform/societies" element={<PlatformSocieties />} />

@@ -256,7 +256,9 @@ def _natural_sort_key(value: str) -> list:
     return [int(part) if part.isdigit() else part.lower() for part in re.split(r"(\d+)", value)]
 
 
-async def list_properties(db: AsyncSession, society_id: uuid.UUID) -> list[tuple[Property, bool]]:
+async def list_properties(
+    db: AsyncSession, society_id: uuid.UUID, active_only: bool = False
+) -> list[tuple[Property, bool]]:
     """Each row paired with whether an active Resident is currently linked
     — the Structure Overview diagram's occupied/vacant coloring, computed
     once here so every caller (Platform Owner, Admin, Resident) gets it for
@@ -271,7 +273,11 @@ async def list_properties(db: AsyncSession, society_id: uuid.UUID) -> list[tuple
     B1-16, B1-18, B1-22, B1-21, B2-05, B2-01, ...). house_number itself
     isn't sorted as a plain string either — the bulk generators produce
     unpadded numbers ('R1-2', 'R1-10'), so a naive string sort would still
-    put 'R1-10' before 'R1-2'."""
+    put 'R1-10' before 'R1-2'.
+
+    active_only=True restricts to ACTIVE properties — used by the public
+    signup-time property picker (society_service.list_public_properties),
+    where a INACTIVE unit shouldn't be a selectable option."""
     occupied = (
         select(func.count())
         .select_from(PropertyResident)
@@ -279,10 +285,13 @@ async def list_properties(db: AsyncSession, society_id: uuid.UUID) -> list[tuple
         .correlate(Property)
         .scalar_subquery()
     )
+    conditions = [Property.society_id == society_id]
+    if active_only:
+        conditions.append(Property.status == "ACTIVE")
     rows = await db.execute(
         select(Property, SocietyLocation.name, (occupied > 0))
         .join(SocietyLocation, SocietyLocation.id == Property.location_id)
-        .where(Property.society_id == society_id)
+        .where(*conditions)
     )
     entries = [(prop, location_name, bool(is_occupied)) for prop, location_name, is_occupied in rows.all()]
     entries.sort(

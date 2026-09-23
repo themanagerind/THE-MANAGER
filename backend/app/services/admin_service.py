@@ -19,6 +19,7 @@ from app.models.enums import RelationshipType, Role, SocietyStatus, UserStatus
 from app.models.identity import Property, PropertyResident, Society, SocietyLocation, User, UserRole
 from app.schemas.admin import AdminSignupIn
 from app.services.property_service import EXPECTED_LOCATION_TYPE
+from app.services.resident_service import has_active_owner
 
 _SIGNUP_MAX_PER_HOUR = 5
 _SIGNUP_RATE_WINDOW_SECONDS = 3600
@@ -70,19 +71,56 @@ async def signup_admin(db: AsyncSession, body: AdminSignupIn) -> User:
     )
 
     # Optional dual-role capture (Section 4: ADMIN+RESIDENT) — schema
-    # validation guarantees these are all-or-nothing. Everything here
-    # stays uncommitted (db.add only) until the single db.commit() below,
-    # alongside the admin User/ADMIN role added above — so a failure
-    # partway through (e.g. a duplicate house_number) rolls back the
-    # WHOLE signup instead of leaving a half-created Admin account with a
-    # confusing error. Nothing is reachable either way until Platform
-    # Owner approval activates the account (decide_admin_approval below).
-    #
-    # Owner only, deliberately: this always describes a brand-new unit,
-    # which can never have a Tenant without an existing Owner already on
-    # it (Section 12 invariant). Tenant — or Owner of a unit that already
-    # exists — goes through POST /residents/self-link after approval
-    # instead, which picks from real existing properties.
+    # validation guarantees these are all-or-nothing (and mutually
+    # exclusive with each other, AdminSignupIn's validator). Everything
+    # here stays uncommitted (db.add only) until the single db.commit()
+    # below, alongside the admin User/ADMIN role added above — so a
+    # failure partway through (e.g. a duplicate house_number) rolls back
+    # the WHOLE signup instead of leaving a half-created Admin account
+    # with a confusing error. Nothing is reachable either way until
+    # Platform Owner approval activates the account (decide_admin_approval
+    # below).
+
+    # Existing-property self-service link — same picker/invariant as
+    # resident_service.signup_resident, for a unit the Platform Owner/
+    # Admin already mapped. Owner or Tenant.
+    if body.existing_property_id is not None:
+        prop = (
+            await db.execute(
+                select(Property).where(
+                    Property.id == body.existing_property_id, Property.society_id == body.society_id
+                )
+            )
+        ).scalar_one_or_none()
+        if prop is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Property not found in this society")
+        if body.existing_property_relationship == RelationshipType.TENANT and not await has_active_owner(
+            db, body.existing_property_id
+        ):
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                "This property has no active Owner yet — a Tenant signup needs an Owner on record "
+                "first (Section 12 invariant).",
+            )
+
+        db.add(
+            UserRole(
+                user_id=admin.id, role=Role.RESIDENT, assigned_by=None,
+                assigned_at=datetime.now(timezone.utc),
+            )
+        )
+        db.add(
+            PropertyResident(
+                society_id=body.society_id, property_id=prop.id, resident_id=admin.id,
+                relationship_type=body.existing_property_relationship, is_active=True,
+                start_date=date.today(), created_at=datetime.now(timezone.utc),
+            )
+        )
+
+    # Brand-new-unit capture — Owner only, deliberately: this always
+    # describes a unit that can't already have a Tenant on it (Section 12
+    # invariant), for when the Platform Owner hasn't mapped the society's
+    # structure yet.
     if body.property_location_name is not None:
         expected_location_type = EXPECTED_LOCATION_TYPE[body.house_type]
         if body.property_location_type != expected_location_type:

@@ -8,12 +8,22 @@ from app.models.enums import RelationshipType, UserStatus
 
 
 class ResidentSignupIn(BaseModel):
-    """Resident self-signup within a society (Admin approves/rejects after)."""
+    """Resident self-signup within a society (Admin approves/rejects after).
+    property_id/relationship_type are required, not a separate post-
+    approval step — the Resident picks their own house (from the public,
+    already-on-record property list — GET /societies/{id}/properties/
+    public) and whether they're Owner or Tenant right at signup, the same
+    for a Flats or Bungalow society. A Tenant signup needs the property to
+    already have an active Owner (Section 12 invariant) — enforced in
+    resident_service.signup_resident, same check as the Admin-driven
+    property-links flow."""
 
     full_name: str
     mobile: str
     email: str | None = None
     society_id: uuid.UUID
+    property_id: uuid.UUID
+    relationship_type: RelationshipType
 
 
 class ResidentOut(BaseModel):

@@ -52,6 +52,24 @@ async def signup_resident(db: AsyncSession, body: ResidentSignupIn) -> User:
     if society.status != SocietyStatus.ACTIVE:
         raise HTTPException(status.HTTP_409_CONFLICT, "This society isn't accepting signups right now")
 
+    # Self-service property link, same invariant as the Admin-driven
+    # link_resident_to_property below (Section 12: a Tenant needs an
+    # already-active Owner on the same property) — checked before creating
+    # the User row so a doomed signup never gets that far.
+    prop = (
+        await db.execute(
+            select(Property).where(Property.id == body.property_id, Property.society_id == body.society_id)
+        )
+    ).scalar_one_or_none()
+    if prop is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Property not found in this society")
+    if body.relationship_type == RelationshipType.TENANT and not await has_active_owner(db, body.property_id):
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "This property has no active Owner yet — a Tenant signup needs an Owner on record first "
+            "(Section 12 invariant). Ask the Owner to sign up first, or contact your Admin.",
+        )
+
     resident = User(
         society_id=body.society_id,
         full_name=body.full_name,
@@ -77,6 +95,21 @@ async def signup_resident(db: AsyncSession, body: ResidentSignupIn) -> User:
             role=Role.RESIDENT,
             assigned_by=None,
             assigned_at=datetime.now(timezone.utc),
+        )
+    )
+    # Created immediately, same as admin_service.signup_admin's own-unit
+    # capture — stays functionally inert until Admin approval activates
+    # the account (login/every Resident-facing endpoint requires ACTIVE),
+    # but Admin no longer has to do a separate manual "Link property" step.
+    db.add(
+        PropertyResident(
+            society_id=body.society_id,
+            property_id=body.property_id,
+            resident_id=resident.id,
+            relationship_type=body.relationship_type,
+            is_active=True,
+            start_date=date.today(),
+            created_at=datetime.now(timezone.utc),
         )
     )
     await db.commit()

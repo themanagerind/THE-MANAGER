@@ -45,7 +45,17 @@ export function AppShell() {
             </NavLink>
           ))}
         </nav>
-        <div className="px-3 py-4 border-t border-white/10">
+        <div className="px-3 py-4 border-t border-white/10 space-y-1">
+          <NavLink
+            to="/profile"
+            className={({ isActive }) =>
+              `block px-3 py-2 rounded text-sm transition-colors ${
+                isActive ? "bg-white/10 text-white" : "text-white/70 hover:text-white hover:bg-white/5"
+              }`
+            }
+          >
+            My Profile
+          </NavLink>
           <button onClick={() => void logout()} className="w-full text-left px-3 py-2 rounded text-sm text-white/70 hover:text-white hover:bg-white/5">
             Log out
           </button>
@@ -72,6 +82,9 @@ export function AppShell() {
       {menuOpen && (
         <div className="md:hidden bg-navy-light text-white px-4 py-3 space-y-3">
           <RoleSwitcher />
+          <NavLink to="/profile" onClick={() => setMenuOpen(false)} className="block text-sm text-white/80">
+            My Profile
+          </NavLink>
           <button onClick={() => void logout()} className="text-sm text-white/80">
             Log out
           </button>
