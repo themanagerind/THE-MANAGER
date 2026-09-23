@@ -353,10 +353,7 @@ function EditSocietyModal({
           {locationsQuery.data && locationsQuery.data.length > 0 && (
             <ul className="space-y-1 mb-2">
               {locationsQuery.data.map((l: SocietyLocationOut) => (
-                <li key={l.id} className="text-sm text-ink flex items-center gap-2">
-                  <span>{l.name}</span>
-                  <span className="text-xs text-navy-muted">({l.location_type === "WING" ? "Wing" : "Row"})</span>
-                </li>
+                <LocationRow key={l.id} societyId={society.id} location={l} locationsQueryKey={locationsQueryKey} />
               ))}
             </ul>
           )}
@@ -390,6 +387,79 @@ function EditSocietyModal({
         <BulkStructureSection societyId={society.id} locationsQueryKey={locationsQueryKey} />
       </div>
     </Modal>
+  );
+}
+
+function LocationRow({
+  societyId, location, locationsQueryKey,
+}: { societyId: string; location: SocietyLocationOut; locationsQueryKey: QueryKey }) {
+  const queryClient = useQueryClient();
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(location.name);
+  const [locationType, setLocationType] = useState<LocationType>(location.location_type);
+  const [error, setError] = useState<string | null>(null);
+
+  const update = useMutation({
+    mutationFn: () => societiesApi.updateLocation(societyId, location.id, name.trim(), locationType),
+    onSuccess: () => {
+      setError(null);
+      setEditing(false);
+      void queryClient.invalidateQueries({ queryKey: locationsQueryKey });
+    },
+    onError: (e) => setError(apiErrorMessage(e, "Couldn't update.")),
+  });
+
+  if (!editing) {
+    return (
+      <li className="text-sm text-ink flex items-center gap-2">
+        <span className="flex-1">{location.name}</span>
+        <span className="text-xs text-navy-muted">({location.location_type === "WING" ? "Wing" : "Row"})</span>
+        <button
+          type="button"
+          onClick={() => {
+            setName(location.name);
+            setLocationType(location.location_type);
+            setError(null);
+            setEditing(true);
+          }}
+          className="text-xs text-navy-muted hover:text-navy underline"
+        >
+          Edit
+        </button>
+      </li>
+    );
+  }
+
+  return (
+    <li className="space-y-1">
+      <div className="flex gap-2 items-center">
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          autoFocus
+          className="flex-1 px-2 py-1 border border-line rounded text-sm text-ink bg-white focus:border-navy"
+        />
+        <select
+          value={locationType}
+          onChange={(e) => setLocationType(e.target.value as LocationType)}
+          className="px-2 py-1 border border-line rounded text-sm text-ink bg-white focus:border-navy"
+        >
+          <option value="WING">Wing</option>
+          <option value="ROW">Row</option>
+        </select>
+        <Button variant="secondary" loading={update.isPending} disabled={!name.trim()} onClick={() => update.mutate()}>
+          Save
+        </Button>
+        <button
+          type="button"
+          onClick={() => setEditing(false)}
+          className="text-xs text-navy-muted hover:text-danger px-1"
+        >
+          Cancel
+        </button>
+      </div>
+      {error && <p className="text-xs text-danger">{error}</p>}
+    </li>
   );
 }
 

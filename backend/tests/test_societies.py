@@ -267,6 +267,105 @@ async def test_non_platform_owner_cannot_add_society_location(
     assert resp.status_code == 403
 
 
+async def test_platform_owner_can_rename_and_retype_an_unused_location(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    society_id = two_societies_with_admins["a"]["society_id"]
+    owner = await _seed_platform_owner(db_session, "9700000021")
+    headers = auth_headers(owner.id, None, Role.PLATFORM_OWNER, [Role.PLATFORM_OWNER])
+
+    resp = await client.post(
+        f"/api/v1/societies/{society_id}/locations",
+        json={"name": "Wing A", "location_type": "WING"},
+        headers=headers,
+    )
+    location_id = resp.json()["id"]
+
+    # Renaming is always fine.
+    resp = await client.patch(
+        f"/api/v1/societies/{society_id}/locations/{location_id}",
+        json={"name": "Wing A1", "location_type": "WING"},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    assert resp.json()["name"] == "Wing A1"
+
+    # No Property points at it yet, so WING -> ROW is fine too.
+    resp = await client.patch(
+        f"/api/v1/societies/{society_id}/locations/{location_id}",
+        json={"name": "Row A1", "location_type": "ROW"},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["name"] == "Row A1"
+    assert body["location_type"] == "ROW"
+
+
+async def test_platform_owner_cannot_retype_a_location_already_in_use(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    """A Wing already holding FLATs can't silently become a Row — nothing
+    in the DB would catch existing properties ending up under the wrong
+    location_type."""
+    society_id = two_societies_with_admins["a"]["society_id"]
+    owner = await _seed_platform_owner(db_session, "9700000022")
+    headers = auth_headers(owner.id, None, Role.PLATFORM_OWNER, [Role.PLATFORM_OWNER])
+
+    resp = await client.post(
+        f"/api/v1/societies/{society_id}/structure/flats",
+        json={"tower_count": 1, "floors_per_tower": 1, "flats_per_floor": 1},
+        headers=headers,
+    )
+    location_id = resp.json()[0]["location_id"]
+
+    resp = await client.patch(
+        f"/api/v1/societies/{society_id}/locations/{location_id}",
+        json={"name": "Tower 1", "location_type": "ROW"},
+        headers=headers,
+    )
+    assert resp.status_code == 409
+
+    # Renaming without changing the type still works even while in use.
+    resp = await client.patch(
+        f"/api/v1/societies/{society_id}/locations/{location_id}",
+        json={"name": "Tower One", "location_type": "WING"},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    assert resp.json()["name"] == "Tower One"
+
+
+async def test_location_edit_404_for_unknown_location(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    society_id = two_societies_with_admins["a"]["society_id"]
+    owner = await _seed_platform_owner(db_session, "9700000023")
+    headers = auth_headers(owner.id, None, Role.PLATFORM_OWNER, [Role.PLATFORM_OWNER])
+
+    resp = await client.patch(
+        f"/api/v1/societies/{society_id}/locations/{uuid.uuid4()}",
+        json={"name": "Wing A", "location_type": "WING"},
+        headers=headers,
+    )
+    assert resp.status_code == 404
+
+
+async def test_non_platform_owner_cannot_edit_society_location(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    admin_id = two_societies_with_admins["a"]["admin_id"]
+    society_id = two_societies_with_admins["a"]["society_id"]
+    headers = auth_headers(admin_id, society_id, Role.ADMIN, [Role.ADMIN])
+
+    resp = await client.patch(
+        f"/api/v1/societies/{society_id}/locations/{uuid.uuid4()}",
+        json={"name": "Wing A", "location_type": "WING"},
+        headers=headers,
+    )
+    assert resp.status_code == 403
+
+
 async def test_platform_owner_can_generate_flats_structure(
     client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
 ):

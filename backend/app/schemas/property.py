@@ -12,6 +12,16 @@ class SocietyLocationCreateIn(BaseModel):
     location_type: LocationType
 
 
+class SocietyLocationUpdateIn(BaseModel):
+    """Renaming a Wing/Row, or changing WING<->ROW — the latter is only
+    allowed while no Property yet points at it (property_service.
+    update_location enforces this; nothing in the DB itself would catch a
+    Wing full of FLATs silently becoming a ROW)."""
+
+    name: str
+    location_type: LocationType
+
+
 class SocietyLocationOut(BaseModel):
     id: uuid.UUID
     society_id: uuid.UUID

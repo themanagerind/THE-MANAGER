@@ -10,12 +10,13 @@ the insert, exactly as the spec requires.
 import uuid
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.enums import HouseType, LocationType
 from app.models.identity import Property, SocietyLocation
-from app.schemas.property import PropertyCreateIn, SocietyLocationCreateIn
+from app.schemas.property import PropertyCreateIn, SocietyLocationCreateIn, SocietyLocationUpdateIn
 
 # Section 11: FLAT belongs to a Wing, Bungalow belongs to a Row. Public —
 # also used by admin_service.signup_admin's optional property capture,
@@ -44,6 +45,47 @@ async def list_locations(db: AsyncSession, society_id: uuid.UUID) -> list[Societ
     return (
         await db.execute(select(SocietyLocation).where(SocietyLocation.society_id == society_id))
     ).scalars().all()
+
+
+async def update_location(
+    db: AsyncSession, society_id: uuid.UUID, location_id: uuid.UUID, body: SocietyLocationUpdateIn
+) -> SocietyLocation:
+    """Renaming is always safe. Changing WING<->ROW is only safe while no
+    Property yet points at this location — otherwise existing FLATs (or
+    BUNGALOWs) would silently end up under the wrong location_type, which
+    nothing else in the DB would catch (see SocietyLocationUpdateIn's
+    docstring)."""
+    location = (
+        await db.execute(
+            select(SocietyLocation).where(
+                SocietyLocation.id == location_id, SocietyLocation.society_id == society_id
+            )
+        )
+    ).scalar_one_or_none()
+    if location is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Location not found in this society")
+
+    if body.location_type != location.location_type:
+        in_use = (
+            await db.execute(
+                select(func.count()).select_from(Property).where(Property.location_id == location_id)
+            )
+        ).scalar_one()
+        if in_use > 0:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                f"Can't change type — {in_use} propert{'y' if in_use == 1 else 'ies'} already use this Wing/Row",
+            )
+
+    location.name = body.name
+    location.location_type = body.location_type
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(status.HTTP_409_CONFLICT, "Another Wing/Row with that name and type already exists")
+    await db.refresh(location)
+    return location
 
 
 async def create_property(

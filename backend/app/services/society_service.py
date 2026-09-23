@@ -15,7 +15,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.redis_client import get_redis
 from app.models.enums import HouseType, LocationType, Role, SocietyStatus, UserStatus
 from app.models.identity import Property, Society, SocietyLocation, User, UserRole
-from app.schemas.property import BungalowStructureIn, FlatsStructureIn, SocietyLocationCreateIn
+from app.schemas.property import (
+    BungalowStructureIn,
+    FlatsStructureIn,
+    SocietyLocationCreateIn,
+    SocietyLocationUpdateIn,
+)
 from app.schemas.society import SocietyCreateIn, SocietySignupIn, SocietyUpdateIn
 from app.services import property_service
 
@@ -126,6 +131,15 @@ async def add_society_location(
     page too; both paths write the same table."""
     await _get_society_or_404(db, society_id)
     return await property_service.create_location(db, society_id, body)
+
+
+async def update_society_location(
+    db: AsyncSession, society_id: uuid.UUID, location_id: uuid.UUID, body: SocietyLocationUpdateIn
+) -> SocietyLocation:
+    """Platform Owner renaming (or, if unused, retyping) an existing
+    Wing/Row from the Edit modal."""
+    await _get_society_or_404(db, society_id)
+    return await property_service.update_location(db, society_id, location_id, body)
 
 
 _STRUCTURE_CONFLICT_MESSAGE = (

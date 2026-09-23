@@ -78,6 +78,13 @@ export const societiesApi = {
   listLocations: (id: string) => apiClient.get<SocietyLocationOut[]>(`/societies/${id}/locations`),
   addLocation: (id: string, name: string, locationType: LocationType) =>
     apiClient.post<SocietyLocationOut>(`/societies/${id}/locations`, { name, location_type: locationType }),
+  /** Renaming is always allowed; changing WING<->ROW only succeeds while
+   * no Property yet points at it (backend rejects with a 409 naming how
+   * many properties are in the way). */
+  updateLocation: (societyId: string, locationId: string, name: string, locationType: LocationType) =>
+    apiClient.patch<SocietyLocationOut>(`/societies/${societyId}/locations/${locationId}`, {
+      name, location_type: locationType,
+    }),
   /** Bulk-generates every tower/floor/flat combination in one request —
    * see backend FlatsStructureIn's docstring for the numbering scheme. */
   generateFlatsStructure: (id: string, towerCount: number, floorsPerTower: number, flatsPerFloor: number) =>

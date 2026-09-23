@@ -14,6 +14,7 @@ from app.schemas.property import (
     PropertyOut,
     SocietyLocationCreateIn,
     SocietyLocationOut,
+    SocietyLocationUpdateIn,
 )
 from app.schemas.society import (
     SocietyCreateIn,
@@ -137,6 +138,20 @@ async def add_location(
     """Platform Owner adding a Wing/Row to an existing society — same
     table the Admin's own POST /properties/locations writes to."""
     location = await society_service.add_society_location(db, society_id, body)
+    return SocietyLocationOut.model_validate(location)
+
+
+@router.patch("/{society_id}/locations/{location_id}", response_model=SocietyLocationOut)
+async def update_location(
+    society_id: uuid.UUID,
+    location_id: uuid.UUID,
+    body: SocietyLocationUpdateIn,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current: Annotated[CurrentUser, Depends(require_role(Role.PLATFORM_OWNER))],
+) -> SocietyLocationOut:
+    """Platform Owner renaming (or, if unused, retyping) an existing
+    Wing/Row from the Edit modal."""
+    location = await society_service.update_society_location(db, society_id, location_id, body)
     return SocietyLocationOut.model_validate(location)
 
 
