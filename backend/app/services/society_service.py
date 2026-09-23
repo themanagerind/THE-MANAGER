@@ -9,12 +9,13 @@ from datetime import datetime, timezone
 
 from fastapi import HTTPException, status
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.redis_client import get_redis
-from app.models.enums import Role, SocietyStatus, UserStatus
-from app.models.identity import Society, SocietyLocation, User, UserRole
-from app.schemas.property import SocietyLocationCreateIn
+from app.models.enums import HouseType, LocationType, Role, SocietyStatus, UserStatus
+from app.models.identity import Property, Society, SocietyLocation, User, UserRole
+from app.schemas.property import BungalowStructureIn, FlatsStructureIn, SocietyLocationCreateIn
 from app.schemas.society import SocietyCreateIn, SocietySignupIn, SocietyUpdateIn
 from app.services import property_service
 
@@ -125,6 +126,122 @@ async def add_society_location(
     page too; both paths write the same table."""
     await _get_society_or_404(db, society_id)
     return await property_service.create_location(db, society_id, body)
+
+
+_STRUCTURE_CONFLICT_MESSAGE = (
+    "Generating this structure collided with an existing Tower/Row name or "
+    "house number in this society — check what's already on record first."
+)
+
+
+async def generate_flats_structure(
+    db: AsyncSession, society_id: uuid.UUID, body: FlatsStructureIn
+) -> list[Property]:
+    """Bulk-generates `tower_count` Wings, each with `floors_per_tower`
+    floors of `flats_per_floor` FLAT properties — every tower/floor/flat
+    combination in one atomic transaction (single final commit, only
+    flush() for the intermediate Wing ids, same pattern as
+    create_society's locations loop above)."""
+    await _get_society_or_404(db, society_id)
+
+    towers = [
+        SocietyLocation(society_id=society_id, name=f"Tower {t}", location_type=LocationType.WING)
+        for t in range(1, body.tower_count + 1)
+    ]
+    db.add_all(towers)
+    await db.flush()  # need tower.id before adding flats below
+
+    properties: list[Property] = []
+    for t_idx, tower in enumerate(towers, start=1):
+        for floor in range(1, body.floors_per_tower + 1):
+            for unit in range(1, body.flats_per_floor + 1):
+                properties.append(
+                    Property(
+                        society_id=society_id,
+                        location_id=tower.id,
+                        house_number=f"T{t_idx}-{floor}{unit:02d}",
+                        house_type=HouseType.FLAT,
+                        floor_number=floor,
+                        status="ACTIVE",
+                    )
+                )
+    db.add_all(properties)
+
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(status.HTTP_409_CONFLICT, _STRUCTURE_CONFLICT_MESSAGE)
+    for p in properties:
+        await db.refresh(p)
+    return properties
+
+
+async def generate_bungalow_structure(
+    db: AsyncSession, society_id: uuid.UUID, body: BungalowStructureIn
+) -> list[Property]:
+    """Bulk-generates `row_count` Rows, each with `houses_per_row` BUNGALOW
+    properties — every house starts at floors_above_ground=0 (ground floor
+    only, which is always implied); additional storeys are set per-house
+    afterward via update_property_floors_above_ground, since that varies
+    house to house and can't be captured by a single bulk count."""
+    await _get_society_or_404(db, society_id)
+
+    rows = [
+        SocietyLocation(society_id=society_id, name=f"Row {r}", location_type=LocationType.ROW)
+        for r in range(1, body.row_count + 1)
+    ]
+    db.add_all(rows)
+    await db.flush()  # need row.id before adding houses below
+
+    properties: list[Property] = []
+    for r_idx, row in enumerate(rows, start=1):
+        for h in range(1, body.houses_per_row + 1):
+            properties.append(
+                Property(
+                    society_id=society_id,
+                    location_id=row.id,
+                    house_number=f"R{r_idx}-{h}",
+                    house_type=HouseType.BUNGALOW,
+                    floor_number=None,
+                    floors_above_ground=0,
+                    status="ACTIVE",
+                )
+            )
+    db.add_all(properties)
+
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(status.HTTP_409_CONFLICT, _STRUCTURE_CONFLICT_MESSAGE)
+    for p in properties:
+        await db.refresh(p)
+    return properties
+
+
+async def update_property_floors_above_ground(
+    db: AsyncSession, society_id: uuid.UUID, property_id: uuid.UUID, floors_above_ground: int
+) -> Property:
+    """Sets how many storeys are built above one BUNGALOW house's
+    (always-implied) ground floor — the per-house follow-up step after
+    generate_bungalow_structure()."""
+    prop = (
+        await db.execute(
+            select(Property).where(Property.id == property_id, Property.society_id == society_id)
+        )
+    ).scalar_one_or_none()
+    if prop is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Property not found in this society")
+    if prop.house_type != HouseType.BUNGALOW:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, "floors_above_ground only applies to BUNGALOW houses"
+        )
+
+    prop.floors_above_ground = floors_above_ground
+    await db.commit()
+    await db.refresh(prop)
+    return prop
 
 
 async def lookup_society_by_code(db: AsyncSession, code: str) -> Society | None:

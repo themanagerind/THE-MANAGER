@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, type QueryKey } from "@tanstack/react-query";
 import { societiesApi, type SocietyLocationOut, type SocietyOut } from "@/api/societies";
+import type { PropertyOut } from "@/api/properties";
 import { adminsApi, type AdminOut } from "@/api/admins";
 import { Loader, EmptyState, ErrorState, apiErrorMessage } from "@/components/States";
 import { Badge } from "@/components/Badge";
@@ -385,7 +386,193 @@ function EditSocietyModal({
           </div>
           {locationError && <p className="text-sm text-danger mt-1">{locationError}</p>}
         </div>
+
+        <BulkStructureSection societyId={society.id} locationsQueryKey={locationsQueryKey} />
       </div>
     </Modal>
+  );
+}
+
+function BulkStructureSection({
+  societyId, locationsQueryKey,
+}: { societyId: string; locationsQueryKey: QueryKey }) {
+  const queryClient = useQueryClient();
+  const [structureType, setStructureType] = useState<"FLATS" | "BUNGALOW">("FLATS");
+  const [towerCount, setTowerCount] = useState("");
+  const [floorsPerTower, setFloorsPerTower] = useState("");
+  const [flatsPerFloor, setFlatsPerFloor] = useState("");
+  const [rowCount, setRowCount] = useState("");
+  const [housesPerRow, setHousesPerRow] = useState("");
+  const [structureError, setStructureError] = useState<string | null>(null);
+  const [structureSuccess, setStructureSuccess] = useState<string | null>(null);
+
+  const propertiesQueryKey: QueryKey = ["platform", "societies", societyId, "properties"];
+  const propertiesQuery = useQuery({
+    queryKey: propertiesQueryKey,
+    queryFn: () => societiesApi.listProperties(societyId).then((r) => r.data),
+  });
+
+  const generateFlats = useMutation({
+    mutationFn: () =>
+      societiesApi.generateFlatsStructure(
+        societyId, Number(towerCount), Number(floorsPerTower), Number(flatsPerFloor)
+      ),
+    onSuccess: (r) => {
+      setStructureSuccess(`Created ${r.data.length} flats across ${towerCount} tower(s).`);
+      setStructureError(null);
+      setTowerCount("");
+      setFloorsPerTower("");
+      setFlatsPerFloor("");
+      void queryClient.invalidateQueries({ queryKey: locationsQueryKey });
+      void queryClient.invalidateQueries({ queryKey: propertiesQueryKey });
+    },
+    onError: (e) => setStructureError(apiErrorMessage(e, "Couldn't generate the structure.")),
+  });
+
+  const generateBungalows = useMutation({
+    mutationFn: () => societiesApi.generateBungalowStructure(societyId, Number(rowCount), Number(housesPerRow)),
+    onSuccess: (r) => {
+      setStructureSuccess(`Created ${r.data.length} houses across ${rowCount} row(s).`);
+      setStructureError(null);
+      setRowCount("");
+      setHousesPerRow("");
+      void queryClient.invalidateQueries({ queryKey: locationsQueryKey });
+      void queryClient.invalidateQueries({ queryKey: propertiesQueryKey });
+    },
+    onError: (e) => setStructureError(apiErrorMessage(e, "Couldn't generate the structure.")),
+  });
+
+  const bungalowHouses = (propertiesQuery.data ?? []).filter((p) => p.house_type === "BUNGALOW");
+  const canGenerateFlats = [towerCount, floorsPerTower, flatsPerFloor].every((v) => Number(v) > 0);
+  const canGenerateBungalows = [rowCount, housesPerRow].every((v) => Number(v) > 0);
+
+  return (
+    <div className="border-t border-line pt-3">
+      <label className="block text-sm text-navy-muted mb-2">Bulk-generate structure</label>
+      <div className="flex gap-2 mb-3">
+        {(["FLATS", "BUNGALOW"] as const).map((opt) => (
+          <button
+            key={opt}
+            type="button"
+            onClick={() => setStructureType(opt)}
+            className={`px-3 py-1.5 rounded text-sm border ${
+              structureType === opt ? "bg-navy text-white border-navy" : "border-line text-navy-muted"
+            }`}
+          >
+            {opt === "FLATS" ? "Flats" : "Bungalow"}
+          </button>
+        ))}
+      </div>
+
+      {structureType === "FLATS" ? (
+        <div className="grid grid-cols-3 gap-2 mb-2">
+          <Input label="Towers" type="number" value={towerCount} onChange={(e) => setTowerCount(e.target.value)} />
+          <Input
+            label="Floors/tower"
+            type="number"
+            value={floorsPerTower}
+            onChange={(e) => setFloorsPerTower(e.target.value)}
+          />
+          <Input
+            label="Flats/floor"
+            type="number"
+            value={flatsPerFloor}
+            onChange={(e) => setFlatsPerFloor(e.target.value)}
+          />
+        </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 gap-2 mb-2">
+            <Input label="Rows" type="number" value={rowCount} onChange={(e) => setRowCount(e.target.value)} />
+            <Input
+              label="Houses/row"
+              type="number"
+              value={housesPerRow}
+              onChange={(e) => setHousesPerRow(e.target.value)}
+            />
+          </div>
+          <p className="text-xs text-navy-muted mb-2">
+            Every house starts at ground floor only — set additional storeys per house below, after generating.
+          </p>
+        </>
+      )}
+
+      <div className="flex justify-end">
+        {structureType === "FLATS" ? (
+          <Button
+            variant="secondary"
+            loading={generateFlats.isPending}
+            disabled={!canGenerateFlats}
+            onClick={() => generateFlats.mutate()}
+          >
+            Generate
+          </Button>
+        ) : (
+          <Button
+            variant="secondary"
+            loading={generateBungalows.isPending}
+            disabled={!canGenerateBungalows}
+            onClick={() => generateBungalows.mutate()}
+          >
+            Generate
+          </Button>
+        )}
+      </div>
+
+      {structureError && <p className="text-sm text-danger mt-1">{structureError}</p>}
+      {structureSuccess && <p className="text-sm text-success mt-1">{structureSuccess}</p>}
+
+      {bungalowHouses.length > 0 && (
+        <div className="mt-4">
+          <label className="block text-sm text-navy-muted mb-2">Houses — floors above ground</label>
+          <div className="space-y-1 max-h-48 overflow-y-auto pr-1">
+            {bungalowHouses.map((house) => (
+              <HouseFloorsRow
+                key={house.id}
+                societyId={societyId}
+                house={house}
+                propertiesQueryKey={propertiesQueryKey}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function HouseFloorsRow({
+  societyId, house, propertiesQueryKey,
+}: { societyId: string; house: PropertyOut; propertiesQueryKey: QueryKey }) {
+  const queryClient = useQueryClient();
+  const [floors, setFloors] = useState(String(house.floors_above_ground));
+  const [error, setError] = useState<string | null>(null);
+
+  const save = useMutation({
+    mutationFn: () => societiesApi.updatePropertyFloors(societyId, house.id, Number(floors)),
+    onSuccess: () => {
+      setError(null);
+      void queryClient.invalidateQueries({ queryKey: propertiesQueryKey });
+    },
+    onError: (e) => setError(apiErrorMessage(e, "Couldn't update.")),
+  });
+
+  const dirty = Number(floors) !== house.floors_above_ground;
+
+  return (
+    <div className="flex items-center gap-2 text-sm">
+      <span className="flex-1 text-ink">{house.house_number}</span>
+      <input
+        type="number"
+        min={0}
+        value={floors}
+        onChange={(e) => setFloors(e.target.value)}
+        className="w-16 px-2 py-1 border border-line rounded text-sm text-ink bg-white focus:border-navy"
+      />
+      <Button variant="secondary" loading={save.isPending} disabled={!dirty} onClick={() => save.mutate()}>
+        Save
+      </Button>
+      {error && <span className="text-xs text-danger">{error}</span>}
+    </div>
   );
 }

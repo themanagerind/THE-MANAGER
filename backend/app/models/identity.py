@@ -187,6 +187,14 @@ class Property(Base, UUIDPKMixin, TimestampMixin):
     )
     # mandatory if FLAT, optional if BUNGALOW — enforced by CHECK below
     floor_number: Mapped[int | None] = mapped_column(nullable=True)
+    # v1.4 addition — BUNGALOW-only: a house's ground floor is always
+    # implied (0 here just means "ground floor only"); this counts any
+    # additional storeys built above it. Always 0 for FLAT (a flat's own
+    # storey is floor_number above) — enforced by CHECK below. Set via
+    # society_service.update_property_floors_above_ground, normally after
+    # a bulk generate_bungalow_structure() call that starts every house
+    # at 0 (Section: Platform Owner bulk structure generation).
+    floors_above_ground: Mapped[int] = mapped_column(nullable=False, default=0)
     status: Mapped[str] = mapped_column(
         String(20), nullable=False, default="ACTIVE"
     )
@@ -195,6 +203,10 @@ class Property(Base, UUIDPKMixin, TimestampMixin):
         CheckConstraint(
             "house_type != 'FLAT' OR floor_number IS NOT NULL",
             name="ck_properties_flat_requires_floor",
+        ),
+        CheckConstraint(
+            "house_type = 'BUNGALOW' OR floors_above_ground = 0",
+            name="ck_properties_floors_above_ground_bungalow_only",
         ),
         UniqueConstraint("society_id", "house_number", name="ux_properties_society_house"),
         UniqueConstraint("society_id", "id", name="ux_properties_society_id_id"),

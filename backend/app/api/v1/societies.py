@@ -7,7 +7,14 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from app.core.db import get_db
 from app.core.security import CurrentUser, require_role
 from app.models.enums import Role
-from app.schemas.property import SocietyLocationCreateIn, SocietyLocationOut
+from app.schemas.property import (
+    BungalowStructureIn,
+    FlatsStructureIn,
+    PropertyFloorsUpdateIn,
+    PropertyOut,
+    SocietyLocationCreateIn,
+    SocietyLocationOut,
+)
 from app.schemas.society import (
     SocietyCreateIn,
     SocietyLookupOut,
@@ -18,7 +25,7 @@ from app.schemas.society import (
     SocietyStatusUpdateIn,
     SocietyUpdateIn,
 )
-from app.services import society_service
+from app.services import property_service, society_service
 from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter(prefix="/societies", tags=["societies"])
@@ -131,6 +138,59 @@ async def add_location(
     table the Admin's own POST /properties/locations writes to."""
     location = await society_service.add_society_location(db, society_id, body)
     return SocietyLocationOut.model_validate(location)
+
+
+@router.post("/{society_id}/structure/flats", response_model=list[PropertyOut])
+async def generate_flats_structure(
+    society_id: uuid.UUID,
+    body: FlatsStructureIn,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current: Annotated[CurrentUser, Depends(require_role(Role.PLATFORM_OWNER))],
+) -> list[PropertyOut]:
+    """Bulk-generates this society's Towers + Flats in one shot — see
+    FlatsStructureIn's docstring."""
+    properties = await society_service.generate_flats_structure(db, society_id, body)
+    return [PropertyOut.model_validate(p) for p in properties]
+
+
+@router.post("/{society_id}/structure/bungalows", response_model=list[PropertyOut])
+async def generate_bungalow_structure(
+    society_id: uuid.UUID,
+    body: BungalowStructureIn,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current: Annotated[CurrentUser, Depends(require_role(Role.PLATFORM_OWNER))],
+) -> list[PropertyOut]:
+    """Bulk-generates this society's Rows + Houses in one shot — see
+    BungalowStructureIn's docstring."""
+    properties = await society_service.generate_bungalow_structure(db, society_id, body)
+    return [PropertyOut.model_validate(p) for p in properties]
+
+
+@router.get("/{society_id}/properties", response_model=list[PropertyOut])
+async def list_society_properties(
+    society_id: uuid.UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current: Annotated[CurrentUser, Depends(require_role(Role.PLATFORM_OWNER))],
+) -> list[PropertyOut]:
+    """Platform Owner viewing a society's generated houses — mainly so the
+    Edit modal can offer the per-house floors_above_ground follow-up step
+    after a bulk BUNGALOW generation."""
+    properties = await property_service.list_properties(db, society_id)
+    return [PropertyOut.model_validate(p) for p in properties]
+
+
+@router.patch("/{society_id}/properties/{property_id}/floors", response_model=PropertyOut)
+async def update_property_floors(
+    society_id: uuid.UUID,
+    property_id: uuid.UUID,
+    body: PropertyFloorsUpdateIn,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current: Annotated[CurrentUser, Depends(require_role(Role.PLATFORM_OWNER))],
+) -> PropertyOut:
+    prop = await society_service.update_property_floors_above_ground(
+        db, society_id, property_id, body.floors_above_ground
+    )
+    return PropertyOut.model_validate(prop)
 
 
 @router.patch("/{society_id}/status", response_model=SocietyOut)

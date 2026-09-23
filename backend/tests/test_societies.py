@@ -12,7 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.enums import Role, SocietyStatus, UserStatus
-from app.models.identity import Society, SocietyLocation, User, UserRole
+from app.models.identity import Property, Society, SocietyLocation, User, UserRole
 from tests.conftest import auth_headers
 
 pytestmark = pytest.mark.asyncio
@@ -265,6 +265,158 @@ async def test_non_platform_owner_cannot_add_society_location(
         headers=headers,
     )
     assert resp.status_code == 403
+
+
+async def test_platform_owner_can_generate_flats_structure(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    """Bulk-generates every tower/floor/flat combination in one request —
+    2 towers x 2 floors x 3 flats/floor = 12 FLAT properties, each with
+    the right floor_number and a house_number unique across the society."""
+    society_id = two_societies_with_admins["a"]["society_id"]
+    owner = await _seed_platform_owner(db_session, "9700000015")
+    headers = auth_headers(owner.id, None, Role.PLATFORM_OWNER, [Role.PLATFORM_OWNER])
+
+    resp = await client.post(
+        f"/api/v1/societies/{society_id}/structure/flats",
+        json={"tower_count": 2, "floors_per_tower": 2, "flats_per_floor": 3},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    properties = resp.json()
+    assert len(properties) == 12
+    assert all(p["house_type"] == "FLAT" for p in properties)
+    assert all(p["floor_number"] is not None for p in properties)
+    assert all(p["floors_above_ground"] == 0 for p in properties)
+    assert len({p["house_number"] for p in properties}) == 12  # all unique
+
+    locations = (
+        await db_session.execute(select(SocietyLocation).where(SocietyLocation.society_id == society_id))
+    ).scalars().all()
+    assert {loc.name for loc in locations} == {"Tower 1", "Tower 2"}
+    assert all(loc.location_type == "WING" for loc in locations)
+
+
+async def test_platform_owner_can_generate_bungalow_structure_and_set_floors(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    """Bulk-generates rows/houses (all starting at ground-floor-only), then
+    the per-house follow-up step: setting how many storeys a specific
+    house has above its (always-implied) ground floor."""
+    society_id = two_societies_with_admins["a"]["society_id"]
+    owner = await _seed_platform_owner(db_session, "9700000016")
+    headers = auth_headers(owner.id, None, Role.PLATFORM_OWNER, [Role.PLATFORM_OWNER])
+
+    resp = await client.post(
+        f"/api/v1/societies/{society_id}/structure/bungalows",
+        json={"row_count": 2, "houses_per_row": 3},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    properties = resp.json()
+    assert len(properties) == 6
+    assert all(p["house_type"] == "BUNGALOW" for p in properties)
+    assert all(p["floor_number"] is None for p in properties)
+    assert all(p["floors_above_ground"] == 0 for p in properties)
+
+    locations = (
+        await db_session.execute(select(SocietyLocation).where(SocietyLocation.society_id == society_id))
+    ).scalars().all()
+    assert {loc.name for loc in locations} == {"Row 1", "Row 2"}
+    assert all(loc.location_type == "ROW" for loc in locations)
+
+    house_id = properties[0]["id"]
+    resp = await client.patch(
+        f"/api/v1/societies/{society_id}/properties/{house_id}/floors",
+        json={"floors_above_ground": 2},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    assert resp.json()["floors_above_ground"] == 2
+
+    prop = (await db_session.execute(select(Property).where(Property.id == uuid.UUID(house_id)))).scalar_one()
+    assert prop.floors_above_ground == 2
+
+
+async def test_floors_above_ground_rejected_for_flat_house(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    society_id = two_societies_with_admins["a"]["society_id"]
+    owner = await _seed_platform_owner(db_session, "9700000017")
+    headers = auth_headers(owner.id, None, Role.PLATFORM_OWNER, [Role.PLATFORM_OWNER])
+
+    resp = await client.post(
+        f"/api/v1/societies/{society_id}/structure/flats",
+        json={"tower_count": 1, "floors_per_tower": 1, "flats_per_floor": 1},
+        headers=headers,
+    )
+    flat_id = resp.json()[0]["id"]
+
+    resp = await client.patch(
+        f"/api/v1/societies/{society_id}/properties/{flat_id}/floors",
+        json={"floors_above_ground": 1},
+        headers=headers,
+    )
+    assert resp.status_code == 400
+
+
+async def test_generate_structure_rejects_out_of_bounds_counts(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    society_id = two_societies_with_admins["a"]["society_id"]
+    owner = await _seed_platform_owner(db_session, "9700000018")
+    headers = auth_headers(owner.id, None, Role.PLATFORM_OWNER, [Role.PLATFORM_OWNER])
+
+    resp = await client.post(
+        f"/api/v1/societies/{society_id}/structure/flats",
+        json={"tower_count": 0, "floors_per_tower": 1, "flats_per_floor": 1},
+        headers=headers,
+    )
+    assert resp.status_code == 422
+
+
+async def test_generate_structure_404_for_unknown_society(client: AsyncClient, db_session: AsyncSession):
+    owner = await _seed_platform_owner(db_session, "9700000019")
+    headers = auth_headers(owner.id, None, Role.PLATFORM_OWNER, [Role.PLATFORM_OWNER])
+
+    resp = await client.post(
+        f"/api/v1/societies/{uuid.uuid4()}/structure/flats",
+        json={"tower_count": 1, "floors_per_tower": 1, "flats_per_floor": 1},
+        headers=headers,
+    )
+    assert resp.status_code == 404
+
+
+async def test_non_platform_owner_cannot_generate_structure(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    admin_id = two_societies_with_admins["a"]["admin_id"]
+    society_id = two_societies_with_admins["a"]["society_id"]
+    headers = auth_headers(admin_id, society_id, Role.ADMIN, [Role.ADMIN])
+
+    resp = await client.post(
+        f"/api/v1/societies/{society_id}/structure/flats",
+        json={"tower_count": 1, "floors_per_tower": 1, "flats_per_floor": 1},
+        headers=headers,
+    )
+    assert resp.status_code == 403
+
+
+async def test_platform_owner_can_list_society_properties(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    society_id = two_societies_with_admins["a"]["society_id"]
+    owner = await _seed_platform_owner(db_session, "9700000020")
+    headers = auth_headers(owner.id, None, Role.PLATFORM_OWNER, [Role.PLATFORM_OWNER])
+
+    await client.post(
+        f"/api/v1/societies/{society_id}/structure/bungalows",
+        json={"row_count": 1, "houses_per_row": 2},
+        headers=headers,
+    )
+    resp = await client.get(f"/api/v1/societies/{society_id}/properties", headers=headers)
+    assert resp.status_code == 200
+    assert len(resp.json()) == 2
 
 
 async def test_society_lookup_by_code_is_public_and_scoped_to_active(

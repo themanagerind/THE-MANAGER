@@ -1,4 +1,5 @@
 import { apiClient } from "@/api/client";
+import type { PropertyOut } from "@/api/properties";
 import type { HouseType, LocationType, SocietyStatus } from "@/types/enums";
 
 export interface SocietyOut {
@@ -77,6 +78,23 @@ export const societiesApi = {
   listLocations: (id: string) => apiClient.get<SocietyLocationOut[]>(`/societies/${id}/locations`),
   addLocation: (id: string, name: string, locationType: LocationType) =>
     apiClient.post<SocietyLocationOut>(`/societies/${id}/locations`, { name, location_type: locationType }),
+  /** Bulk-generates every tower/floor/flat combination in one request —
+   * see backend FlatsStructureIn's docstring for the numbering scheme. */
+  generateFlatsStructure: (id: string, towerCount: number, floorsPerTower: number, flatsPerFloor: number) =>
+    apiClient.post<PropertyOut[]>(`/societies/${id}/structure/flats`, {
+      tower_count: towerCount, floors_per_tower: floorsPerTower, flats_per_floor: flatsPerFloor,
+    }),
+  /** Bulk-generates every row/house at ground-floor-only — extra storeys
+   * per house are set afterward via updatePropertyFloors. */
+  generateBungalowStructure: (id: string, rowCount: number, housesPerRow: number) =>
+    apiClient.post<PropertyOut[]>(`/societies/${id}/structure/bungalows`, {
+      row_count: rowCount, houses_per_row: housesPerRow,
+    }),
+  listProperties: (id: string) => apiClient.get<PropertyOut[]>(`/societies/${id}/properties`),
+  updatePropertyFloors: (societyId: string, propertyId: string, floorsAboveGround: number) =>
+    apiClient.patch<PropertyOut>(`/societies/${societyId}/properties/${propertyId}/floors`, {
+      floors_above_ground: floorsAboveGround,
+    }),
 };
 
 export const locationsApi = {

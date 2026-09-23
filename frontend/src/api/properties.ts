@@ -18,6 +18,9 @@ export interface PropertyOut {
   house_number: string;
   house_type: HouseType;
   floor_number: number | null;
+  /** BUNGALOW-only — storeys built above the (always-implied) ground
+   * floor; always 0 for FLAT. */
+  floors_above_ground: number;
   status: string;
   created_at: string;
 }
