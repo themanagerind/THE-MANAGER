@@ -52,9 +52,12 @@ export default defineConfig({
     }),
   ],
   server: {
+    host: true,
+    port: 3000,
+    allowedHosts: true,
     proxy: {
       "/api": {
-        target: process.env.VITE_API_PROXY_TARGET || "http://localhost:8000",
+        target: process.env.VITE_API_PROXY_TARGET || "http://localhost:8001",
         changeOrigin: true,
       },
       // Payment-proof files served by the backend's StaticFiles mount
@@ -62,7 +65,7 @@ export default defineConfig({
       // reverse proxy routes /api/v1/* to the backend must also route
       // /uploads/* there.
       "/uploads": {
-        target: process.env.VITE_API_PROXY_TARGET || "http://localhost:8000",
+        target: process.env.VITE_API_PROXY_TARGET || "http://localhost:8001",
         changeOrigin: true,
       },
     },
