@@ -596,7 +596,9 @@ function UnitsStep({
       {selectedLocation && !isWing && (
         <p className="text-xs text-navy-muted">
           Rows/Bungalows have no floors of their own — add the houses below first, then set each one's own
-          "Floors above ground" once it's on record (a Row's houses don't all have to match).
+          "Floors above ground" once it's on record (a Row's houses don't all have to match). If a house's floors
+          are occupied by different families, use that house's "+ Add floor" to give each floor its own number and
+          its own Resident.
         </p>
       )}
 
@@ -715,6 +717,24 @@ function ExistingUnitRow({
   });
   const floorsDirty = Number(floorsAboveGround) !== unit.floors_above_ground;
 
+  // Bungalow-only — a house whose floors are occupied independently (e.g.
+  // ground floor is one family, first floor another) needs each floor as
+  // its OWN Property so each can be linked to a different Resident. Adds
+  // a sibling house under the same Row, numbered off this one.
+  const [addingFloor, setAddingFloor] = useState(false);
+  const [floorSuffix, setFloorSuffix] = useState("");
+  const addFloorUnit = useMutation({
+    mutationFn: () =>
+      societiesApi.addProperty(societyId, locationId, `${unit.house_number}-${floorSuffix.trim()}`, "BUNGALOW"),
+    onSuccess: () => {
+      setAddingFloor(false);
+      setFloorSuffix("");
+      setError(null);
+      onChanged();
+    },
+    onError: (e) => setError(apiErrorMessage(e, "Couldn't add — that number may already be in use.")),
+  });
+
   function handleDelete() {
     if (window.confirm(`Delete "${unit.house_number}"? This can't be undone.`)) {
       remove.mutate();
@@ -723,49 +743,86 @@ function ExistingUnitRow({
 
   if (!editing) {
     return (
-      <li className="text-sm text-ink flex items-center gap-2 px-3 py-1.5 border border-line rounded bg-paper">
-        <span className="flex-1">{unit.house_number}</span>
-        {!isWing && (
-          <div className="flex items-center gap-1">
-            <label className="text-xs text-navy-muted whitespace-nowrap">Floors above ground</label>
+      <li className="space-y-1.5 px-3 py-1.5 border border-line rounded bg-paper">
+        <div className="text-sm text-ink flex items-center gap-2">
+          <span className="flex-1">{unit.house_number}</span>
+          {!isWing && (
+            <div className="flex items-center gap-1">
+              <label className="text-xs text-navy-muted whitespace-nowrap">Floors above ground</label>
+              <input
+                type="number"
+                min={0}
+                value={floorsAboveGround}
+                onChange={(e) => setFloorsAboveGround(e.target.value)}
+                className="w-14 px-1.5 py-1 border border-line rounded text-sm text-ink bg-white focus:border-navy"
+              />
+              <Button
+                variant="secondary"
+                loading={saveFloors.isPending}
+                disabled={!floorsDirty}
+                onClick={() => saveFloors.mutate()}
+              >
+                Save
+              </Button>
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              setHouseNumber(unit.house_number);
+              setFloorNumber(unit.floor_number != null ? String(unit.floor_number) : "");
+              setError(null);
+              setEditing(true);
+            }}
+            className="text-xs text-navy-muted hover:text-navy underline"
+          >
+            Edit
+          </button>
+          {!isWing && (
+            <button
+              type="button"
+              onClick={() => { setAddingFloor((v) => !v); setError(null); }}
+              className="text-xs text-navy-muted hover:text-navy underline"
+            >
+              + Add floor
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={handleDelete}
+            disabled={remove.isPending}
+            className="text-xs text-navy-muted hover:text-danger underline"
+          >
+            Delete
+          </button>
+        </div>
+        {addingFloor && (
+          <div className="flex items-center gap-1.5 pl-3">
+            <span className="text-xs text-navy-muted whitespace-nowrap">
+              Ground floor, 1st floor, etc. rented/owned separately? Give this floor its own number:
+            </span>
+            <span className="text-xs text-navy-muted whitespace-nowrap">{unit.house_number}-</span>
             <input
-              type="number"
-              min={0}
-              value={floorsAboveGround}
-              onChange={(e) => setFloorsAboveGround(e.target.value)}
-              className="w-14 px-1.5 py-1 border border-line rounded text-sm text-ink bg-white focus:border-navy"
+              value={floorSuffix}
+              onChange={(e) => setFloorSuffix(e.target.value)}
+              placeholder="e.g. 1 or G"
+              autoFocus
+              className="w-20 px-1.5 py-1 border border-line rounded text-sm text-ink bg-white focus:border-navy"
             />
             <Button
               variant="secondary"
-              loading={saveFloors.isPending}
-              disabled={!floorsDirty}
-              onClick={() => saveFloors.mutate()}
+              loading={addFloorUnit.isPending}
+              disabled={!floorSuffix.trim()}
+              onClick={() => addFloorUnit.mutate()}
             >
-              Save
+              Add
             </Button>
+            <button type="button" onClick={() => setAddingFloor(false)} className="text-xs text-navy-muted hover:text-danger px-1">
+              Cancel
+            </button>
           </div>
         )}
-        <button
-          type="button"
-          onClick={() => {
-            setHouseNumber(unit.house_number);
-            setFloorNumber(unit.floor_number != null ? String(unit.floor_number) : "");
-            setError(null);
-            setEditing(true);
-          }}
-          className="text-xs text-navy-muted hover:text-navy underline"
-        >
-          Edit
-        </button>
-        <button
-          type="button"
-          onClick={handleDelete}
-          disabled={remove.isPending}
-          className="text-xs text-navy-muted hover:text-danger underline"
-        >
-          Delete
-        </button>
-        {error && <span className="text-xs text-danger">{error}</span>}
+        {error && <p className="text-xs text-danger">{error}</p>}
       </li>
     );
   }
