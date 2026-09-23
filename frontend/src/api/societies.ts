@@ -11,6 +11,8 @@ export interface SocietyOut {
   city: string | null;
   state: string | null;
   pincode: string | null;
+  latitude: number | null;
+  longitude: number | null;
   created_at: string;
 }
 
@@ -39,11 +41,15 @@ export interface SocietyCreateInput {
   city: string;
   state: string;
   pincode: string;
-  /** The only optional field — a Platform Owner can add Wings/Rows right
-   * at creation, or leave this empty and let the Admin add them later
-   * from the Properties page. `code` is never sent — the backend
-   * auto-generates a guaranteed-unique one. */
+  /** Optional, along with latitude/longitude below — a Platform Owner
+   * can add Wings/Rows right at creation, or leave this empty and let
+   * the Admin add them later from the Properties page. `code` is never
+   * sent — the backend auto-generates a guaranteed-unique one. */
   locations?: { name: string; location_type: LocationType }[];
+  /** GPS pin — optional, but both-or-neither (backend rejects a lone
+   * coordinate). */
+  latitude?: number;
+  longitude?: number;
 }
 
 export interface SocietyUpdateInput {
@@ -52,6 +58,8 @@ export interface SocietyUpdateInput {
   city: string;
   state: string;
   pincode: string;
+  latitude?: number;
+  longitude?: number;
 }
 
 export const societiesApi = {

@@ -14,6 +14,7 @@ from sqlalchemy import (
     CheckConstraint,
     Date,
     DateTime,
+    Float,
     ForeignKey,
     ForeignKeyConstraint,
     Index,
@@ -53,6 +54,28 @@ class Society(Base, UUIDPKMixin, TimestampMixin):
     city: Mapped[str | None] = mapped_column(String(100), nullable=True)
     state: Mapped[str | None] = mapped_column(String(100), nullable=True)
     pincode: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    # v1.4 addition — GPS pin for the society, entered as plain lat/long
+    # (Platform Owner copies it from Google Maps etc.), the one field
+    # that stays optional on both create and edit — see SocietyCreateIn/
+    # SocietyUpdateIn docstrings. Always both-or-neither: enforced by the
+    # CHECK below since a lone coordinate is meaningless.
+    latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+    __table_args__ = (
+        CheckConstraint(
+            "(latitude IS NULL) = (longitude IS NULL)",
+            name="ck_societies_gps_both_or_neither",
+        ),
+        CheckConstraint(
+            "latitude IS NULL OR (latitude >= -90 AND latitude <= 90)",
+            name="ck_societies_latitude_range",
+        ),
+        CheckConstraint(
+            "longitude IS NULL OR (longitude >= -180 AND longitude <= 180)",
+            name="ck_societies_longitude_range",
+        ),
+    )
 
     users: Mapped[list["User"]] = relationship(back_populates="society")
 

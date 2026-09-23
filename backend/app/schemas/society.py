@@ -2,7 +2,7 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, model_validator
 
 from app.models.enums import SocietyStatus
 from app.schemas.property import SocietyLocationCreateIn
@@ -40,13 +40,16 @@ class SocietyCreateIn(BaseModel):
 
     `code` is never client-supplied — society_service.create_society
     auto-generates one and guarantees uniqueness, so two societies can
-    never collide. Every field here is required EXCEPT `locations`: a
-    society's identity/address should always be captured properly, but
-    Wings/Rows are a genuine convenience — they can always be added later
-    (either the Admin from their own Properties page, or the Platform
-    Owner from the society's Edit view — see list_society_locations/
-    add_society_location), so forcing them at creation time would just
-    get in the way for a Platform Owner who doesn't have that detail yet."""
+    never collide. Every field here is required EXCEPT `locations` and
+    `latitude`/`longitude`: a society's identity/address should always be
+    captured properly, but Wings/Rows are a genuine convenience — they
+    can always be added later (either the Admin from their own
+    Properties page, or the Platform Owner from the society's Edit view
+    — see list_society_locations/add_society_location), so forcing them
+    at creation time would just get in the way for a Platform Owner who
+    doesn't have that detail yet. Same for the GPS pin — a Platform Owner
+    may not have it handy at creation and can add it later via
+    SocietyUpdateIn."""
 
     name: str
     address: str
@@ -54,6 +57,14 @@ class SocietyCreateIn(BaseModel):
     state: str
     pincode: str
     locations: list[SocietyLocationCreateIn] = []
+    latitude: float | None = Field(default=None, ge=-90, le=90)
+    longitude: float | None = Field(default=None, ge=-180, le=180)
+
+    @model_validator(mode="after")
+    def _gps_both_or_neither(self) -> "SocietyCreateIn":
+        if (self.latitude is None) != (self.longitude is None):
+            raise ValueError("Provide both latitude and longitude, or neither")
+        return self
 
 
 class SocietyUpdateIn(BaseModel):
@@ -62,13 +73,23 @@ class SocietyUpdateIn(BaseModel):
     society's Admin/Residents as their signup key; changing it would
     break their ability to find the society again. Locations aren't part
     of this request body either — they're listed/added via the separate
-    GET/POST /societies/{id}/locations endpoints instead."""
+    GET/POST /societies/{id}/locations endpoints instead. `latitude`/
+    `longitude` are optional here too, same as SocietyCreateIn — sending
+    neither clears any GPS pin already on record."""
 
     name: str
     address: str
     city: str
     state: str
     pincode: str
+    latitude: float | None = Field(default=None, ge=-90, le=90)
+    longitude: float | None = Field(default=None, ge=-180, le=180)
+
+    @model_validator(mode="after")
+    def _gps_both_or_neither(self) -> "SocietyUpdateIn":
+        if (self.latitude is None) != (self.longitude is None):
+            raise ValueError("Provide both latitude and longitude, or neither")
+        return self
 
 
 class SocietyLookupOut(BaseModel):
@@ -103,6 +124,8 @@ class SocietyOut(BaseModel):
     city: str | None
     state: str | None
     pincode: str | None
+    latitude: float | None
+    longitude: float | None
     created_at: datetime
 
     model_config = {"from_attributes": True}

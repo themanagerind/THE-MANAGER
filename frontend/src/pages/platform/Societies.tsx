@@ -168,6 +168,8 @@ function CreateSocietyModal({ onClose, onSuccess }: { onClose: () => void; onSuc
   const [address, setAddress] = useState("");
   const [pincode, setPincode] = useState("");
   const [locations, setLocations] = useState<LocationRow[]>([]);
+  const [latitude, setLatitude] = useState("");
+  const [longitude, setLongitude] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [createdCode, setCreatedCode] = useState<string | null>(null);
 
@@ -177,6 +179,8 @@ function CreateSocietyModal({ onClose, onSuccess }: { onClose: () => void; onSuc
         name: name.trim(), city: city.trim(), state: state.trim(),
         address: address.trim(), pincode: pincode.trim(),
         locations: locations.filter((l) => l.name.trim()).map((l) => ({ name: l.name.trim(), location_type: l.location_type })),
+        latitude: latitude.trim() ? Number(latitude) : undefined,
+        longitude: longitude.trim() ? Number(longitude) : undefined,
       }),
     onSuccess: (r) => {
       onSuccess();
@@ -195,7 +199,8 @@ function CreateSocietyModal({ onClose, onSuccess }: { onClose: () => void; onSuc
     setLocations((prev) => prev.filter((_, i) => i !== index));
   }
 
-  const canSubmit = [name, city, state, address, pincode].every((f) => f.trim().length > 0);
+  const gpsBothOrNeither = !!latitude.trim() === !!longitude.trim();
+  const canSubmit = [name, city, state, address, pincode].every((f) => f.trim().length > 0) && gpsBothOrNeither;
 
   if (createdCode) {
     return (
@@ -270,6 +275,23 @@ function CreateSocietyModal({ onClose, onSuccess }: { onClose: () => void; onSuc
           </div>
         </div>
 
+        <div className="border-t border-line pt-3">
+          <label className="block text-sm text-navy-muted mb-2">GPS location (optional)</label>
+          <div className="grid grid-cols-2 gap-2">
+            <Input
+              label="Latitude" type="number" step="any" value={latitude}
+              onChange={(e) => setLatitude(e.target.value)}
+            />
+            <Input
+              label="Longitude" type="number" step="any" value={longitude}
+              onChange={(e) => setLongitude(e.target.value)}
+            />
+          </div>
+          {!gpsBothOrNeither && (
+            <p className="text-xs text-danger mt-1">Provide both latitude and longitude, or leave both blank.</p>
+          )}
+        </div>
+
         {error && <p className="text-sm text-danger">{error}</p>}
         <div className="flex gap-2 justify-end pt-2">
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
@@ -291,6 +313,8 @@ function EditSocietyModal({
   const [state, setState] = useState(society.state ?? "");
   const [address, setAddress] = useState(society.address ?? "");
   const [pincode, setPincode] = useState(society.pincode ?? "");
+  const [latitude, setLatitude] = useState(society.latitude != null ? String(society.latitude) : "");
+  const [longitude, setLongitude] = useState(society.longitude != null ? String(society.longitude) : "");
   const [error, setError] = useState<string | null>(null);
   const [newLocationName, setNewLocationName] = useState("");
   const [newLocationType, setNewLocationType] = useState<LocationType>("WING");
@@ -307,6 +331,8 @@ function EditSocietyModal({
       societiesApi.update(society.id, {
         name: name.trim(), city: city.trim(), state: state.trim(),
         address: address.trim(), pincode: pincode.trim(),
+        latitude: latitude.trim() ? Number(latitude) : undefined,
+        longitude: longitude.trim() ? Number(longitude) : undefined,
       }),
     onSuccess,
     onError: (e) => setError(apiErrorMessage(e, "Couldn't update the society.")),
@@ -322,7 +348,8 @@ function EditSocietyModal({
     onError: (e) => setLocationError(apiErrorMessage(e, "Couldn't add the wing/row.")),
   });
 
-  const canSubmit = [name, city, state, address, pincode].every((f) => f.trim().length > 0);
+  const gpsBothOrNeither = !!latitude.trim() === !!longitude.trim();
+  const canSubmit = [name, city, state, address, pincode].every((f) => f.trim().length > 0) && gpsBothOrNeither;
 
   return (
     <Modal open onClose={onClose} title={`Edit — ${society.name}`}>
@@ -333,6 +360,24 @@ function EditSocietyModal({
         <Input label="State" value={state} onChange={(e) => setState(e.target.value)} />
         <Input label="Address" value={address} onChange={(e) => setAddress(e.target.value)} />
         <Input label="Pincode" value={pincode} onChange={(e) => setPincode(e.target.value)} />
+
+        <div>
+          <label className="block text-sm text-navy-muted mb-1">GPS location (optional)</label>
+          <div className="grid grid-cols-2 gap-2">
+            <Input
+              label="Latitude" type="number" step="any" value={latitude}
+              onChange={(e) => setLatitude(e.target.value)}
+            />
+            <Input
+              label="Longitude" type="number" step="any" value={longitude}
+              onChange={(e) => setLongitude(e.target.value)}
+            />
+          </div>
+          {!gpsBothOrNeither && (
+            <p className="text-xs text-danger mt-1">Provide both latitude and longitude, or leave both blank.</p>
+          )}
+        </div>
+
         {error && <p className="text-sm text-danger">{error}</p>}
         <div className="flex gap-2 justify-end pt-2">
           <Button variant="secondary" onClick={onClose}>Cancel</Button>

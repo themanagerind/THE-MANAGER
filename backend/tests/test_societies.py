@@ -160,6 +160,86 @@ async def test_society_creation_with_optional_locations(
     assert {loc.name for loc in locations} == {"Wing A", "Wing B"}
 
 
+async def test_society_creation_with_optional_gps_location(
+    client: AsyncClient, db_session: AsyncSession
+):
+    """`latitude`/`longitude` are optional too, same as `locations` — a
+    Platform Owner can pin the society's GPS location right at creation."""
+    owner = await _seed_platform_owner(db_session, "9700000024")
+    headers = auth_headers(owner.id, None, Role.PLATFORM_OWNER, [Role.PLATFORM_OWNER])
+
+    body = _create_society_body("Hillview Society", latitude=19.0760, longitude=72.8777)
+    resp = await client.post("/api/v1/societies", json=body, headers=headers)
+    assert resp.status_code == 200
+    result = resp.json()
+    assert result["latitude"] == 19.0760
+    assert result["longitude"] == 72.8777
+
+
+async def test_society_creation_without_gps_location_leaves_it_null(
+    client: AsyncClient, db_session: AsyncSession
+):
+    owner = await _seed_platform_owner(db_session, "9700000025")
+    headers = auth_headers(owner.id, None, Role.PLATFORM_OWNER, [Role.PLATFORM_OWNER])
+
+    resp = await client.post("/api/v1/societies", json=_create_society_body("No GPS Society"), headers=headers)
+    assert resp.status_code == 200
+    assert resp.json()["latitude"] is None
+    assert resp.json()["longitude"] is None
+
+
+async def test_society_creation_rejects_a_lone_gps_coordinate(
+    client: AsyncClient, db_session: AsyncSession
+):
+    owner = await _seed_platform_owner(db_session, "9700000026")
+    headers = auth_headers(owner.id, None, Role.PLATFORM_OWNER, [Role.PLATFORM_OWNER])
+
+    body = _create_society_body("Lone Coordinate Society", latitude=19.0760)
+    resp = await client.post("/api/v1/societies", json=body, headers=headers)
+    assert resp.status_code == 422
+
+
+async def test_society_creation_rejects_out_of_range_gps_coordinates(
+    client: AsyncClient, db_session: AsyncSession
+):
+    owner = await _seed_platform_owner(db_session, "9700000027")
+    headers = auth_headers(owner.id, None, Role.PLATFORM_OWNER, [Role.PLATFORM_OWNER])
+
+    body = _create_society_body("Bad GPS Society", latitude=200.0, longitude=72.8777)
+    resp = await client.post("/api/v1/societies", json=body, headers=headers)
+    assert resp.status_code == 422
+
+
+async def test_platform_owner_can_set_and_clear_society_gps_location(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    society_id = two_societies_with_admins["a"]["society_id"]
+    owner = await _seed_platform_owner(db_session, "9700000028")
+    headers = auth_headers(owner.id, None, Role.PLATFORM_OWNER, [Role.PLATFORM_OWNER])
+
+    resp = await client.patch(
+        f"/api/v1/societies/{society_id}",
+        json={
+            "name": "Society A", "address": "1 Main Rd", "city": "Pune", "state": "MH", "pincode": "411001",
+            "latitude": 18.5204, "longitude": 73.8567,
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    assert resp.json()["latitude"] == 18.5204
+    assert resp.json()["longitude"] == 73.8567
+
+    # Sending neither clears a GPS pin already on record.
+    resp = await client.patch(
+        f"/api/v1/societies/{society_id}",
+        json={"name": "Society A", "address": "1 Main Rd", "city": "Pune", "state": "MH", "pincode": "411001"},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    assert resp.json()["latitude"] is None
+    assert resp.json()["longitude"] is None
+
+
 async def test_non_platform_owner_cannot_create_society(
     client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
 ):

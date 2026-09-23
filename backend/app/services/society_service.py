@@ -73,11 +73,14 @@ async def create_society(db: AsyncSession, body: SocietyCreateIn) -> Society:
     is the only optional field on the request — if given, each Wing/Row
     is created in the same transaction as the society itself (single
     commit at the end), so a Platform Owner doesn't have to hand off to
-    the Admin just to get the first Wing/Row on record."""
+    the Admin just to get the first Wing/Row on record. `latitude`/
+    `longitude` are the other optional field — a GPS pin for the society,
+    always both-or-neither (SocietyCreateIn's validator)."""
     code = await _generate_unique_code(db, body.name)
     society = Society(
         name=body.name, code=code, status=SocietyStatus.ACTIVE,
         address=body.address, city=body.city, state=body.state, pincode=body.pincode,
+        latitude=body.latitude, longitude=body.longitude,
     )
     db.add(society)
     await db.flush()  # need society.id before adding locations below
@@ -109,6 +112,8 @@ async def update_society_profile(db: AsyncSession, society_id: uuid.UUID, body: 
     society.city = body.city
     society.state = body.state
     society.pincode = body.pincode
+    society.latitude = body.latitude
+    society.longitude = body.longitude
     await db.commit()
     await db.refresh(society)
     return society
