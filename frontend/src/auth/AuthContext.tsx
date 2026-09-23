@@ -32,7 +32,7 @@ interface AuthState {
 }
 
 interface AuthContextValue extends AuthState {
-  requestOtp: (mobile: string) => Promise<void>;
+  requestOtp: (mobile: string) => Promise<string | null | undefined>;
   verifyOtp: (mobile: string, otp: string) => Promise<AccountChoice[] | null>;
   selectAccount: (userId: string) => Promise<void>;
   switchRole: (role: Role) => Promise<void>;
@@ -140,7 +140,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const requestOtp = useCallback(async (mobile: string) => {
-    await authApi.requestOtp(mobile);
+    const { data } = await authApi.requestOtp(mobile);
+    return data.dev_otp;
   }, []);
 
   const verifyOtp = useCallback(
