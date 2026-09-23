@@ -466,14 +466,17 @@ function UnitsStep({
   async function saveUnits() {
     setError(null);
     setSaving(true);
-    const toSave = unitNumbers
-      .map((n) => n.trim())
-      .filter((n) => n.length > 0)
-      .map((n) => `${unitPrefix}${n}`);
+    // Keep each entry's original box index so a partial failure can clear
+    // out just the ones that saved and leave the failed ones in place to
+    // fix — resending an already-saved entry on retry would just collide
+    // with itself and report as "failed" a second time.
+    const entries = unitNumbers
+      .map((n, index) => ({ index, suffix: n.trim() }))
+      .filter((e) => e.suffix.length > 0);
     const houseType: HouseType = isWing ? "FLAT" : "BUNGALOW";
     const floorArg = isWing ? Number(selectedFloor) : undefined;
     const results = await Promise.allSettled(
-      toSave.map((n) => societiesApi.addProperty(societyId, selectedLocationId, n, houseType, floorArg))
+      entries.map((e) => societiesApi.addProperty(societyId, selectedLocationId, `${unitPrefix}${e.suffix}`, houseType, floorArg))
     );
     const failedCount = results.filter((r) => r.status === "rejected").length;
     setSaving(false);
@@ -482,8 +485,12 @@ function UnitsStep({
       setUnitCount("");
       setUnitNumbers([]);
     } else {
+      const succeededIndexes = new Set(
+        entries.filter((_, i) => results[i].status === "fulfilled").map((e) => e.index)
+      );
+      setUnitNumbers((prev) => prev.map((v, i) => (succeededIndexes.has(i) ? "" : v)));
       setError(
-        `${toSave.length - failedCount} of ${toSave.length} unit(s) saved — ${failedCount} failed ` +
+        `${entries.length - failedCount} of ${entries.length} unit(s) saved — ${failedCount} failed ` +
           `(likely a duplicate number). Fix and retry those below.`
       );
     }
@@ -505,6 +512,7 @@ function UnitsStep({
               setSelectedFloor("");
               setUnitCount("");
               setUnitNumbers([]);
+              setError(null);
             }}
             className="w-full px-3 py-2 border border-line rounded text-sm text-ink bg-white focus:border-navy"
           >
@@ -534,6 +542,7 @@ function UnitsStep({
                 setSelectedFloor(e.target.value);
                 setUnitCount("");
                 setUnitNumbers([]);
+                setError(null);
               }}
               disabled={!selectedLocationId}
               className="w-full px-3 py-2 border border-line rounded text-sm text-ink bg-white focus:border-navy disabled:bg-paper"
