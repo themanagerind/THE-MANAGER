@@ -77,6 +77,12 @@ class PropertyOut(BaseModel):
     floors_above_ground: int
     status: str
     created_at: datetime
+    # Whether an active Resident (owner/tenant) is currently linked — powers
+    # the Structure Overview diagram's occupied (green) vs vacant (grey)
+    # coloring. Not a DB column: property_service.list_properties computes
+    # it per-row and the endpoint sets it after model_validate, since the
+    # ORM Property object itself has no such attribute.
+    is_occupied: bool = False
 
     model_config = {"from_attributes": True}
 

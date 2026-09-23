@@ -2,7 +2,10 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { useActiveProperty } from "@/hooks/useActiveProperty";
 import { paymentsApi } from "@/api/payments";
+import { propertiesApi } from "@/api/properties";
+import { locationsApi } from "@/api/societies";
 import { PropertySelector } from "@/components/PropertySelector";
+import { StructureDiagram } from "@/components/StructureDiagram";
 import { Loader, EmptyState, ErrorState } from "@/components/States";
 import { Badge } from "@/components/Badge";
 
@@ -17,6 +20,14 @@ export function ResidentDashboard() {
   const walletQuery = useQuery({
     queryKey: ["wallet", "me"],
     queryFn: () => paymentsApi.myWallet().then((r) => r.data),
+  });
+  const societyPropertiesQuery = useQuery({
+    queryKey: ["resident", "society-properties"],
+    queryFn: () => propertiesApi.list().then((r) => r.data),
+  });
+  const societyLocationsQuery = useQuery({
+    queryKey: ["resident", "society-locations"],
+    queryFn: () => locationsApi.list().then((r) => r.data),
   });
 
   if (isLoading) return <Loader />;
@@ -65,6 +76,13 @@ export function ResidentDashboard() {
           </Link>
         ))}
       </div>
+
+      {societyLocationsQuery.data && societyPropertiesQuery.data && (
+        <div className="border border-line rounded p-4">
+          <p className="text-xs text-navy-muted mb-2">Society structure</p>
+          <StructureDiagram locations={societyLocationsQuery.data} properties={societyPropertiesQuery.data} />
+        </div>
+      )}
     </div>
   );
 }

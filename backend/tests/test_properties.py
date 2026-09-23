@@ -112,6 +112,34 @@ async def test_resident_can_list_properties_for_own_dashboard(
     assert any(p["id"] == str(prop.id) for p in resp.json())
 
 
+async def test_property_list_flags_occupied_vs_vacant(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    """Structure Overview diagram's green/grey coloring — a property with
+    an active Resident link is_occupied=true, one with none is false."""
+    society_id = two_societies_with_admins["a"]["society_id"]
+    admin_id = two_societies_with_admins["a"]["admin_id"]
+    occupied_prop, _resident = await _seed_resident_with_property(db_session, society_id)
+
+    loc = SocietyLocation(society_id=society_id, name="Wing B", location_type=LocationType.WING)
+    db_session.add(loc)
+    await db_session.flush()
+    vacant_prop = Property(
+        society_id=society_id, location_id=loc.id, house_number="202",
+        house_type=HouseType.FLAT, floor_number=2, status="ACTIVE",
+    )
+    db_session.add(vacant_prop)
+    await db_session.commit()
+    await db_session.refresh(vacant_prop)
+
+    admin_headers = auth_headers(admin_id, society_id, Role.ADMIN, [Role.ADMIN])
+    resp = await client.get("/api/v1/properties", headers=admin_headers)
+    assert resp.status_code == 200
+    by_id = {p["id"]: p for p in resp.json()}
+    assert by_id[str(occupied_prop.id)]["is_occupied"] is True
+    assert by_id[str(vacant_prop.id)]["is_occupied"] is False
+
+
 async def test_manager_can_list_properties_to_pick_one_for_dues(
     client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
 ):

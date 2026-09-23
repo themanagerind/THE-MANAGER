@@ -55,8 +55,13 @@ async def create_location(
 @router.get("/locations", response_model=list[SocietyLocationOut])
 async def list_locations(
     db: Annotated[AsyncSession, Depends(get_db)],
-    current: Annotated[CurrentUser, Depends(require_role(Role.ADMIN, Role.SUB_ADMIN))],
+    current: Annotated[
+        CurrentUser, Depends(require_role(Role.ADMIN, Role.SUB_ADMIN, Role.RESIDENT, Role.MANAGER))
+    ],
 ) -> list[SocietyLocationOut]:
+    """Widened alongside GET /properties (same catalog-data reasoning in
+    this file's docstring) — the Structure Overview diagram needs Wing/Row
+    names to group a Resident's or Manager's own society's properties by."""
     locations = await property_service.list_locations(db, current.society_id)
     return [SocietyLocationOut.model_validate(loc) for loc in locations]
 
@@ -79,7 +84,7 @@ async def list_properties(
     ],
 ) -> list[PropertyOut]:
     properties = await property_service.list_properties(db, current.society_id)
-    return [PropertyOut.model_validate(p) for p in properties]
+    return [property_service.property_out(p, occupied) for p, occupied in properties]
 
 
 @router.patch("/{property_id}/status", response_model=PropertyOut)

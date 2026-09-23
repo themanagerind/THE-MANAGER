@@ -5,6 +5,7 @@ import { propertiesApi, type PropertyOut } from "@/api/properties";
 import { residentsApi } from "@/api/residents";
 import { useAuth } from "@/auth/AuthContext";
 import { Loader, EmptyState, ErrorState, apiErrorMessage } from "@/components/States";
+import { StructureDiagram } from "@/components/StructureDiagram";
 import { Table } from "@/components/Table";
 import { Modal } from "@/components/Modal";
 import { Button } from "@/components/Button";
@@ -38,6 +39,14 @@ export function AdminProperties() {
           <Button onClick={() => setAddingProperty(true)}>Add property</Button>
         </div>
       </div>
+
+      <section className="space-y-2">
+        <h2 className="text-sm font-medium text-navy-muted">Structure overview</h2>
+        {(locationsQuery.isLoading || propertiesQuery.isLoading) && <Loader />}
+        {locationsQuery.data && propertiesQuery.data && (
+          <StructureDiagram locations={locationsQuery.data} properties={propertiesQuery.data} />
+        )}
+      </section>
 
       <section className="space-y-2">
         <h2 className="text-sm font-medium text-navy-muted">Wings / Rows</h2>

@@ -3,25 +3,33 @@ import { Link, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { societiesApi, type SocietyLocationOut } from "@/api/societies";
 import type { PropertyOut } from "@/api/properties";
+import type { HouseType, LocationType } from "@/types/enums";
 import { Loader, ErrorState, apiErrorMessage } from "@/components/States";
+import { StructureDiagram } from "@/components/StructureDiagram";
 import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
 
-type Tab = "WINGS" | "FLOORS" | "FLATS";
+type Tab = "LOCATIONS" | "FLOORS" | "UNITS" | "OVERVIEW";
+
+function sortByName(locations: SocietyLocationOut[]): SocietyLocationOut[] {
+  return [...locations].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }));
+}
 
 /**
- * A Platform Owner mapping out a Flats-type society's structure in three
- * steps, each building on the last: Wings -> which floors each Wing has
- * -> the actual flat numbers on a given Wing/floor (hand-typed, since
- * real numbering schemes — "12-A", skipped 13th floors, whatever a
- * builder actually used — don't follow a single sequential pattern).
- * Replaces the old single-shot bulk generator, which assumed every floor
- * in a request looked the same.
+ * A Platform Owner mapping out a society's structure in three input steps,
+ * each building on the last: Wings & Rows -> which floors each Wing has
+ * (Rows/Bungalows skip this — they have no floors) -> the actual flat/
+ * house numbers, hand-typed since real numbering schemes ("12-A", skipped
+ * 13th floors, a Row's own house-number scheme) don't follow a single
+ * sequential pattern — plus a read-only Overview diagram of everything
+ * mapped so far. Replaces the old single-shot bulk generator, which
+ * assumed every floor in a request looked the same.
  */
 export function SocietyMapping() {
   const { societyId } = useParams<{ societyId: string }>();
   const queryClient = useQueryClient();
-  const [tab, setTab] = useState<Tab>("WINGS");
+  const [tab, setTab] = useState<Tab>("LOCATIONS");
+  const [jumpTarget, setJumpTarget] = useState<{ locationId: string; floorNumber: number | null } | null>(null);
 
   const societiesQuery = useQuery({
     queryKey: ["platform", "societies"],
@@ -35,9 +43,8 @@ export function SocietyMapping() {
     queryFn: () => societiesApi.listLocations(societyId!).then((r) => r.data),
     enabled: !!societyId,
   });
-  const wings = (locationsQuery.data ?? [])
-    .filter((l) => l.location_type === "WING")
-    .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }));
+  const locations = sortByName(locationsQuery.data ?? []);
+  const wings = locations.filter((l) => l.location_type === "WING");
 
   const propertiesQueryKey = ["platform", "societies", societyId, "properties"];
   const propertiesQuery = useQuery({
@@ -48,7 +55,7 @@ export function SocietyMapping() {
 
   // Floors a Wing already has flats on, plus any the Platform Owner has
   // added in this session but hasn't put a flat on yet — purely local,
-  // just to populate the Floor picker in the Flats step ahead of time.
+  // just to populate the Floor picker in the Units step ahead of time.
   const [extraFloorsByWing, setExtraFloorsByWing] = useState<Record<string, number[]>>({});
   function floorsForWing(wingId: string): number[] {
     const fromProperties = (propertiesQuery.data ?? [])
@@ -63,9 +70,6 @@ export function SocietyMapping() {
       [wingId]: Array.from(new Set([...(prev[wingId] ?? []), floorNumber])),
     }));
   }
-  // A floor typed by mistake can only be removed here while nothing's
-  // been added to it yet — once a flat exists on it, delete/move that
-  // flat instead (Flats-mapping tab) and the floor disappears with it.
   function canRemoveFloor(wingId: string, floorNumber: number): boolean {
     const hasProperty = (propertiesQuery.data ?? []).some(
       (p) => p.location_id === wingId && p.floor_number === floorNumber
@@ -77,6 +81,11 @@ export function SocietyMapping() {
       ...prev,
       [wingId]: (prev[wingId] ?? []).filter((f) => f !== floorNumber),
     }));
+  }
+
+  function jumpToUnit(locationId: string, floorNumber: number | null) {
+    setJumpTarget({ locationId, floorNumber });
+    setTab("UNITS");
   }
 
   if (!societyId) return <ErrorState message="No society specified." />;
@@ -91,16 +100,17 @@ export function SocietyMapping() {
           Society Mapping {society ? `— ${society.name}` : ""}
         </h1>
         <p className="text-sm text-navy-muted">
-          Map out this society's Wings, which floors each one has, and the actual flat numbers on each floor.
+          Map out this society's Wings and Rows, which floors each Wing has, and the actual flat/house numbers.
         </p>
       </div>
 
-      <div className="flex gap-2 border-b border-line">
+      <div className="flex gap-2 border-b border-line flex-wrap">
         {(
           [
-            ["WINGS", "1. Wings"],
+            ["LOCATIONS", "1. Wings & Rows"],
             ["FLOORS", "2. Floor mapping"],
-            ["FLATS", "3. Flats mapping"],
+            ["UNITS", "3. Flats & Houses"],
+            ["OVERVIEW", "4. Overview"],
           ] as [Tab, string][]
         ).map(([key, label]) => (
           <button
@@ -118,11 +128,11 @@ export function SocietyMapping() {
 
       {locationsQuery.isLoading && <Loader />}
       {locationsQuery.isError && (
-        <ErrorState message="Couldn't load Wings." onRetry={() => locationsQuery.refetch()} />
+        <ErrorState message="Couldn't load Wings/Rows." onRetry={() => locationsQuery.refetch()} />
       )}
 
-      {tab === "WINGS" && (
-        <WingsStep societyId={societyId} wings={wings} locationsQueryKey={locationsQueryKey} />
+      {tab === "LOCATIONS" && (
+        <LocationsStep societyId={societyId} locations={locations} locationsQueryKey={locationsQueryKey} />
       )}
 
       {tab === "FLOORS" && (
@@ -135,56 +145,93 @@ export function SocietyMapping() {
         />
       )}
 
-      {tab === "FLATS" && (
-        <FlatsStep
+      {tab === "UNITS" && (
+        <UnitsStep
+          key={jumpTarget ? `${jumpTarget.locationId}:${jumpTarget.floorNumber}` : "default"}
           societyId={societyId}
-          wings={wings}
+          locations={locations}
           floorsForWing={floorsForWing}
           addFloorToWing={addFloorToWing}
           properties={propertiesQuery.data ?? []}
           propertiesLoading={propertiesQuery.isLoading}
-          onFlatsChanged={() => void queryClient.invalidateQueries({ queryKey: propertiesQueryKey })}
+          onUnitsChanged={() => void queryClient.invalidateQueries({ queryKey: propertiesQueryKey })}
+          initialLocationId={jumpTarget?.locationId}
+          initialFloor={jumpTarget?.floorNumber ?? undefined}
         />
+      )}
+
+      {tab === "OVERVIEW" && (
+        <div className="space-y-2">
+          <p className="text-sm text-navy-muted">
+            Everything mapped so far, drawn like the real thing — green means a Resident is linked, grey means
+            vacant. Click a flat or house to jump to editing it.
+          </p>
+          {propertiesQuery.isLoading && <Loader />}
+          <StructureDiagram locations={locations} properties={propertiesQuery.data ?? []} onSelectUnit={jumpToUnit} />
+        </div>
       )}
     </div>
   );
 }
 
-function WingsStep({
-  societyId, wings, locationsQueryKey,
-}: { societyId: string; wings: SocietyLocationOut[]; locationsQueryKey: unknown[] }) {
+function LocationsStep({
+  societyId, locations, locationsQueryKey,
+}: { societyId: string; locations: SocietyLocationOut[]; locationsQueryKey: unknown[] }) {
   const queryClient = useQueryClient();
   const [name, setName] = useState("");
+  const [locationType, setLocationType] = useState<LocationType>("WING");
   const [error, setError] = useState<string | null>(null);
 
-  const addWing = useMutation({
-    mutationFn: () => societiesApi.addLocation(societyId, name.trim(), "WING"),
+  const addLocation = useMutation({
+    mutationFn: () => societiesApi.addLocation(societyId, name.trim(), locationType),
     onSuccess: () => {
       setName("");
       setError(null);
       void queryClient.invalidateQueries({ queryKey: locationsQueryKey });
     },
-    onError: (e) => setError(apiErrorMessage(e, "Couldn't add the Wing.")),
+    onError: (e) => setError(apiErrorMessage(e, "Couldn't add it.")),
   });
 
   return (
     <div className="space-y-3 max-w-md">
       <p className="text-sm text-navy-muted">
-        Start by naming every Wing/Tower in this society — Floor and Flats mapping (next tabs) pick from this list.
-        Typed a name wrong? Click it to fix it.
+        Name every Wing (for Flats) and Row (for Bungalows) in this society — Floor, Flats/Houses and Overview
+        (next tabs) pick from this list. Typed a name wrong? Click it to fix it.
       </p>
-      {wings.length === 0 && <p className="text-xs text-navy-muted">No Wings yet — add the first one below.</p>}
-      {wings.length > 0 && (
+      {locations.length === 0 && <p className="text-xs text-navy-muted">Nothing added yet — add the first one below.</p>}
+      {locations.length > 0 && (
         <ul className="space-y-1">
-          {wings.map((w) => (
-            <WingRow key={w.id} societyId={societyId} wing={w} locationsQueryKey={locationsQueryKey} />
+          {locations.map((l) => (
+            <LocationRow key={l.id} societyId={societyId} location={l} locationsQueryKey={locationsQueryKey} />
           ))}
         </ul>
       )}
-      <div className="flex gap-2 items-end">
-        <Input label="Wing name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Tower A" />
-        <Button loading={addWing.isPending} disabled={!name.trim()} onClick={() => addWing.mutate()}>
-          Add Wing
+      <div className="flex gap-2 items-end flex-wrap">
+        <div>
+          <label className="block text-sm text-navy-muted mb-1">Type</label>
+          <div className="flex gap-2">
+            {(["WING", "ROW"] as LocationType[]).map((opt) => (
+              <button
+                key={opt}
+                type="button"
+                onClick={() => setLocationType(opt)}
+                className={`px-3 py-2 rounded text-sm border ${
+                  locationType === opt ? "bg-navy text-white border-navy" : "border-line text-navy-muted"
+                }`}
+              >
+                {opt === "WING" ? "Wing" : "Row"}
+              </button>
+            ))}
+          </div>
+        </div>
+        <Input
+          label={locationType === "WING" ? "Wing name" : "Row name"}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder={locationType === "WING" ? "e.g. Tower A" : "e.g. Row A"}
+        />
+        <Button loading={addLocation.isPending} disabled={!name.trim()} onClick={() => addLocation.mutate()}>
+          Add {locationType === "WING" ? "Wing" : "Row"}
         </Button>
       </div>
       {error && <p className="text-sm text-danger">{error}</p>}
@@ -192,31 +239,32 @@ function WingsStep({
   );
 }
 
-function WingRow({
-  societyId, wing, locationsQueryKey,
-}: { societyId: string; wing: SocietyLocationOut; locationsQueryKey: unknown[] }) {
+function LocationRow({
+  societyId, location, locationsQueryKey,
+}: { societyId: string; location: SocietyLocationOut; locationsQueryKey: unknown[] }) {
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState(false);
-  const [name, setName] = useState(wing.name);
+  const [name, setName] = useState(location.name);
   const [error, setError] = useState<string | null>(null);
 
   const rename = useMutation({
-    mutationFn: () => societiesApi.updateLocation(societyId, wing.id, name.trim(), "WING"),
+    mutationFn: () => societiesApi.updateLocation(societyId, location.id, name.trim(), location.location_type),
     onSuccess: () => {
       setEditing(false);
       setError(null);
       void queryClient.invalidateQueries({ queryKey: locationsQueryKey });
     },
-    onError: (e) => setError(apiErrorMessage(e, "Couldn't rename this Wing.")),
+    onError: (e) => setError(apiErrorMessage(e, "Couldn't rename this.")),
   });
 
   if (!editing) {
     return (
       <li className="text-sm text-ink flex items-center gap-2 px-3 py-2 border border-line rounded">
-        <span className="flex-1">{wing.name}</span>
+        <span className="text-xs text-navy-muted w-10 shrink-0">{location.location_type === "WING" ? "Wing" : "Row"}</span>
+        <span className="flex-1">{location.name}</span>
         <button
           type="button"
-          onClick={() => { setName(wing.name); setError(null); setEditing(true); }}
+          onClick={() => { setName(location.name); setError(null); setEditing(true); }}
           className="text-xs text-navy-muted hover:text-navy underline"
         >
           Edit
@@ -259,7 +307,12 @@ function FloorsStep({
   const [newFloor, setNewFloor] = useState("");
 
   if (wings.length === 0) {
-    return <p className="text-sm text-navy-muted">Add at least one Wing in the "Wings" tab first.</p>;
+    return (
+      <p className="text-sm text-navy-muted">
+        Add a Wing in the "Wings &amp; Rows" tab first. (Rows/Bungalows don't need floor mapping — go straight to
+        the Flats &amp; Houses tab for those.)
+      </p>
+    );
   }
 
   const floors = selectedWingId ? floorsForWing(selectedWingId) : [];
@@ -268,6 +321,7 @@ function FloorsStep({
     <div className="space-y-3 max-w-md">
       <p className="text-sm text-navy-muted">
         Pick a Wing, then list which floors it has — the Flats-mapping tab only offers floors you've added here.
+        Rows/Bungalows have no floors, so they don't appear here.
       </p>
       <div>
         <label className="block text-sm text-navy-muted mb-1">Wing</label>
@@ -329,56 +383,68 @@ function FloorsStep({
   );
 }
 
-function FlatsStep({
-  societyId, wings, floorsForWing, addFloorToWing, properties, propertiesLoading, onFlatsChanged,
+function UnitsStep({
+  societyId, locations, floorsForWing, addFloorToWing, properties, propertiesLoading, onUnitsChanged,
+  initialLocationId, initialFloor,
 }: {
   societyId: string;
-  wings: SocietyLocationOut[];
+  locations: SocietyLocationOut[];
   floorsForWing: (wingId: string) => number[];
   addFloorToWing: (wingId: string, floorNumber: number) => void;
   properties: PropertyOut[];
   propertiesLoading: boolean;
-  onFlatsChanged: () => void;
+  onUnitsChanged: () => void;
+  initialLocationId?: string;
+  initialFloor?: number | null;
 }) {
-  const [selectedWingId, setSelectedWingId] = useState("");
-  const [selectedFloor, setSelectedFloor] = useState("");
-  const [flatCount, setFlatCount] = useState("");
-  const [flatNumbers, setFlatNumbers] = useState<string[]>([]);
+  const wings = locations.filter((l) => l.location_type === "WING");
+  const rows = locations.filter((l) => l.location_type === "ROW");
+
+  const [selectedLocationId, setSelectedLocationId] = useState(initialLocationId ?? "");
+  const [selectedFloor, setSelectedFloor] = useState(initialFloor != null ? String(initialFloor) : "");
+  const [unitCount, setUnitCount] = useState("");
+  const [unitNumbers, setUnitNumbers] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  if (wings.length === 0) {
-    return <p className="text-sm text-navy-muted">Add at least one Wing in the "Wings" tab first.</p>;
+  if (locations.length === 0) {
+    return <p className="text-sm text-navy-muted">Add at least one Wing or Row in the "Wings &amp; Rows" tab first.</p>;
   }
 
-  const floors = selectedWingId ? floorsForWing(selectedWingId) : [];
-  const existingFlats = properties.filter(
-    (p) => p.location_id === selectedWingId && String(p.floor_number) === selectedFloor
-  );
+  const selectedLocation = locations.find((l) => l.id === selectedLocationId);
+  const isWing = selectedLocation?.location_type === "WING";
+  const floors = isWing && selectedLocationId ? floorsForWing(selectedLocationId) : [];
+  const ready = isWing ? !!selectedLocationId && !!selectedFloor : !!selectedLocationId;
+  const existingUnits = properties.filter((p) => {
+    if (p.location_id !== selectedLocationId) return false;
+    return isWing ? String(p.floor_number) === selectedFloor : true;
+  });
 
   function setCount(v: string) {
-    setFlatCount(v);
+    setUnitCount(v);
     const n = Math.max(0, Math.min(200, Number(v) || 0));
-    setFlatNumbers((prev) => Array.from({ length: n }, (_, i) => prev[i] ?? ""));
+    setUnitNumbers((prev) => Array.from({ length: n }, (_, i) => prev[i] ?? ""));
   }
 
-  async function saveFlats() {
+  async function saveUnits() {
     setError(null);
     setSaving(true);
-    const toSave = flatNumbers.map((n) => n.trim()).filter((n) => n.length > 0);
+    const toSave = unitNumbers.map((n) => n.trim()).filter((n) => n.length > 0);
+    const houseType: HouseType = isWing ? "FLAT" : "BUNGALOW";
+    const floorArg = isWing ? Number(selectedFloor) : undefined;
     const results = await Promise.allSettled(
-      toSave.map((n) => societiesApi.addProperty(societyId, selectedWingId, n, Number(selectedFloor)))
+      toSave.map((n) => societiesApi.addProperty(societyId, selectedLocationId, n, houseType, floorArg))
     );
     const failedCount = results.filter((r) => r.status === "rejected").length;
     setSaving(false);
-    onFlatsChanged();
+    onUnitsChanged();
     if (failedCount === 0) {
-      setFlatCount("");
-      setFlatNumbers([]);
+      setUnitCount("");
+      setUnitNumbers([]);
     } else {
       setError(
-        `${toSave.length - failedCount} of ${toSave.length} flat(s) saved — ${failedCount} failed ` +
-          `(likely a duplicate number). Fix and retry those below."`
+        `${toSave.length - failedCount} of ${toSave.length} unit(s) saved — ${failedCount} failed ` +
+          `(likely a duplicate number). Fix and retry those below.`
       );
     }
   }
@@ -386,68 +452,87 @@ function FlatsStep({
   return (
     <div className="space-y-3 max-w-md">
       <p className="text-sm text-navy-muted">
-        Pick a Wing and floor, say how many flats are on it, then type each flat's actual number.
+        Pick a Wing (then a floor) or a Row, say how many flats/houses are on it, then type each one's actual
+        number.
       </p>
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <label className="block text-sm text-navy-muted mb-1">Wing</label>
+          <label className="block text-sm text-navy-muted mb-1">Wing / Row</label>
           <select
-            value={selectedWingId}
+            value={selectedLocationId}
             onChange={(e) => {
-              setSelectedWingId(e.target.value);
+              setSelectedLocationId(e.target.value);
               setSelectedFloor("");
-              setFlatCount("");
-              setFlatNumbers([]);
+              setUnitCount("");
+              setUnitNumbers([]);
             }}
             className="w-full px-3 py-2 border border-line rounded text-sm text-ink bg-white focus:border-navy"
           >
-            <option value="">Select a Wing</option>
-            {wings.map((w) => (
-              <option key={w.id} value={w.id}>{w.name}</option>
-            ))}
+            <option value="">Select a Wing or Row</option>
+            {wings.length > 0 && (
+              <optgroup label="Wings (Flats)">
+                {wings.map((w) => (
+                  <option key={w.id} value={w.id}>{w.name}</option>
+                ))}
+              </optgroup>
+            )}
+            {rows.length > 0 && (
+              <optgroup label="Rows (Bungalows)">
+                {rows.map((r) => (
+                  <option key={r.id} value={r.id}>{r.name}</option>
+                ))}
+              </optgroup>
+            )}
           </select>
         </div>
-        <div>
-          <label className="block text-sm text-navy-muted mb-1">Floor</label>
-          <select
-            value={selectedFloor}
-            onChange={(e) => {
-              setSelectedFloor(e.target.value);
-              setFlatCount("");
-              setFlatNumbers([]);
-            }}
-            disabled={!selectedWingId}
-            className="w-full px-3 py-2 border border-line rounded text-sm text-ink bg-white focus:border-navy disabled:bg-paper"
-          >
-            <option value="">Select a floor</option>
-            {floors.map((f) => (
-              <option key={f} value={f}>Floor {f}</option>
-            ))}
-          </select>
-        </div>
+        {isWing && (
+          <div>
+            <label className="block text-sm text-navy-muted mb-1">Floor</label>
+            <select
+              value={selectedFloor}
+              onChange={(e) => {
+                setSelectedFloor(e.target.value);
+                setUnitCount("");
+                setUnitNumbers([]);
+              }}
+              disabled={!selectedLocationId}
+              className="w-full px-3 py-2 border border-line rounded text-sm text-ink bg-white focus:border-navy disabled:bg-paper"
+            >
+              <option value="">Select a floor</option>
+              {floors.map((f) => (
+                <option key={f} value={f}>Floor {f}</option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
-      {selectedWingId && floors.length === 0 && (
-        <QuickAddFloor onAdd={(f) => { addFloorToWing(selectedWingId, f); setSelectedFloor(String(f)); }} />
+      {isWing && selectedLocationId && floors.length === 0 && (
+        <QuickAddFloor onAdd={(f) => { addFloorToWing(selectedLocationId, f); setSelectedFloor(String(f)); }} />
       )}
 
-      {selectedWingId && selectedFloor && (
+      {selectedLocation && !isWing && (
+        <p className="text-xs text-navy-muted">Rows/Bungalows have no floors — go straight to houses below.</p>
+      )}
+
+      {ready && (
         <>
           {propertiesLoading && <Loader />}
-          {existingFlats.length > 0 && (
+          {existingUnits.length > 0 && (
             <div>
               <label className="block text-sm text-navy-muted mb-1">
                 Already on record — click one to fix a typo
               </label>
               <ul className="space-y-1">
-                {existingFlats.map((f) => (
-                  <ExistingFlatRow
-                    key={f.id}
+                {existingUnits.map((u) => (
+                  <ExistingUnitRow
+                    key={u.id}
                     societyId={societyId}
-                    flat={f}
-                    wingId={selectedWingId}
+                    unit={u}
+                    locationId={selectedLocationId}
+                    houseType={isWing ? "FLAT" : "BUNGALOW"}
                     floors={floors}
-                    onChanged={onFlatsChanged}
+                    onChanged={onUnitsChanged}
                   />
                 ))}
               </ul>
@@ -455,26 +540,27 @@ function FlatsStep({
           )}
 
           <Input
-            label="Number of flats to add" type="number" value={flatCount} onChange={(e) => setCount(e.target.value)}
+            label={isWing ? "Number of flats to add" : "Number of houses to add"}
+            type="number" value={unitCount} onChange={(e) => setCount(e.target.value)}
           />
-          {flatNumbers.length > 0 && (
+          {unitNumbers.length > 0 && (
             <div className="space-y-2">
-              <label className="block text-sm text-navy-muted">Flat numbers</label>
+              <label className="block text-sm text-navy-muted">{isWing ? "Flat numbers" : "House numbers"}</label>
               <div className="grid grid-cols-2 gap-2">
-                {flatNumbers.map((n, i) => (
+                {unitNumbers.map((n, i) => (
                   <input
                     key={i}
                     value={n}
                     onChange={(e) =>
-                      setFlatNumbers((prev) => prev.map((v, vi) => (vi === i ? e.target.value : v)))
+                      setUnitNumbers((prev) => prev.map((v, vi) => (vi === i ? e.target.value : v)))
                     }
-                    placeholder={`e.g. ${selectedFloor}0${i + 1}`}
+                    placeholder={isWing ? `e.g. ${selectedFloor}0${i + 1}` : `e.g. ${i + 1}`}
                     className="px-2 py-1.5 border border-line rounded text-sm text-ink bg-white focus:border-navy"
                   />
                 ))}
               </div>
-              <Button loading={saving} disabled={flatNumbers.every((n) => !n.trim())} onClick={() => void saveFlats()}>
-                Save flats
+              <Button loading={saving} disabled={unitNumbers.every((n) => !n.trim())} onClick={() => void saveUnits()}>
+                Save {isWing ? "flats" : "houses"}
               </Button>
             </div>
           )}
@@ -485,32 +571,37 @@ function FlatsStep({
   );
 }
 
-function ExistingFlatRow({
-  societyId, flat, wingId, floors, onChanged,
+function ExistingUnitRow({
+  societyId, unit, locationId, houseType, floors, onChanged,
 }: {
   societyId: string;
-  flat: PropertyOut;
-  wingId: string;
+  unit: PropertyOut;
+  locationId: string;
+  houseType: HouseType;
   floors: number[];
   onChanged: () => void;
 }) {
+  const isWing = houseType === "FLAT";
   const [editing, setEditing] = useState(false);
-  const [houseNumber, setHouseNumber] = useState(flat.house_number);
-  const [floorNumber, setFloorNumber] = useState(String(flat.floor_number ?? ""));
+  const [houseNumber, setHouseNumber] = useState(unit.house_number);
+  const [floorNumber, setFloorNumber] = useState(unit.floor_number != null ? String(unit.floor_number) : "");
   const [error, setError] = useState<string | null>(null);
 
   const save = useMutation({
-    mutationFn: () => societiesApi.updateProperty(societyId, flat.id, wingId, houseNumber.trim(), Number(floorNumber)),
+    mutationFn: () =>
+      societiesApi.updateProperty(
+        societyId, unit.id, locationId, houseNumber.trim(), houseType, isWing ? Number(floorNumber) : undefined
+      ),
     onSuccess: () => {
       setEditing(false);
       setError(null);
       onChanged();
     },
-    onError: (e) => setError(apiErrorMessage(e, "Couldn't save — that house number may already be in use.")),
+    onError: (e) => setError(apiErrorMessage(e, "Couldn't save — that number may already be in use.")),
   });
 
   const remove = useMutation({
-    mutationFn: () => societiesApi.deleteProperty(societyId, flat.id),
+    mutationFn: () => societiesApi.deleteProperty(societyId, unit.id),
     onSuccess: () => {
       setError(null);
       onChanged();
@@ -519,7 +610,7 @@ function ExistingFlatRow({
   });
 
   function handleDelete() {
-    if (window.confirm(`Delete flat "${flat.house_number}"? This can't be undone.`)) {
+    if (window.confirm(`Delete "${unit.house_number}"? This can't be undone.`)) {
       remove.mutate();
     }
   }
@@ -527,12 +618,12 @@ function ExistingFlatRow({
   if (!editing) {
     return (
       <li className="text-sm text-ink flex items-center gap-2 px-3 py-1.5 border border-line rounded bg-paper">
-        <span className="flex-1">{flat.house_number}</span>
+        <span className="flex-1">{unit.house_number}</span>
         <button
           type="button"
           onClick={() => {
-            setHouseNumber(flat.house_number);
-            setFloorNumber(String(flat.floor_number ?? ""));
+            setHouseNumber(unit.house_number);
+            setFloorNumber(unit.floor_number != null ? String(unit.floor_number) : "");
             setError(null);
             setEditing(true);
           }}
@@ -562,19 +653,21 @@ function ExistingFlatRow({
           autoFocus
           className="flex-1 px-2 py-1 border border-line rounded text-sm text-ink bg-white focus:border-navy"
         />
-        <select
-          value={floorNumber}
-          onChange={(e) => setFloorNumber(e.target.value)}
-          className="px-2 py-1 border border-line rounded text-sm text-ink bg-white focus:border-navy"
-        >
-          {floors.map((f) => (
-            <option key={f} value={f}>Floor {f}</option>
-          ))}
-        </select>
+        {isWing && (
+          <select
+            value={floorNumber}
+            onChange={(e) => setFloorNumber(e.target.value)}
+            className="px-2 py-1 border border-line rounded text-sm text-ink bg-white focus:border-navy"
+          >
+            {floors.map((f) => (
+              <option key={f} value={f}>Floor {f}</option>
+            ))}
+          </select>
+        )}
         <Button
           variant="secondary"
           loading={save.isPending}
-          disabled={!houseNumber.trim() || !floorNumber}
+          disabled={!houseNumber.trim() || (isWing && !floorNumber)}
           onClick={() => save.mutate()}
         >
           Save

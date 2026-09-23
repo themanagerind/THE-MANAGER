@@ -15,9 +15,10 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.enums import HouseType, LocationType
-from app.models.identity import Property, SocietyLocation
+from app.models.identity import Property, PropertyResident, SocietyLocation
 from app.schemas.property import (
     PropertyCreateIn,
+    PropertyOut,
     PropertyUpdateIn,
     SocietyLocationCreateIn,
     SocietyLocationUpdateIn,
@@ -208,10 +209,30 @@ async def delete_property(db: AsyncSession, society_id: uuid.UUID, property_id: 
         )
 
 
-async def list_properties(db: AsyncSession, society_id: uuid.UUID) -> list[Property]:
-    return (
-        await db.execute(select(Property).where(Property.society_id == society_id))
-    ).scalars().all()
+def property_out(prop: Property, is_occupied: bool) -> PropertyOut:
+    """PropertyOut.model_validate(prop) alone can't fill is_occupied — it's
+    not a column on Property, it's computed by list_properties above."""
+    out = PropertyOut.model_validate(prop)
+    out.is_occupied = is_occupied
+    return out
+
+
+async def list_properties(db: AsyncSession, society_id: uuid.UUID) -> list[tuple[Property, bool]]:
+    """Each row paired with whether an active Resident is currently linked
+    — the Structure Overview diagram's occupied/vacant coloring, computed
+    once here so every caller (Platform Owner, Admin, Resident) gets it for
+    free instead of each re-deriving it."""
+    occupied = (
+        select(func.count())
+        .select_from(PropertyResident)
+        .where(PropertyResident.property_id == Property.id, PropertyResident.is_active.is_(True))
+        .correlate(Property)
+        .scalar_subquery()
+    )
+    rows = await db.execute(
+        select(Property, (occupied > 0)).where(Property.society_id == society_id)
+    )
+    return [(prop, bool(is_occupied)) for prop, is_occupied in rows.all()]
 
 
 async def update_property_status(

@@ -119,17 +119,23 @@ export const societiesApi = {
     apiClient.patch<PropertyOut>(`/societies/${societyId}/properties/${propertyId}/floors`, {
       floors_above_ground: floorsAboveGround,
     }),
-  /** The Society Mapping page's Flats-mapping step — one Property with a
-   * specific, hand-typed house_number on a chosen Wing + floor. */
-  addProperty: (societyId: string, locationId: string, houseNumber: string, floorNumber: number) =>
+  /** The Society Mapping page's Flats & Houses-mapping step — one Property
+   * with a specific, hand-typed house_number on a chosen Wing + floor
+   * (FLAT) or Row (BUNGALOW, no floor). */
+  addProperty: (
+    societyId: string, locationId: string, houseNumber: string, houseType: HouseType, floorNumber?: number
+  ) =>
     apiClient.post<PropertyOut>(`/societies/${societyId}/properties`, {
-      location_id: locationId, house_number: houseNumber, house_type: "FLAT", floor_number: floorNumber,
+      location_id: locationId, house_number: houseNumber, house_type: houseType, floor_number: floorNumber,
     }),
-  /** Correcting a Wing/floor/house-number typo made while mapping — full
-   * replace, same shape as addProperty. */
-  updateProperty: (societyId: string, propertyId: string, locationId: string, houseNumber: string, floorNumber: number) =>
+  /** Correcting a Wing/Row/floor/house-number typo made while mapping —
+   * full replace, same shape as addProperty. */
+  updateProperty: (
+    societyId: string, propertyId: string, locationId: string, houseNumber: string, houseType: HouseType,
+    floorNumber?: number
+  ) =>
     apiClient.patch<PropertyOut>(`/societies/${societyId}/properties/${propertyId}`, {
-      location_id: locationId, house_number: houseNumber, house_type: "FLAT", floor_number: floorNumber,
+      location_id: locationId, house_number: houseNumber, house_type: houseType, floor_number: floorNumber,
     }),
   /** Removing a wrongly-added Property — only succeeds while nothing else
    * (a Resident, a payment...) references it yet. */

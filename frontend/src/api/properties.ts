@@ -23,6 +23,9 @@ export interface PropertyOut {
   floors_above_ground: number;
   status: string;
   created_at: string;
+  /** Whether an active Resident (owner/tenant) is currently linked —
+   * powers the Structure Overview diagram's occupied/vacant coloring. */
+  is_occupied: boolean;
 }
 
 export const propertiesApi = {

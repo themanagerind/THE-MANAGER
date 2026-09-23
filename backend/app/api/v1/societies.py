@@ -194,7 +194,7 @@ async def list_society_properties(
     after a bulk BUNGALOW generation, and so the Society Mapping page can
     show what's already on record."""
     properties = await property_service.list_properties(db, society_id)
-    return [PropertyOut.model_validate(p) for p in properties]
+    return [property_service.property_out(p, occupied) for p, occupied in properties]
 
 
 @router.post("/{society_id}/properties", response_model=PropertyOut)
