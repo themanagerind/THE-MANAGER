@@ -22,7 +22,7 @@ export function AdminOverview() {
     queryFn: () => residentsApi.pending().then((r) => r.data),
   });
   const pendingPayments = useQuery({
-    queryKey: ["admin", "payments", "pending"],
+    queryKey: ["dues", "payments", "pending"],
     queryFn: () => paymentsApi.pending().then((r) => r.data),
   });
 

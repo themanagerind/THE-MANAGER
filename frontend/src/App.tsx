@@ -27,6 +27,9 @@ import { AdminExpenseBills } from "@/pages/admin/ExpenseBills";
 import { AdminAccounts } from "@/pages/admin/Accounts";
 import { ManagerTodos } from "@/pages/manager/Todos";
 import { ManagerComplaints } from "@/pages/manager/Complaints";
+import { SubAdminOverview } from "@/pages/subadmin/Overview";
+import { SubAdminDues } from "@/pages/subadmin/Dues";
+import { SubAdminExpenseBills } from "@/pages/subadmin/ExpenseBills";
 
 function RoleHomeRedirect() {
   const { activeRole } = useAuth();
@@ -70,11 +73,17 @@ export function App() {
           </Route>
 
           <Route element={<ProtectedRoute allow={["SUB_ADMIN"]} />}>
-            <Route path="/subadmin" element={<PlaceholderPage title="Overview" />} />
-            <Route path="/subadmin/dues" element={<PlaceholderPage title="Maintenance Dues" />} />
-            <Route path="/subadmin/complaints" element={<PlaceholderPage title="Complaints" />} />
-            <Route path="/subadmin/proposals" element={<PlaceholderPage title="Proposals" />} />
-            <Route path="/subadmin/expense-bills" element={<PlaceholderPage title="Expense Bills" />} />
+            <Route path="/subadmin" element={<SubAdminOverview />} />
+            <Route path="/subadmin/dues" element={<SubAdminDues />} />
+            {/* Same component as Admin's — the backend already scopes list/
+                assign/status-update results to the Sub-admin's Wing/Row,
+                and the UI has no Admin-only actions to hide. */}
+            <Route path="/subadmin/complaints" element={<AdminComplaints />} />
+            {/* Same component as Resident's — both only list and vote;
+                raising/withdrawing a proposal is Admin-only and isn't
+                rendered here either way. */}
+            <Route path="/subadmin/proposals" element={<ResidentProposals />} />
+            <Route path="/subadmin/expense-bills" element={<SubAdminExpenseBills />} />
           </Route>
 
           <Route element={<ProtectedRoute allow={["MANAGER"]} />}>
