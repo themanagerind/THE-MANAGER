@@ -3,11 +3,15 @@
 # for fast hot-reload; this just saves installing Postgres/Redis by hand,
 # which is especially painful for Redis on Windows.
 #
-# Postgres is exposed on host port 5433 (not the standard 5432) — a lot of
-# Windows machines already have a native postgres.exe Windows Service quietly
-# bound to 5432 (from some other install), which silently steals every
-# connection meant for this container and is very confusing to debug. 5433
-# avoids that collision without needing to touch whatever else owns 5432.
+# Postgres is exposed on host port 5433 (not the standard 5432), and Redis on
+# 6380 (not 6379) — a lot of Windows machines already have native postgres.exe
+# and redis-server.exe Windows Services quietly bound to the standard ports
+# (from some other install), which silently steal every connection meant for
+# these containers and are very confusing to debug (Redis in particular: the
+# client's handshake fails with "unknown command 'HELLO'" against a stray
+# ancient Redis version, not an obvious "wrong server" error). These
+# non-standard ports avoid that collision without needing to touch whatever
+# else owns 5432/6379.
 #
 # Usage: docker compose up -d
 services:
@@ -30,7 +34,7 @@ services:
   redis:
     image: redis:7
     ports:
-      - "6379:6379"
+      - "6380:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
