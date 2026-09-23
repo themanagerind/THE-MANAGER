@@ -32,11 +32,34 @@ export interface SocietySearchResultOut {
   city: string | null;
 }
 
+export interface SocietyCreateInput {
+  name: string;
+  address: string;
+  city: string;
+  state: string;
+  pincode: string;
+  /** The only optional field — a Platform Owner can add Wings/Rows right
+   * at creation, or leave this empty and let the Admin add them later
+   * from the Properties page. `code` is never sent — the backend
+   * auto-generates a guaranteed-unique one. */
+  locations?: { name: string; location_type: LocationType }[];
+}
+
+export interface SocietyUpdateInput {
+  name: string;
+  address: string;
+  city: string;
+  state: string;
+  pincode: string;
+}
+
 export const societiesApi = {
   /** Platform Owner creates a society directly from their dashboard —
    * the only way a society comes into existence now. ACTIVE immediately. */
-  create: (input: { name: string; code: string; address?: string; city?: string; state?: string; pincode?: string }) =>
-    apiClient.post<SocietyOut>("/societies", input),
+  create: (input: SocietyCreateInput) => apiClient.post<SocietyOut>("/societies", input),
+  /** Platform Owner edits name/address/city/state/pincode after creation
+   * — `code` stays fixed (see backend SocietyUpdateIn's docstring). */
+  update: (id: string, input: SocietyUpdateInput) => apiClient.patch<SocietyOut>(`/societies/${id}`, input),
   /** Public — used by the Admin/Resident signup forms to resolve a
    * society code to its id/name before submitting. */
   lookup: (code: string) => apiClient.get<SocietyLookupOut>(`/societies/lookup/${encodeURIComponent(code)}`),

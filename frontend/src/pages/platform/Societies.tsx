@@ -8,6 +8,7 @@ import { Table } from "@/components/Table";
 import { Modal } from "@/components/Modal";
 import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
+import type { LocationType } from "@/types/enums";
 
 /**
  * A society only ever comes into existence here — created directly by the
@@ -18,6 +19,7 @@ import { Input } from "@/components/Input";
 export function PlatformSocieties() {
   const queryClient = useQueryClient();
   const [creating, setCreating] = useState(false);
+  const [editing, setEditing] = useState<SocietyOut | null>(null);
 
   const societiesQuery = useQuery({
     queryKey: ["platform", "societies"],
@@ -66,9 +68,10 @@ export function PlatformSocieties() {
               { header: "Status", render: (s) => <Badge status={s.status}>{s.status}</Badge> },
               {
                 header: "",
-                render: (s) =>
-                  s.status === "PENDING" ? null : (
-                    <div className="flex justify-end">
+                render: (s) => (
+                  <div className="flex gap-2 justify-end">
+                    <Button variant="secondary" onClick={() => setEditing(s)}>Edit</Button>
+                    {s.status !== "PENDING" && (
                       <Button
                         variant="secondary"
                         loading={toggleStatus.isPending && toggleStatus.variables?.id === s.id}
@@ -76,8 +79,9 @@ export function PlatformSocieties() {
                       >
                         {s.status === "SUSPENDED" ? "Reactivate" : "Suspend"}
                       </Button>
-                    </div>
-                  ),
+                    )}
+                  </div>
+                ),
               },
             ]}
             rows={societiesQuery.data}
@@ -133,8 +137,16 @@ export function PlatformSocieties() {
       {creating && (
         <CreateSocietyModal
           onClose={() => setCreating(false)}
+          onSuccess={() => void queryClient.invalidateQueries({ queryKey: ["platform", "societies"] })}
+        />
+      )}
+
+      {editing && (
+        <EditSocietyModal
+          society={editing}
+          onClose={() => setEditing(null)}
           onSuccess={() => {
-            setCreating(false);
+            setEditing(null);
             void queryClient.invalidateQueries({ queryKey: ["platform", "societies"] });
           }}
         />
@@ -143,47 +155,168 @@ export function PlatformSocieties() {
   );
 }
 
+interface LocationRow {
+  name: string;
+  location_type: LocationType;
+}
+
 function CreateSocietyModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
   const [name, setName] = useState("");
-  const [code, setCode] = useState("");
   const [city, setCity] = useState("");
   const [state, setState] = useState("");
   const [address, setAddress] = useState("");
   const [pincode, setPincode] = useState("");
+  const [locations, setLocations] = useState<LocationRow[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [createdCode, setCreatedCode] = useState<string | null>(null);
 
   const create = useMutation({
     mutationFn: () =>
       societiesApi.create({
-        name, code,
-        city: city || undefined, state: state || undefined,
-        address: address || undefined, pincode: pincode || undefined,
+        name: name.trim(), city: city.trim(), state: state.trim(),
+        address: address.trim(), pincode: pincode.trim(),
+        locations: locations.filter((l) => l.name.trim()).map((l) => ({ name: l.name.trim(), location_type: l.location_type })),
       }),
-    onSuccess,
+    onSuccess: (r) => {
+      onSuccess();
+      setCreatedCode(r.data.code);
+    },
     onError: (e) => setError(apiErrorMessage(e, "Couldn't create the society.")),
   });
+
+  function addLocationRow() {
+    setLocations((prev) => [...prev, { name: "", location_type: "WING" }]);
+  }
+  function updateLocationRow(index: number, patch: Partial<LocationRow>) {
+    setLocations((prev) => prev.map((l, i) => (i === index ? { ...l, ...patch } : l)));
+  }
+  function removeLocationRow(index: number) {
+    setLocations((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  const canSubmit = [name, city, state, address, pincode].every((f) => f.trim().length > 0);
+
+  if (createdCode) {
+    return (
+      <Modal open onClose={onClose} title="Society created">
+        <div className="space-y-4">
+          <p className="text-sm text-ink">
+            <span className="font-medium">{name}</span> is now active. Its society code is:
+          </p>
+          <p className="text-2xl font-bold text-navy tracking-wide text-center py-3 bg-paper rounded border border-line">
+            {createdCode}
+          </p>
+          <p className="text-xs text-navy-muted">
+            Share this code with the society's Admin and Residents so they can find it when signing up.
+          </p>
+          <div className="flex justify-end pt-2">
+            <Button onClick={onClose}>Done</Button>
+          </div>
+        </div>
+      </Modal>
+    );
+  }
 
   return (
     <Modal open onClose={onClose} title="Create society">
       <div className="space-y-4">
         <Input label="Society name" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
-        <Input
-          label="Society code"
-          value={code}
-          onChange={(e) => setCode(e.target.value.toUpperCase())}
-        />
         <p className="text-xs text-navy-muted -mt-2">
-          Share this code with the society's Admin and Residents so they can find it when signing up.
+          The society code is generated automatically once created — no need to make one up.
         </p>
-        <Input label="City (optional)" value={city} onChange={(e) => setCity(e.target.value)} />
-        <Input label="State (optional)" value={state} onChange={(e) => setState(e.target.value)} />
-        <Input label="Address (optional)" value={address} onChange={(e) => setAddress(e.target.value)} />
-        <Input label="Pincode (optional)" value={pincode} onChange={(e) => setPincode(e.target.value)} />
+        <Input label="City" value={city} onChange={(e) => setCity(e.target.value)} />
+        <Input label="State" value={state} onChange={(e) => setState(e.target.value)} />
+        <Input label="Address" value={address} onChange={(e) => setAddress(e.target.value)} />
+        <Input label="Pincode" value={pincode} onChange={(e) => setPincode(e.target.value)} />
+
+        <div className="border-t border-line pt-3">
+          <div className="flex items-center justify-between mb-2">
+            <label className="block text-sm text-navy-muted">Wings/Rows (optional)</label>
+            <Button variant="secondary" onClick={addLocationRow}>Add location</Button>
+          </div>
+          {locations.length === 0 && (
+            <p className="text-xs text-navy-muted">
+              Skip this if you don't have the details yet — the Admin can add Wings/Rows later.
+            </p>
+          )}
+          <div className="space-y-2">
+            {locations.map((loc, i) => (
+              <div key={i} className="flex gap-2 items-center">
+                <input
+                  value={loc.name}
+                  onChange={(e) => updateLocationRow(i, { name: e.target.value })}
+                  placeholder="e.g. Wing A"
+                  className="flex-1 px-3 py-2 border border-line rounded text-sm text-ink bg-white focus:border-navy"
+                />
+                <select
+                  value={loc.location_type}
+                  onChange={(e) => updateLocationRow(i, { location_type: e.target.value as LocationType })}
+                  className="px-2 py-2 border border-line rounded text-sm text-ink bg-white focus:border-navy"
+                >
+                  <option value="WING">Wing</option>
+                  <option value="ROW">Row</option>
+                </select>
+                <button
+                  type="button"
+                  onClick={() => removeLocationRow(i)}
+                  aria-label="Remove location"
+                  className="text-navy-muted hover:text-danger text-lg leading-none px-1"
+                >
+                  &times;
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+
         {error && <p className="text-sm text-danger">{error}</p>}
         <div className="flex gap-2 justify-end pt-2">
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button loading={create.isPending} disabled={!name.trim() || !code.trim()} onClick={() => create.mutate()}>
+          <Button loading={create.isPending} disabled={!canSubmit} onClick={() => create.mutate()}>
             Create
+          </Button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+function EditSocietyModal({
+  society, onClose, onSuccess,
+}: { society: SocietyOut; onClose: () => void; onSuccess: () => void }) {
+  const [name, setName] = useState(society.name);
+  const [city, setCity] = useState(society.city ?? "");
+  const [state, setState] = useState(society.state ?? "");
+  const [address, setAddress] = useState(society.address ?? "");
+  const [pincode, setPincode] = useState(society.pincode ?? "");
+  const [error, setError] = useState<string | null>(null);
+
+  const update = useMutation({
+    mutationFn: () =>
+      societiesApi.update(society.id, {
+        name: name.trim(), city: city.trim(), state: state.trim(),
+        address: address.trim(), pincode: pincode.trim(),
+      }),
+    onSuccess,
+    onError: (e) => setError(apiErrorMessage(e, "Couldn't update the society.")),
+  });
+
+  const canSubmit = [name, city, state, address, pincode].every((f) => f.trim().length > 0);
+
+  return (
+    <Modal open onClose={onClose} title={`Edit — ${society.name}`}>
+      <div className="space-y-4">
+        <Input label="Society name" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
+        <p className="text-xs text-navy-muted -mt-2">Code: {society.code} (fixed, not editable)</p>
+        <Input label="City" value={city} onChange={(e) => setCity(e.target.value)} />
+        <Input label="State" value={state} onChange={(e) => setState(e.target.value)} />
+        <Input label="Address" value={address} onChange={(e) => setAddress(e.target.value)} />
+        <Input label="Pincode" value={pincode} onChange={(e) => setPincode(e.target.value)} />
+        {error && <p className="text-sm text-danger">{error}</p>}
+        <div className="flex gap-2 justify-end pt-2">
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button loading={update.isPending} disabled={!canSubmit} onClick={() => update.mutate()}>
+            Save
           </Button>
         </div>
       </div>

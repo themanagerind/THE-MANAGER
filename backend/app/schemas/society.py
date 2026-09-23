@@ -5,6 +5,7 @@ from datetime import datetime
 from pydantic import BaseModel
 
 from app.models.enums import SocietyStatus
+from app.schemas.property import SocietyLocationCreateIn
 
 
 class SocietySignupIn(BaseModel):
@@ -35,14 +36,37 @@ class SocietyCreateIn(BaseModel):
     the only way a society comes into existence now (SocietySignupIn's
     bundled self-service flow above stays for API compatibility but isn't
     linked from the signup page anymore). Goes straight to ACTIVE: the
-    Platform Owner creating it IS the approval."""
+    Platform Owner creating it IS the approval.
+
+    `code` is never client-supplied — society_service.create_society
+    auto-generates one and guarantees uniqueness, so two societies can
+    never collide. Every field here is required EXCEPT `locations`: a
+    society's identity/address should always be captured properly, but
+    Wings/Rows are a genuine convenience — the Admin can always add them
+    later from the Properties page, so forcing them at creation time
+    would just get in the way for a Platform Owner who doesn't have that
+    detail yet."""
 
     name: str
-    code: str
-    address: str | None = None
-    city: str | None = None
-    state: str | None = None
-    pincode: str | None = None
+    address: str
+    city: str
+    state: str
+    pincode: str
+    locations: list[SocietyLocationCreateIn] = []
+
+
+class SocietyUpdateIn(BaseModel):
+    """Platform Owner edits a society's profile after creation. `code` is
+    deliberately not editable here — it's already shared with the
+    society's Admin/Residents as their signup key; changing it would
+    break their ability to find the society again. Locations aren't
+    edited here either — that's the Admin's own Properties page."""
+
+    name: str
+    address: str
+    city: str
+    state: str
+    pincode: str
 
 
 class SocietyLookupOut(BaseModel):

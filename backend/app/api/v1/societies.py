@@ -15,6 +15,7 @@ from app.schemas.society import (
     SocietySignupIn,
     SocietySignupOut,
     SocietyStatusUpdateIn,
+    SocietyUpdateIn,
 )
 from app.services import society_service
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -90,6 +91,19 @@ async def approve(
     current: Annotated[CurrentUser, Depends(require_role(Role.PLATFORM_OWNER))],
 ) -> SocietyOut:
     society = await society_service.approve_society_and_admin(db, society_id, current.user_id)
+    return SocietyOut.model_validate(society)
+
+
+@router.patch("/{society_id}", response_model=SocietyOut)
+async def update_profile(
+    society_id: uuid.UUID,
+    body: SocietyUpdateIn,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current: Annotated[CurrentUser, Depends(require_role(Role.PLATFORM_OWNER))],
+) -> SocietyOut:
+    """Edits name/address/city/state/pincode — `code` and locations aren't
+    editable here (see SocietyUpdateIn's docstring)."""
+    society = await society_service.update_society_profile(db, society_id, body)
     return SocietyOut.model_validate(society)
 
 

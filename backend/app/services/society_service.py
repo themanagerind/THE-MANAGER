@@ -2,6 +2,8 @@
 Society service — Section 5 (Platform Owner), Section 6 (Admin), Section 25
 (society status), Section 26 (Admin approval flow).
 """
+import secrets
+import string
 import uuid
 from datetime import datetime, timezone
 
@@ -11,8 +13,34 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.redis_client import get_redis
 from app.models.enums import Role, SocietyStatus, UserStatus
-from app.models.identity import Society, User, UserRole
-from app.schemas.society import SocietyCreateIn, SocietySignupIn
+from app.models.identity import Society, SocietyLocation, User, UserRole
+from app.schemas.society import SocietyCreateIn, SocietySignupIn, SocietyUpdateIn
+
+_CODE_SUFFIX_LENGTH = 5
+_CODE_GENERATION_MAX_ATTEMPTS = 10
+
+
+def _code_prefix_from_name(name: str) -> str:
+    slug = "".join(ch for ch in name.upper() if ch.isalnum())[:8]
+    return slug or "SOC"
+
+
+async def _generate_unique_code(db: AsyncSession, name: str) -> str:
+    """Never client-supplied (see SocietyCreateIn's docstring) — two
+    societies can never collide on code, and a Platform Owner never has
+    to think one up. A short random suffix (not a sequential counter)
+    keeps codes from being guessable in order. The DB's own UNIQUE
+    constraint on Society.code is the final backstop if this ever raced
+    with itself, but Platform Owner society-creation isn't a
+    high-concurrency path, so a plain check-then-generate loop is enough."""
+    prefix = _code_prefix_from_name(name)
+    for _ in range(_CODE_GENERATION_MAX_ATTEMPTS):
+        suffix = "".join(secrets.choice(string.digits) for _ in range(_CODE_SUFFIX_LENGTH))
+        code = f"{prefix}-{suffix}"
+        existing = (await db.execute(select(Society).where(Society.code == code))).scalar_one_or_none()
+        if existing is None:
+            return code
+    raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, "Could not generate a unique society code — try again")
 
 _SEARCH_MIN_QUERY_LENGTH = 3
 _SEARCH_RESULT_LIMIT = 10
@@ -33,18 +61,40 @@ async def create_society(db: AsyncSession, body: SocietyCreateIn) -> Society:
     for a society to exist now that Admin signup targets an existing one
     instead of bundling a new society with it. Goes straight to ACTIVE:
     the Platform Owner creating it from their own dashboard IS the
-    approval, there's no one else who needs to sign off on it."""
-    existing = (
-        await db.execute(select(Society).where(Society.code == body.code))
-    ).scalar_one_or_none()
-    if existing is not None:
-        raise HTTPException(status.HTTP_409_CONFLICT, "Society code already in use")
-
+    approval, there's no one else who needs to sign off on it. `locations`
+    is the only optional field on the request — if given, each Wing/Row
+    is created in the same transaction as the society itself (single
+    commit at the end), so a Platform Owner doesn't have to hand off to
+    the Admin just to get the first Wing/Row on record."""
+    code = await _generate_unique_code(db, body.name)
     society = Society(
-        name=body.name, code=body.code, status=SocietyStatus.ACTIVE,
+        name=body.name, code=code, status=SocietyStatus.ACTIVE,
         address=body.address, city=body.city, state=body.state, pincode=body.pincode,
     )
     db.add(society)
+    await db.flush()  # need society.id before adding locations below
+
+    for loc in body.locations:
+        db.add(SocietyLocation(society_id=society.id, name=loc.name, location_type=loc.location_type))
+
+    await db.commit()
+    await db.refresh(society)
+    return society
+
+
+async def update_society_profile(db: AsyncSession, society_id: uuid.UUID, body: SocietyUpdateIn) -> Society:
+    """Platform Owner edits a society's profile after creation — name and
+    address details only; `code` stays fixed (see SocietyUpdateIn's
+    docstring) and locations are the Admin's own Properties page."""
+    society = (await db.execute(select(Society).where(Society.id == society_id))).scalar_one_or_none()
+    if society is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Society not found")
+
+    society.name = body.name
+    society.address = body.address
+    society.city = body.city
+    society.state = body.state
+    society.pincode = body.pincode
     await db.commit()
     await db.refresh(society)
     return society
