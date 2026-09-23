@@ -7,6 +7,7 @@ a single-table CHECK constraint (see Schema Spec v1.3, `properties` table
 note) — enforced here at the service layer, inside the same transaction as
 the insert, exactly as the spec requires.
 """
+import re
 import uuid
 
 from fastapi import HTTPException, status
@@ -49,7 +50,11 @@ async def create_location(
 
 async def list_locations(db: AsyncSession, society_id: uuid.UUID) -> list[SocietyLocation]:
     return (
-        await db.execute(select(SocietyLocation).where(SocietyLocation.society_id == society_id))
+        await db.execute(
+            select(SocietyLocation)
+            .where(SocietyLocation.society_id == society_id)
+            .order_by(SocietyLocation.name)
+        )
     ).scalars().all()
 
 
@@ -243,11 +248,30 @@ def property_out(prop: Property, is_occupied: bool) -> PropertyOut:
     return out
 
 
+def _natural_sort_key(value: str) -> list:
+    """Splits 'B2-10' into ['b2-', 10, ''] so '...-2' sorts before '...-10'
+    — a plain string ORDER BY would put '...-10' before '...-2' (lexical,
+    not numeric), which is exactly the disorganized order this was added
+    to fix (see list_properties below)."""
+    return [int(part) if part.isdigit() else part.lower() for part in re.split(r"(\d+)", value)]
+
+
 async def list_properties(db: AsyncSession, society_id: uuid.UUID) -> list[tuple[Property, bool]]:
     """Each row paired with whether an active Resident is currently linked
     — the Structure Overview diagram's occupied/vacant coloring, computed
     once here so every caller (Platform Owner, Admin, Resident) gets it for
-    free instead of each re-deriving it."""
+    free instead of each re-deriving it.
+
+    Ordered by Wing/Row name, then floor, then house_number (natural sort)
+    — the query previously had no ORDER BY at all, so every dropdown built
+    from this list (Admin's "Link property" modal on Resident approval,
+    Resident's own property picker, Manager's Dues property picker, ...)
+    showed properties in whatever order Postgres happened to return them,
+    which read as random/unorganized to whoever had to scroll it (e.g.
+    B1-16, B1-18, B1-22, B1-21, B2-05, B2-01, ...). house_number itself
+    isn't sorted as a plain string either — the bulk generators produce
+    unpadded numbers ('R1-2', 'R1-10'), so a naive string sort would still
+    put 'R1-10' before 'R1-2'."""
     occupied = (
         select(func.count())
         .select_from(PropertyResident)
@@ -256,9 +280,19 @@ async def list_properties(db: AsyncSession, society_id: uuid.UUID) -> list[tuple
         .scalar_subquery()
     )
     rows = await db.execute(
-        select(Property, (occupied > 0)).where(Property.society_id == society_id)
+        select(Property, SocietyLocation.name, (occupied > 0))
+        .join(SocietyLocation, SocietyLocation.id == Property.location_id)
+        .where(Property.society_id == society_id)
     )
-    return [(prop, bool(is_occupied)) for prop, is_occupied in rows.all()]
+    entries = [(prop, location_name, bool(is_occupied)) for prop, location_name, is_occupied in rows.all()]
+    entries.sort(
+        key=lambda e: (
+            _natural_sort_key(e[1]),
+            e[0].floor_number if e[0].floor_number is not None else -1,
+            _natural_sort_key(e[0].house_number),
+        )
+    )
+    return [(prop, is_occupied) for prop, _, is_occupied in entries]
 
 
 async def update_property_status(
