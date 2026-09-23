@@ -9,9 +9,23 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.redis_client import get_redis
 from app.models.enums import Role, SocietyStatus, UserStatus
 from app.models.identity import Society, User, UserRole
 from app.schemas.society import SocietyCreateIn, SocietySignupIn
+
+_SEARCH_MIN_QUERY_LENGTH = 3
+_SEARCH_RESULT_LIMIT = 10
+_SEARCH_MAX_PER_WINDOW = 30
+_SEARCH_RATE_WINDOW_SECONDS = 600
+
+
+def _search_rate_key(client_ip: str) -> str:
+    return f"society_search:rate:{client_ip}"
+
+
+def _escape_like(value: str) -> str:
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
 async def create_society(db: AsyncSession, body: SocietyCreateIn) -> Society:
@@ -45,6 +59,39 @@ async def lookup_society_by_code(db: AsyncSession, code: str) -> Society | None:
             select(Society).where(Society.code == code, Society.status == SocietyStatus.ACTIVE)
         )
     ).scalar_one_or_none()
+
+
+async def search_societies_by_name(db: AsyncSession, query: str, client_ip: str) -> list[Society]:
+    """Public name-search alternative to the exact-code lookup above, for a
+    signup picker instead of asking Admin/Resident to already know the
+    code. Kept narrow so it can't become the full-directory-enumeration
+    endpoint SocietyLookupOut's docstring deliberately avoids: a minimum
+    query length, a capped result count, and a per-IP rate limit (there's
+    no mobile number yet at this point in signup to key on, unlike the
+    OTP/signup rate limits elsewhere)."""
+    trimmed = query.strip()
+    if len(trimmed) < _SEARCH_MIN_QUERY_LENGTH:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"Search needs at least {_SEARCH_MIN_QUERY_LENGTH} characters",
+        )
+
+    r = get_redis()
+    attempts = await r.incr(_search_rate_key(client_ip))
+    if attempts == 1:
+        await r.expire(_search_rate_key(client_ip), _SEARCH_RATE_WINDOW_SECONDS)
+    if attempts > _SEARCH_MAX_PER_WINDOW:
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Too many searches — try again later")
+
+    pattern = f"%{_escape_like(trimmed)}%"
+    return (
+        await db.execute(
+            select(Society)
+            .where(Society.status == SocietyStatus.ACTIVE, Society.name.ilike(pattern, escape="\\"))
+            .order_by(Society.name)
+            .limit(_SEARCH_RESULT_LIMIT)
+        )
+    ).scalars().all()
 
 
 async def signup_society_and_admin(db: AsyncSession, body: SocietySignupIn) -> tuple[Society, User]:

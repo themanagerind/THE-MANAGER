@@ -2,7 +2,7 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from app.core.db import get_db
 from app.core.security import CurrentUser, require_role
@@ -11,6 +11,7 @@ from app.schemas.society import (
     SocietyCreateIn,
     SocietyLookupOut,
     SocietyOut,
+    SocietySearchResultOut,
     SocietySignupIn,
     SocietySignupOut,
     SocietyStatusUpdateIn,
@@ -30,6 +31,23 @@ async def lookup(code: str, db: Annotated[AsyncSession, Depends(get_db)]) -> Soc
     if society is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Society not found")
     return SocietyLookupOut(id=society.id, name=society.name)
+
+
+@router.get("/search", response_model=list[SocietySearchResultOut])
+async def search(
+    q: str,
+    request: Request,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> list[SocietySearchResultOut]:
+    """Public — lets the Admin/Resident signup forms offer a name-search
+    picker as an alternative to typing the exact code. Narrower than
+    `lookup` above only in that it matches by substring instead of an
+    exact code; see society_service.search_societies_by_name for the
+    limits (min query length, capped results, per-IP rate limit) that
+    keep this from becoming a full-directory-enumeration endpoint."""
+    client_ip = request.client.host if request.client else "unknown"
+    societies = await society_service.search_societies_by_name(db, q, client_ip)
+    return [SocietySearchResultOut(id=s.id, name=s.name, city=s.city) for s in societies]
 
 
 @router.post("/signup", response_model=SocietySignupOut)

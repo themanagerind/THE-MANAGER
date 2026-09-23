@@ -54,6 +54,20 @@ class SocietyLookupOut(BaseModel):
     name: str
 
 
+class SocietySearchResultOut(BaseModel):
+    """Public, minimal — powers a name-search picker as an alternative to
+    typing the exact code. Deliberately excludes `code` (would let a
+    stranger sign up as that society's Admin without ever asking the
+    Platform Owner for the code) and address/pincode. Search is
+    rate-limited and capped at a small result count (see
+    society_service.search_societies_by_name) so it can't be used to
+    enumerate the platform's full society list."""
+
+    id: uuid.UUID
+    name: str
+    city: str | None
+
+
 class SocietyOut(BaseModel):
     id: uuid.UUID
     name: str

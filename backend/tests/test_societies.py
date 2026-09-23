@@ -155,3 +155,47 @@ async def test_society_lookup_by_code_is_public_and_scoped_to_active(
     await db_session.commit()
     resp = await client.get("/api/v1/societies/lookup/SOC-PEND-LOOKUP")
     assert resp.status_code == 404
+
+
+async def test_society_search_is_public_and_matches_by_name_substring(
+    client: AsyncClient, db_session: AsyncSession
+):
+    """Search picker alternative to the code lookup — public, matches a
+    substring of the name, only ACTIVE societies, and never leaks `code`."""
+    owner = await _seed_platform_owner(db_session, "9700000007")
+    headers = auth_headers(owner.id, None, Role.PLATFORM_OWNER, [Role.PLATFORM_OWNER])
+    resp = await client.post(
+        "/api/v1/societies",
+        json={"name": "Palm Residency", "code": "SOC-PALM-SECRET", "city": "Pune"},
+        headers=headers,
+    )
+    society_id = resp.json()["id"]
+
+    resp = await client.get("/api/v1/societies/search", params={"q": "palm res"})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert len(body) == 1
+    assert body[0] == {"id": society_id, "name": "Palm Residency", "city": "Pune"}
+    assert "code" not in body[0]
+
+    # A PENDING society isn't searchable either — matches lookup's behavior.
+    pending = Society(name="Pending Palms", code="SOC-PEND-PALMS", status=SocietyStatus.PENDING)
+    db_session.add(pending)
+    await db_session.commit()
+    resp = await client.get("/api/v1/societies/search", params={"q": "pending palms"})
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+
+async def test_society_search_rejects_too_short_query(client: AsyncClient, db_session: AsyncSession):
+    resp = await client.get("/api/v1/societies/search", params={"q": "ab"})
+    assert resp.status_code == 400
+
+
+async def test_society_search_is_rate_limited_per_ip(client: AsyncClient, db_session: AsyncSession):
+    for _ in range(30):
+        resp = await client.get("/api/v1/societies/search", params={"q": "nonexistent society"})
+        assert resp.status_code == 200
+
+    resp = await client.get("/api/v1/societies/search", params={"q": "nonexistent society"})
+    assert resp.status_code == 429

@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
 import { apiErrorMessage } from "@/components/States";
-import { societiesApi } from "@/api/societies";
+import { societiesApi, type SocietySearchResultOut } from "@/api/societies";
 import { residentsApi } from "@/api/residents";
 import { adminsApi } from "@/api/admins";
 
@@ -13,11 +13,14 @@ type Step = "society" | "details" | "done";
 // Audit #20 pattern (see Login.tsx) — stops an obviously-invalid mobile
 // before it's sent; the backend stays the authoritative check.
 const MOBILE_RE = /^\d{10}$/;
+const MIN_SEARCH_LENGTH = 3;
 
 /**
  * A society only ever comes into existence via the Platform Owner's own
  * dashboard now (POST /societies, Admin-only) — this page never creates
- * one. Both roles here join an EXISTING, ACTIVE society by its code:
+ * one. Both roles here join an EXISTING, ACTIVE society, picked by
+ * searching its name (GET /societies/search) instead of needing its
+ * code:
  *   - Resident signup -> approved by that society's own Admin
  *   - Admin signup    -> approved by the Platform Owner (a different
  *                        society may have a different Admin approve them,
@@ -27,7 +30,10 @@ const MOBILE_RE = /^\d{10}$/;
 export function Signup() {
   const [role, setRole] = useState<SignupRole>("RESIDENT");
   const [step, setStep] = useState<Step>("society");
-  const [societyCode, setSocietyCode] = useState("");
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<SocietySearchResultOut[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
   const [society, setSociety] = useState<{ id: string; name: string } | null>(null);
   const [fullName, setFullName] = useState("");
   const [mobile, setMobile] = useState("");
@@ -39,25 +45,46 @@ export function Signup() {
     setRole(next);
     setStep("society");
     setSociety(null);
-    setSocietyCode("");
+    setQuery("");
+    setResults([]);
+    setSearchError(null);
     setFullName("");
     setMobile("");
     setEmail("");
     setError(null);
   }
 
-  async function handleFindSociety() {
-    setError(null);
-    setLoading(true);
-    try {
-      const { data } = await societiesApi.lookup(societyCode.trim());
-      setSociety(data);
-      setStep("details");
-    } catch (e) {
-      setError(apiErrorMessage(e, "Society not found. Check the code and try again."));
-    } finally {
-      setLoading(false);
+  // Debounced name search — picks a society without needing to already
+  // know its code (backend enforces a 3-char minimum and rate-limits by
+  // IP, see society_service.search_societies_by_name).
+  useEffect(() => {
+    const trimmed = query.trim();
+    if (trimmed.length < MIN_SEARCH_LENGTH) {
+      setResults([]);
+      setSearchError(null);
+      setSearching(false);
+      return;
     }
+    setSearching(true);
+    const timeout = setTimeout(() => {
+      societiesApi
+        .search(trimmed)
+        .then((r) => {
+          setResults(r.data);
+          setSearchError(null);
+        })
+        .catch((e) => {
+          setResults([]);
+          setSearchError(apiErrorMessage(e, "Couldn't search societies."));
+        })
+        .finally(() => setSearching(false));
+    }, 350);
+    return () => clearTimeout(timeout);
+  }, [query]);
+
+  function selectSociety(s: SocietySearchResultOut) {
+    setSociety({ id: s.id, name: s.name });
+    setStep("details");
   }
 
   async function handleSubmit() {
@@ -107,22 +134,39 @@ export function Signup() {
         )}
 
         {step === "society" && (
-          <div className="space-y-4">
-            <p className="text-sm text-navy-muted">
+          <div className="space-y-2">
+            <p className="text-sm text-navy-muted mb-2">
               {role === "RESIDENT"
-                ? "Enter your society's code — ask your society's Admin for it."
-                : "Enter the code of the society you'll administer — ask the Platform Owner for it."}
+                ? "Search for your society by name."
+                : "Search for the society you'll administer by name."}
             </p>
             <Input
-              label="Society code"
-              value={societyCode}
-              onChange={(e) => setSocietyCode(e.target.value.toUpperCase())}
+              label="Society name"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Start typing your society's name..."
               autoFocus
             />
-            {error && <p className="text-sm text-danger">{error}</p>}
-            <Button className="w-full" loading={loading} disabled={!societyCode.trim()} onClick={handleFindSociety}>
-              Find society
-            </Button>
+            {query.trim().length >= MIN_SEARCH_LENGTH && (
+              <div className="border border-line rounded divide-y divide-line max-h-56 overflow-y-auto">
+                {searching && <p className="px-3 py-2 text-sm text-navy-muted">Searching…</p>}
+                {!searching && results.length === 0 && !searchError && (
+                  <p className="px-3 py-2 text-sm text-navy-muted">No society found — check the spelling.</p>
+                )}
+                {!searching &&
+                  results.map((s) => (
+                    <button
+                      key={s.id}
+                      onClick={() => selectSociety(s)}
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-paper transition-colors"
+                    >
+                      <span className="font-medium text-ink">{s.name}</span>
+                      {s.city && <span className="text-navy-muted"> — {s.city}</span>}
+                    </button>
+                  ))}
+              </div>
+            )}
+            {searchError && <p className="text-sm text-danger">{searchError}</p>}
           </div>
         )}
 

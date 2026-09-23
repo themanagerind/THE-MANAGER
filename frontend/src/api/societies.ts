@@ -26,6 +26,12 @@ export interface SocietyLookupOut {
   name: string;
 }
 
+export interface SocietySearchResultOut {
+  id: string;
+  name: string;
+  city: string | null;
+}
+
 export const societiesApi = {
   /** Platform Owner creates a society directly from their dashboard —
    * the only way a society comes into existence now. ACTIVE immediately. */
@@ -34,6 +40,10 @@ export const societiesApi = {
   /** Public — used by the Admin/Resident signup forms to resolve a
    * society code to its id/name before submitting. */
   lookup: (code: string) => apiClient.get<SocietyLookupOut>(`/societies/lookup/${encodeURIComponent(code)}`),
+  /** Public — name-search picker alternative to typing the exact code.
+   * Backend enforces a 3-char minimum and rate-limits by IP; never
+   * returns `code` (see SocietySearchResultOut). */
+  search: (q: string) => apiClient.get<SocietySearchResultOut[]>("/societies/search", { params: { q } }),
   list: () => apiClient.get<SocietyOut[]>("/societies"),
   approve: (id: string) => apiClient.post<SocietyOut>(`/societies/${id}/approve`),
   updateStatus: (id: string, status: SocietyStatus) =>
