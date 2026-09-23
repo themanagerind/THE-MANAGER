@@ -28,6 +28,24 @@ function sortLocations(locations: SocietyLocationOut[]) {
   return [...locations].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }));
 }
 
+/** Groups Wings/Rows by their shared name prefix ("A1"/"A2" -> "A",
+ * "B1"/"B2" -> "B") so each block renders as its own flex row — plain
+ * flex-wrap alone packs cards by whatever fits the available width,
+ * which visually clumps unrelated wings together (B1 sharing a row with
+ * A1/A2 just because there was room) instead of keeping same-letter
+ * wings together. Falls back to one-per-group (unchanged from before)
+ * when a name has no trailing number to group by. Order follows the
+ * already-sorted input, so groups come out in the same A, B, C sequence. */
+function groupByPrefix(locations: SocietyLocationOut[]): SocietyLocationOut[][] {
+  const groups = new Map<string, SocietyLocationOut[]>();
+  for (const loc of locations) {
+    const prefix = loc.name.replace(/\d+\s*$/, "").trim() || loc.name;
+    if (!groups.has(prefix)) groups.set(prefix, []);
+    groups.get(prefix)!.push(loc);
+  }
+  return Array.from(groups.values());
+}
+
 /** House/flat numbers now usually carry a "Tower A-" prefix, so a fixed
  * box width clips or overlaps longer ones — size each diagram's boxes to
  * fit its own longest label instead. */
@@ -70,24 +88,35 @@ export function StructureDiagram({
     return <p className="text-sm text-navy-muted">Nothing mapped yet.</p>;
   }
 
+  const wingGroups = groupByPrefix(wings);
+  const rowGroups = groupByPrefix(rows);
+
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap gap-8 items-end overflow-x-auto pb-1">
-        {wings.map((w) => (
-          <BuildingCard
-            key={w.id}
-            wing={w}
-            properties={properties.filter((p) => p.location_id === w.id)}
-            onSelectUnit={onSelectUnit}
-          />
+      <div className="space-y-6 overflow-x-auto pb-1">
+        {wingGroups.map((group) => (
+          <div key={group[0].id} className="flex flex-wrap gap-8 items-end">
+            {group.map((w) => (
+              <BuildingCard
+                key={w.id}
+                wing={w}
+                properties={properties.filter((p) => p.location_id === w.id)}
+                onSelectUnit={onSelectUnit}
+              />
+            ))}
+          </div>
         ))}
-        {rows.map((r) => (
-          <RowCard
-            key={r.id}
-            row={r}
-            properties={properties.filter((p) => p.location_id === r.id)}
-            onSelectUnit={onSelectUnit}
-          />
+        {rowGroups.map((group) => (
+          <div key={group[0].id} className="flex flex-wrap gap-8 items-end">
+            {group.map((r) => (
+              <RowCard
+                key={r.id}
+                row={r}
+                properties={properties.filter((p) => p.location_id === r.id)}
+                onSelectUnit={onSelectUnit}
+              />
+            ))}
+          </div>
         ))}
       </div>
       <Legend />
