@@ -11,6 +11,43 @@ import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
 import type { LocationType } from "@/types/enums";
 
+/** Shared by CreateSocietyModal/EditSocietyModal's "Use my current
+ * location" button — the browser's own GPS/network location, so a
+ * Platform Owner standing at (or near) the society doesn't have to look
+ * up and type coordinates by hand. Falls back to manual entry on denial
+ * or an unsupported browser; never blocks the rest of the form. */
+function useDetectGpsLocation(setLatitude: (v: string) => void, setLongitude: (v: string) => void) {
+  const [detecting, setDetecting] = useState(false);
+  const [detectError, setDetectError] = useState<string | null>(null);
+
+  function detect() {
+    if (!navigator.geolocation) {
+      setDetectError("This browser doesn't support location detection — enter it manually.");
+      return;
+    }
+    setDetecting(true);
+    setDetectError(null);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setLatitude(position.coords.latitude.toFixed(6));
+        setLongitude(position.coords.longitude.toFixed(6));
+        setDetecting(false);
+      },
+      (err) => {
+        setDetectError(
+          err.code === err.PERMISSION_DENIED
+            ? "Location permission denied — enter it manually instead."
+            : "Couldn't detect your location — enter it manually instead."
+        );
+        setDetecting(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  }
+
+  return { detect, detecting, detectError };
+}
+
 /**
  * A society only ever comes into existence here — created directly by the
  * Platform Owner (ACTIVE immediately, no separate approval step). Admin
@@ -170,6 +207,7 @@ function CreateSocietyModal({ onClose, onSuccess }: { onClose: () => void; onSuc
   const [locations, setLocations] = useState<LocationRow[]>([]);
   const [latitude, setLatitude] = useState("");
   const [longitude, setLongitude] = useState("");
+  const { detect, detecting, detectError } = useDetectGpsLocation(setLatitude, setLongitude);
   const [error, setError] = useState<string | null>(null);
   const [createdCode, setCreatedCode] = useState<string | null>(null);
 
@@ -276,7 +314,12 @@ function CreateSocietyModal({ onClose, onSuccess }: { onClose: () => void; onSuc
         </div>
 
         <div className="border-t border-line pt-3">
-          <label className="block text-sm text-navy-muted mb-2">GPS location (optional)</label>
+          <div className="flex items-center justify-between mb-2">
+            <label className="block text-sm text-navy-muted">GPS location (optional)</label>
+            <Button variant="secondary" loading={detecting} onClick={detect}>
+              Use my current location
+            </Button>
+          </div>
           <div className="grid grid-cols-2 gap-2">
             <Input
               label="Latitude" type="number" step="any" value={latitude}
@@ -287,6 +330,7 @@ function CreateSocietyModal({ onClose, onSuccess }: { onClose: () => void; onSuc
               onChange={(e) => setLongitude(e.target.value)}
             />
           </div>
+          {detectError && <p className="text-xs text-danger mt-1">{detectError}</p>}
           {!gpsBothOrNeither && (
             <p className="text-xs text-danger mt-1">Provide both latitude and longitude, or leave both blank.</p>
           )}
@@ -315,6 +359,7 @@ function EditSocietyModal({
   const [pincode, setPincode] = useState(society.pincode ?? "");
   const [latitude, setLatitude] = useState(society.latitude != null ? String(society.latitude) : "");
   const [longitude, setLongitude] = useState(society.longitude != null ? String(society.longitude) : "");
+  const { detect, detecting, detectError } = useDetectGpsLocation(setLatitude, setLongitude);
   const [error, setError] = useState<string | null>(null);
   const [newLocationName, setNewLocationName] = useState("");
   const [newLocationType, setNewLocationType] = useState<LocationType>("WING");
@@ -362,7 +407,12 @@ function EditSocietyModal({
         <Input label="Pincode" value={pincode} onChange={(e) => setPincode(e.target.value)} />
 
         <div>
-          <label className="block text-sm text-navy-muted mb-1">GPS location (optional)</label>
+          <div className="flex items-center justify-between mb-1">
+            <label className="block text-sm text-navy-muted">GPS location (optional)</label>
+            <Button variant="secondary" loading={detecting} onClick={detect}>
+              Use my current location
+            </Button>
+          </div>
           <div className="grid grid-cols-2 gap-2">
             <Input
               label="Latitude" type="number" step="any" value={latitude}
@@ -373,6 +423,7 @@ function EditSocietyModal({
               onChange={(e) => setLongitude(e.target.value)}
             />
           </div>
+          {detectError && <p className="text-xs text-danger mt-1">{detectError}</p>}
           {!gpsBothOrNeither && (
             <p className="text-xs text-danger mt-1">Provide both latitude and longitude, or leave both blank.</p>
           )}
