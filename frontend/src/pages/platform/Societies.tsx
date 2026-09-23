@@ -208,21 +208,65 @@ function CreateSocietyModal({ onClose, onSuccess }: { onClose: () => void; onSuc
   const [latitude, setLatitude] = useState("");
   const [longitude, setLongitude] = useState("");
   const { detect, detecting, detectError } = useDetectGpsLocation(setLatitude, setLongitude);
+  const [structureType, setStructureType] = useState<"FLATS" | "BUNGALOW">("FLATS");
+  const [towerCount, setTowerCount] = useState("");
+  const [floorsPerTower, setFloorsPerTower] = useState("");
+  const [flatsPerFloor, setFlatsPerFloor] = useState("");
+  const [rowCount, setRowCount] = useState("");
+  const [housesPerRow, setHousesPerRow] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [createdCode, setCreatedCode] = useState<string | null>(null);
+  const [createdSocietyId, setCreatedSocietyId] = useState<string | null>(null);
+  const [createdHouses, setCreatedHouses] = useState<PropertyOut[] | null>(null);
+  const [structureError, setStructureError] = useState<string | null>(null);
+
+  const flatsFieldsFilled = [towerCount, floorsPerTower, flatsPerFloor].filter((v) => v.trim() !== "").length;
+  const flatsPartial = flatsFieldsFilled > 0 && flatsFieldsFilled < 3;
+  const bungalowFieldsFilled = [rowCount, housesPerRow].filter((v) => v.trim() !== "").length;
+  const bungalowPartial = bungalowFieldsFilled > 0 && bungalowFieldsFilled < 2;
+  const structureIncomplete = structureType === "FLATS" ? flatsPartial : bungalowPartial;
 
   const create = useMutation({
-    mutationFn: () =>
-      societiesApi.create({
+    mutationFn: async () => {
+      const societyResp = await societiesApi.create({
         name: name.trim(), city: city.trim(), state: state.trim(),
         address: address.trim(), pincode: pincode.trim(),
         locations: locations.filter((l) => l.name.trim()).map((l) => ({ name: l.name.trim(), location_type: l.location_type })),
         latitude: latitude.trim() ? Number(latitude) : undefined,
         longitude: longitude.trim() ? Number(longitude) : undefined,
-      }),
-    onSuccess: (r) => {
+      });
+      const society = societyResp.data;
+
+      let houses: PropertyOut[] | null = null;
+      let structureErr: string | null = null;
+      if (structureType === "FLATS" && flatsFieldsFilled === 3) {
+        try {
+          await societiesApi.generateFlatsStructure(
+            society.id, Number(towerCount), Number(floorsPerTower), Number(flatsPerFloor)
+          );
+        } catch (e) {
+          structureErr = apiErrorMessage(
+            e, "Society was created, but the Flats structure couldn't be generated — add it from Edit."
+          );
+        }
+      } else if (structureType === "BUNGALOW" && bungalowFieldsFilled === 2) {
+        try {
+          const r = await societiesApi.generateBungalowStructure(society.id, Number(rowCount), Number(housesPerRow));
+          houses = r.data;
+        } catch (e) {
+          structureErr = apiErrorMessage(
+            e, "Society was created, but the Bungalow structure couldn't be generated — add it from Edit."
+          );
+        }
+      }
+      return { society, houses, structureErr };
+    },
+    onSuccess: ({ society, houses, structureErr }) => {
       onSuccess();
-      setCreatedCode(r.data.code);
+      setCreatedCode(society.code);
+      setCreatedSocietyId(society.id);
+      setCreatedHouses(houses);
+      setStructureError(structureErr);
     },
     onError: (e) => setError(apiErrorMessage(e, "Couldn't create the society.")),
   });
@@ -238,7 +282,8 @@ function CreateSocietyModal({ onClose, onSuccess }: { onClose: () => void; onSuc
   }
 
   const gpsBothOrNeither = !!latitude.trim() === !!longitude.trim();
-  const canSubmit = [name, city, state, address, pincode].every((f) => f.trim().length > 0) && gpsBothOrNeither;
+  const canSubmit =
+    [name, city, state, address, pincode].every((f) => f.trim().length > 0) && gpsBothOrNeither && !structureIncomplete;
 
   if (createdCode) {
     return (
@@ -253,6 +298,22 @@ function CreateSocietyModal({ onClose, onSuccess }: { onClose: () => void; onSuc
           <p className="text-xs text-navy-muted">
             Share this code with the society's Admin and Residents so they can find it when signing up.
           </p>
+          {structureError && <p className="text-sm text-danger">{structureError}</p>}
+          {createdHouses && createdHouses.length > 0 && createdSocietyId && (
+            <div className="border-t border-line pt-3">
+              <label className="block text-sm text-navy-muted mb-2">Houses — floors above ground</label>
+              <div className="space-y-1 max-h-48 overflow-y-auto pr-1">
+                {createdHouses.map((house) => (
+                  <HouseFloorsRow
+                    key={house.id}
+                    societyId={createdSocietyId}
+                    house={house}
+                    propertiesQueryKey={["platform", "societies", createdSocietyId, "properties"]}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
           <div className="flex justify-end pt-2">
             <Button onClick={onClose}>Done</Button>
           </div>
@@ -311,6 +372,64 @@ function CreateSocietyModal({ onClose, onSuccess }: { onClose: () => void; onSuc
               </div>
             ))}
           </div>
+        </div>
+
+        <div className="border-t border-line pt-3">
+          <label className="block text-sm text-navy-muted mb-2">Structure (optional)</label>
+          <div className="flex gap-2 mb-3">
+            {(["FLATS", "BUNGALOW"] as const).map((opt) => (
+              <button
+                key={opt}
+                type="button"
+                onClick={() => setStructureType(opt)}
+                className={`px-3 py-1.5 rounded text-sm border ${
+                  structureType === opt ? "bg-navy text-white border-navy" : "border-line text-navy-muted"
+                }`}
+              >
+                {opt === "FLATS" ? "Flats" : "Bungalow"}
+              </button>
+            ))}
+          </div>
+
+          {structureType === "FLATS" ? (
+            <div className="grid grid-cols-3 gap-2">
+              <Input label="Towers" type="number" value={towerCount} onChange={(e) => setTowerCount(e.target.value)} />
+              <Input
+                label="Floors/tower"
+                type="number"
+                value={floorsPerTower}
+                onChange={(e) => setFloorsPerTower(e.target.value)}
+              />
+              <Input
+                label="Flats/floor"
+                type="number"
+                value={flatsPerFloor}
+                onChange={(e) => setFlatsPerFloor(e.target.value)}
+              />
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 gap-2">
+                <Input label="Rows" type="number" value={rowCount} onChange={(e) => setRowCount(e.target.value)} />
+                <Input
+                  label="Houses/row"
+                  type="number"
+                  value={housesPerRow}
+                  onChange={(e) => setHousesPerRow(e.target.value)}
+                />
+              </div>
+              <p className="text-xs text-navy-muted mt-1">
+                Every house starts at ground floor only — set additional storeys per house after creating.
+              </p>
+            </>
+          )}
+          {structureIncomplete ? (
+            <p className="text-xs text-danger mt-1">Fill in all the fields above, or clear them to skip.</p>
+          ) : (
+            <p className="text-xs text-navy-muted mt-1">
+              Leave these blank to skip — you can bulk-generate the structure later from Edit.
+            </p>
+          )}
         </div>
 
         <div className="border-t border-line pt-3">
