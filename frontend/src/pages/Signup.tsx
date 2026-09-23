@@ -85,8 +85,9 @@ export function Signup() {
     <div className="min-h-screen flex items-center justify-center bg-paper px-4">
       <div className="w-full max-w-sm">
         <div className="flex flex-col items-center mb-8">
-          <img src="/logo.png" alt="Housing Society Manager" className="w-16 h-16 rounded-full mb-3" />
-          <h1 className="text-xl font-semibold text-navy">Create account</h1>
+          <img src="/logo.png" alt="Housing Society Manager" className="w-28 h-28 rounded-full mb-3" />
+          <h1 className="text-2xl font-bold text-navy tracking-wide">THE MANAGER</h1>
+          <p className="text-sm text-navy-muted mt-1">Create account</p>
         </div>
 
         {step !== "done" && (
