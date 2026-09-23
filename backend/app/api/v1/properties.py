@@ -6,16 +6,20 @@ Section 7: Sub-admin is scope-restricted — for now, location/property
 creation is Admin-only (Section 6 lists this as an Admin capability; Sub-admin
 capabilities in Section 7 are Residents/Payments/Complaints/notices within
 scope, NOT creating new properties/locations — so write access here stays
-Admin-only, read access is open to Admin/Sub-admin/Resident since none of
-those roles' read scope is explicitly restricted for this catalog-like data
-(house_number/floor/type only — no financial or personal data), the same
-"visible to every Resident in the society" pattern already used for
-GET /notices and GET /amenities. Sub-admin scope enforcement proper —
-filtering to their assigned wing/row — applies to the resident/payment/
-complaint endpoints in later modules, not to this general property
-directory. GET /properties is also how a Resident's own dashboard resolves
-house_number/floor labels for the properties they're linked to (see
-frontend hooks/useActiveProperty.ts) — Resident must stay on this list.
+Admin-only, read access is open to Admin/Sub-admin/Resident/Manager since
+none of those roles' read scope is explicitly restricted for this
+catalog-like data (house_number/floor/type only — no financial or
+personal data), the same "visible to every Resident in the society"
+pattern already used for GET /notices and GET /amenities. Sub-admin scope
+enforcement proper — filtering to their assigned wing/row — applies to the
+resident/payment/complaint endpoints in later modules, not to this general
+property directory. GET /properties is also how a Resident's own dashboard
+resolves house_number/floor labels for the properties they're linked to
+(see frontend hooks/useActiveProperty.ts) — Resident must stay on this
+list. Manager needs it to pick which property to view maintenance dues
+for (GET /payments/maintenance-dues/by-property/{id}) on their Dues page —
+their finance visibility is otherwise limited to exactly that endpoint,
+never the society's account-entries/balance ledger.
 """
 import uuid
 from typing import Annotated
@@ -70,7 +74,9 @@ async def create_property(
 @router.get("", response_model=list[PropertyOut])
 async def list_properties(
     db: Annotated[AsyncSession, Depends(get_db)],
-    current: Annotated[CurrentUser, Depends(require_role(Role.ADMIN, Role.SUB_ADMIN, Role.RESIDENT))],
+    current: Annotated[
+        CurrentUser, Depends(require_role(Role.ADMIN, Role.SUB_ADMIN, Role.RESIDENT, Role.MANAGER))
+    ],
 ) -> list[PropertyOut]:
     properties = await property_service.list_properties(db, current.society_id)
     return [PropertyOut.model_validate(p) for p in properties]

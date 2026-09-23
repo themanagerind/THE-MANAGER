@@ -35,8 +35,10 @@ export const navByRole: Record<Role, NavItem[]> = {
     { label: "Expenses", path: "/subadmin/expense-bills", icon: "expense" },
   ],
   MANAGER: [
-    { label: "My To-Dos", path: "/manager", icon: "todo" },
+    { label: "Overview", path: "/manager", icon: "home" },
+    { label: "My To-Dos", path: "/manager/todos", icon: "todo" },
     { label: "Complaints", path: "/manager/complaints", icon: "complaint" },
+    { label: "Dues", path: "/manager/dues", icon: "dues" },
   ],
   RESIDENT: [
     { label: "Home", path: "/resident", icon: "home" },

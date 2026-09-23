@@ -110,3 +110,26 @@ async def test_resident_can_list_properties_for_own_dashboard(
     resp = await client.get("/api/v1/properties", headers=resident_headers)
     assert resp.status_code == 200
     assert any(p["id"] == str(prop.id) for p in resp.json())
+
+
+async def test_manager_can_list_properties_to_pick_one_for_dues(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    """Manager's Dues page needs a property picker (their finance
+    visibility is otherwise limited to property-level maintenance dues,
+    see test_account_entries.py) — same non-sensitive catalog read as
+    Resident/Sub-admin/Admin."""
+    society_id = two_societies_with_admins["a"]["society_id"]
+    prop, _resident = await _seed_resident_with_property(db_session, society_id)
+
+    manager = User(society_id=society_id, full_name="Manager", mobile="9500000003", status=UserStatus.ACTIVE)
+    db_session.add(manager)
+    await db_session.flush()
+    db_session.add(UserRole(user_id=manager.id, role=Role.MANAGER, assigned_at=datetime.now(timezone.utc)))
+    await db_session.commit()
+    await db_session.refresh(manager)
+
+    manager_headers = auth_headers(manager.id, society_id, Role.MANAGER, [Role.MANAGER])
+    resp = await client.get("/api/v1/properties", headers=manager_headers)
+    assert resp.status_code == 200
+    assert any(p["id"] == str(prop.id) for p in resp.json())

@@ -38,11 +38,16 @@ async def create(
 async def list_all(
     db: Annotated[AsyncSession, Depends(get_db)],
     current: Annotated[
-        CurrentUser, Depends(require_role(Role.ADMIN, Role.SUB_ADMIN, Role.MANAGER, Role.RESIDENT))
+        CurrentUser, Depends(require_role(Role.ADMIN, Role.SUB_ADMIN, Role.RESIDENT))
     ],
     pagination: Annotated[Pagination, Depends(pagination_params)],
 ) -> Page[AccountEntryOut]:
-    """Section 13.1 — sabhi Residents ko visible, read-only."""
+    """Section 13.1 — sabhi Residents ko visible, read-only. Manager is
+    deliberately excluded: their finance visibility is scoped to
+    property-level maintenance dues only (GET /payments/maintenance-dues/
+    by-property/{id}), not the society's full income/expense ledger or
+    balance — audit finding, this endpoint previously granted Manager the
+    broader view."""
     entries, total = await account_entry_service.list_entries(
         db, current.society_id, pagination.skip, pagination.limit
     )
@@ -53,7 +58,7 @@ async def list_all(
 async def balance(
     db: Annotated[AsyncSession, Depends(get_db)],
     current: Annotated[
-        CurrentUser, Depends(require_role(Role.ADMIN, Role.SUB_ADMIN, Role.MANAGER, Role.RESIDENT))
+        CurrentUser, Depends(require_role(Role.ADMIN, Role.SUB_ADMIN, Role.RESIDENT))
     ],
 ) -> BalanceSummaryOut:
     summary = await account_entry_service.balance_summary(db, current.society_id)

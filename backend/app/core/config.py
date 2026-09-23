@@ -36,8 +36,11 @@ class Settings(BaseSettings):
     web_push_vapid_private_key: str | None = None
 
     # Payment proof uploads (Section 14.2/14.3) — local disk for now,
-    # served back via StaticFiles at /uploads; swap for object storage
-    # (S3/GCS) in production without changing the upload_service API.
+    # served back only via the authenticated GET /payments/{id}/proofs/
+    # {proof_id}/file endpoint (no public StaticFiles mount — that was
+    # removed as an audit fix, see upload_service.py); swap for object
+    # storage (S3/GCS) in production without changing the upload_service
+    # API.
     upload_dir: str = "uploads"
 
 

@@ -25,8 +25,10 @@ import { AdminAmenities } from "@/pages/admin/Amenities";
 import { AdminProposals } from "@/pages/admin/Proposals";
 import { AdminExpenseBills } from "@/pages/admin/ExpenseBills";
 import { AdminAccounts } from "@/pages/admin/Accounts";
+import { ManagerOverview } from "@/pages/manager/Overview";
 import { ManagerTodos } from "@/pages/manager/Todos";
 import { ManagerComplaints } from "@/pages/manager/Complaints";
+import { ManagerDues } from "@/pages/manager/Dues";
 import { SubAdminOverview } from "@/pages/subadmin/Overview";
 import { SubAdminDues } from "@/pages/subadmin/Dues";
 import { SubAdminExpenseBills } from "@/pages/subadmin/ExpenseBills";
@@ -87,8 +89,10 @@ export function App() {
           </Route>
 
           <Route element={<ProtectedRoute allow={["MANAGER"]} />}>
-            <Route path="/manager" element={<ManagerTodos />} />
+            <Route path="/manager" element={<ManagerOverview />} />
+            <Route path="/manager/todos" element={<ManagerTodos />} />
             <Route path="/manager/complaints" element={<ManagerComplaints />} />
+            <Route path="/manager/dues" element={<ManagerDues />} />
           </Route>
 
           <Route element={<ProtectedRoute allow={["RESIDENT"]} />}>
