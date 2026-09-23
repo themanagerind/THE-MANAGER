@@ -317,6 +317,18 @@ class SubAdminScope(Base, UUIDPKMixin):
             unique=True,
             postgresql_where="revoked_at IS NULL",
         ),
+        # v1.5 addition — Section 7: at most one active Sub-admin per Wing/
+        # Row. The index above alone only stops the SAME person being
+        # scoped to the SAME location twice; this stops two DIFFERENT
+        # residents both holding active scope over the same location.
+        # DB-level backstop for the service-layer check in subadmin_service
+        # .promote_to_subadmin/assign_additional_scope.
+        Index(
+            "ux_sub_admin_scopes_location_active",
+            "location_id",
+            unique=True,
+            postgresql_where="revoked_at IS NULL",
+        ),
         ForeignKeyConstraint(
             ["society_id", "sub_admin_id"],
             ["users.society_id", "users.id"],

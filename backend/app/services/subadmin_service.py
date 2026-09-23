@@ -7,11 +7,43 @@ from datetime import datetime, timezone
 
 from fastapi import HTTPException, status
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.enums import Role, RoleRequestStatus, RoleRequestType, UserStatus
 from app.models.identity import RoleRequest, SocietyLocation, SubAdminScope, User, UserRole
 from app.services.scope_service import user_has_active_role
+
+
+async def _reject_if_locations_already_scoped(
+    db: AsyncSession, location_ids: list[uuid.UUID], excluding_sub_admin_id: uuid.UUID
+) -> None:
+    """Section 7: at most one active Sub-admin per Wing/Row — a Wing
+    already covered by someone else can't be handed to a second person
+    too; the DB's own ux_sub_admin_scopes_location_active index is the
+    final backstop, this is just the clean error before hitting it.
+    Re-promoting the SAME resident onto a location they already hold
+    isn't a conflict (excluded here) — ux_sub_admin_scopes_active handles
+    that case instead (already-scoped locations never reach this
+    function from the "unassigned only" picker anyway, see
+    PromoteModal.tsx)."""
+    rows = (
+        await db.execute(
+            select(SocietyLocation.name)
+            .join(SubAdminScope, SubAdminScope.location_id == SocietyLocation.id)
+            .where(
+                SubAdminScope.location_id.in_(location_ids),
+                SubAdminScope.sub_admin_id != excluding_sub_admin_id,
+                SubAdminScope.revoked_at.is_(None),
+            )
+        )
+    ).scalars().all()
+    if rows:
+        names = ", ".join(sorted(set(rows)))
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"Already has an active Sub-admin, remove them first: {names}",
+        )
 
 
 async def promote_to_subadmin(
@@ -44,6 +76,8 @@ async def promote_to_subadmin(
     ).scalars().all()
     if len(locations) != len(set(location_ids)):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "One or more locations not found in this society")
+
+    await _reject_if_locations_already_scoped(db, location_ids, excluding_sub_admin_id=resident_id)
 
     # Dual-role: add SUB_ADMIN alongside any existing RESIDENT role — never
     # remove/replace existing roles (Section 4.3/4.4).
@@ -78,7 +112,17 @@ async def promote_to_subadmin(
         for loc_id in location_ids
     ]
     db.add_all(scopes)
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        # Race: someone else was granted one of these locations between
+        # the check above and this commit, or the resident already held
+        # one of them (re-selecting an already-assigned location).
+        await db.rollback()
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "One or more of these Wings/Rows already has an active Sub-admin, or is already assigned to this person.",
+        )
     for s in scopes:
         await db.refresh(s)
     return scopes
@@ -152,6 +196,8 @@ async def assign_additional_scope(
     if location is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Location not found in this society")
 
+    await _reject_if_locations_already_scoped(db, [location_id], excluding_sub_admin_id=sub_admin_id)
+
     scope = SubAdminScope(
         society_id=society_id,
         sub_admin_id=sub_admin_id,
@@ -160,7 +206,14 @@ async def assign_additional_scope(
         assigned_at=datetime.now(timezone.utc),
     )
     db.add(scope)
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "This Wing/Row already has an active Sub-admin, or is already assigned to this person.",
+        )
     await db.refresh(scope)
     return scope
 

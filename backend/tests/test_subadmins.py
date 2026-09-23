@@ -132,6 +132,120 @@ async def test_admin_can_promote_with_multiple_locations(client: AsyncClient, db
     assert len(resp.json()) == 2
 
 
+async def test_promote_rejects_wing_already_scoped_to_another_subadmin(client: AsyncClient, db_session: AsyncSession):
+    """Section 7: at most one active Sub-admin per Wing/Row."""
+    seeded = await _seed_admin_and_resident(db_session)
+    resident_2 = User(society_id=seeded["society"].id, full_name="Resident Two", mobile="9850000010", status=UserStatus.ACTIVE)
+    db_session.add(resident_2)
+    await db_session.flush()
+    db_session.add(UserRole(user_id=resident_2.id, role=Role.RESIDENT, assigned_at=datetime.now(timezone.utc)))
+    await db_session.commit()
+
+    headers = auth_headers(seeded["admin"].id, seeded["society"].id, Role.ADMIN, [Role.ADMIN])
+    resp = await client.post(
+        "/api/v1/subadmins/promote",
+        json={"resident_id": str(seeded["resident"].id), "location_ids": [str(seeded["wing_a"].id)]},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+
+    resp = await client.post(
+        "/api/v1/subadmins/promote",
+        json={"resident_id": str(resident_2.id), "location_ids": [str(seeded["wing_a"].id)]},
+        headers=headers,
+    )
+    assert resp.status_code == 409
+
+    # Only the first Sub-admin's scope exists.
+    resp = await client.get(f"/api/v1/subadmins/{resident_2.id}/scopes", headers=headers)
+    assert resp.json() == []
+
+
+async def test_promote_rejects_if_only_one_of_several_wings_is_taken(client: AsyncClient, db_session: AsyncSession):
+    """A partial conflict blocks the whole request — no half-applied
+    promotion with only the uncontested Wing assigned."""
+    seeded = await _seed_admin_and_resident(db_session)
+    resident_2 = User(society_id=seeded["society"].id, full_name="Resident Two", mobile="9850000011", status=UserStatus.ACTIVE)
+    db_session.add(resident_2)
+    await db_session.flush()
+    db_session.add(UserRole(user_id=resident_2.id, role=Role.RESIDENT, assigned_at=datetime.now(timezone.utc)))
+    await db_session.commit()
+
+    headers = auth_headers(seeded["admin"].id, seeded["society"].id, Role.ADMIN, [Role.ADMIN])
+    await client.post(
+        "/api/v1/subadmins/promote",
+        json={"resident_id": str(seeded["resident"].id), "location_ids": [str(seeded["wing_a"].id)]},
+        headers=headers,
+    )
+
+    resp = await client.post(
+        "/api/v1/subadmins/promote",
+        json={"resident_id": str(resident_2.id), "location_ids": [str(seeded["wing_b"].id), str(seeded["wing_a"].id)]},
+        headers=headers,
+    )
+    assert resp.status_code == 409
+
+    resp = await client.get(f"/api/v1/subadmins/{resident_2.id}/scopes", headers=headers)
+    assert resp.json() == []  # Wing B wasn't assigned either
+
+
+async def test_promote_allows_reassigning_a_wing_after_the_old_subadmin_is_demoted(
+    client: AsyncClient, db_session: AsyncSession
+):
+    seeded = await _seed_admin_and_resident(db_session)
+    resident_2 = User(society_id=seeded["society"].id, full_name="Resident Two", mobile="9850000012", status=UserStatus.ACTIVE)
+    db_session.add(resident_2)
+    await db_session.flush()
+    db_session.add(UserRole(user_id=resident_2.id, role=Role.RESIDENT, assigned_at=datetime.now(timezone.utc)))
+    await db_session.commit()
+
+    headers = auth_headers(seeded["admin"].id, seeded["society"].id, Role.ADMIN, [Role.ADMIN])
+    await client.post(
+        "/api/v1/subadmins/promote",
+        json={"resident_id": str(seeded["resident"].id), "location_ids": [str(seeded["wing_a"].id)]},
+        headers=headers,
+    )
+    resp = await client.delete(f"/api/v1/subadmins/{seeded['resident'].id}", headers=headers)
+    assert resp.status_code == 204
+
+    resp = await client.post(
+        "/api/v1/subadmins/promote",
+        json={"resident_id": str(resident_2.id), "location_ids": [str(seeded["wing_a"].id)]},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+
+
+async def test_assign_additional_scope_rejects_wing_already_scoped_to_another_subadmin(
+    client: AsyncClient, db_session: AsyncSession
+):
+    seeded = await _seed_admin_and_resident(db_session)
+    resident_2 = User(society_id=seeded["society"].id, full_name="Resident Two", mobile="9850000013", status=UserStatus.ACTIVE)
+    db_session.add(resident_2)
+    await db_session.flush()
+    db_session.add(UserRole(user_id=resident_2.id, role=Role.RESIDENT, assigned_at=datetime.now(timezone.utc)))
+    await db_session.commit()
+
+    headers = auth_headers(seeded["admin"].id, seeded["society"].id, Role.ADMIN, [Role.ADMIN])
+    await client.post(
+        "/api/v1/subadmins/promote",
+        json={"resident_id": str(seeded["resident"].id), "location_ids": [str(seeded["wing_a"].id)]},
+        headers=headers,
+    )
+    await client.post(
+        "/api/v1/subadmins/promote",
+        json={"resident_id": str(resident_2.id), "location_ids": [str(seeded["wing_b"].id)]},
+        headers=headers,
+    )
+
+    resp = await client.post(
+        f"/api/v1/subadmins/{resident_2.id}/scopes",
+        json={"location_id": str(seeded["wing_a"].id)},
+        headers=headers,
+    )
+    assert resp.status_code == 409
+
+
 async def test_promote_rejects_pending_resident(client: AsyncClient, db_session: AsyncSession):
     seeded = await _seed_admin_and_resident(db_session)
     headers = auth_headers(seeded["admin"].id, seeded["society"].id, Role.ADMIN, [Role.ADMIN])
