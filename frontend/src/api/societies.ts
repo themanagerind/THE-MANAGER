@@ -93,6 +93,10 @@ export const societiesApi = {
     apiClient.patch<SocietyLocationOut>(`/societies/${societyId}/locations/${locationId}`, {
       name, location_type: locationType,
     }),
+  /** Removing a wrongly-added (or no-longer-needed) Wing/Row — only
+   * succeeds while nothing is mapped under it yet (409 otherwise). */
+  deleteLocation: (societyId: string, locationId: string) =>
+    apiClient.delete(`/societies/${societyId}/locations/${locationId}`),
   /** Bulk-generates every tower/floor/flat combination in one request —
    * one Wing per entry in `wings`, each with its own floor count and
    * flats/floor (a taller tower next to a shorter one is fine). A Wing

@@ -177,6 +177,13 @@ async def update_society_location(
     return await property_service.update_location(db, society_id, location_id, body)
 
 
+async def delete_society_location(db: AsyncSession, society_id: uuid.UUID, location_id: uuid.UUID) -> None:
+    """Platform Owner removing a Wing/Row from the Society Mapping page —
+    see property_service.delete_location."""
+    await _get_society_or_404(db, society_id)
+    await property_service.delete_location(db, society_id, location_id)
+
+
 _STRUCTURE_CONFLICT_MESSAGE = (
     "Generating this structure collided with an existing Tower/Row name or "
     "house number in this society — check what's already on record first."

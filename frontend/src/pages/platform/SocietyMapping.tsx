@@ -258,6 +258,21 @@ function LocationRow({
     onError: (e) => setError(apiErrorMessage(e, "Couldn't rename this.")),
   });
 
+  const remove = useMutation({
+    mutationFn: () => societiesApi.deleteLocation(societyId, location.id),
+    onSuccess: () => {
+      setError(null);
+      void queryClient.invalidateQueries({ queryKey: locationsQueryKey });
+    },
+    onError: (e) => setError(apiErrorMessage(e, "Couldn't delete — it may still have flats/houses on it.")),
+  });
+
+  function handleDelete() {
+    if (window.confirm(`Delete "${location.name}"? This can't be undone.`)) {
+      remove.mutate();
+    }
+  }
+
   if (!editing) {
     return (
       <li className="text-sm text-ink flex items-center gap-2 px-3 py-2 border border-line rounded">
@@ -270,6 +285,15 @@ function LocationRow({
         >
           Edit
         </button>
+        <button
+          type="button"
+          onClick={handleDelete}
+          disabled={remove.isPending}
+          className="text-xs text-navy-muted hover:text-danger underline"
+        >
+          Delete
+        </button>
+        {error && <span className="text-xs text-danger">{error}</span>}
       </li>
     );
   }
@@ -424,10 +448,12 @@ function UnitsStep({
   const isWing = selectedLocation?.location_type === "WING";
   const floors = isWing && selectedLocationId ? floorsForWing(selectedLocationId) : [];
   const ready = isWing ? !!selectedLocationId && !!selectedFloor : !!selectedLocationId;
-  const existingUnits = properties.filter((p) => {
-    if (p.location_id !== selectedLocationId) return false;
-    return isWing ? String(p.floor_number) === selectedFloor : true;
-  });
+  const existingUnits = properties
+    .filter((p) => {
+      if (p.location_id !== selectedLocationId) return false;
+      return isWing ? String(p.floor_number) === selectedFloor : true;
+    })
+    .sort((a, b) => a.house_number.localeCompare(b.house_number, undefined, { numeric: true, sensitivity: "base" }));
 
   function setCount(v: string) {
     setUnitCount(v);

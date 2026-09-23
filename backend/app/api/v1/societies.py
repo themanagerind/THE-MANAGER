@@ -157,6 +157,19 @@ async def update_location(
     return SocietyLocationOut.model_validate(location)
 
 
+@router.delete("/{society_id}/locations/{location_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_location(
+    society_id: uuid.UUID,
+    location_id: uuid.UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current: Annotated[CurrentUser, Depends(require_role(Role.PLATFORM_OWNER))],
+) -> None:
+    """Platform Owner removing a wrongly-added (or no-longer-needed) Wing/
+    Row — only succeeds while nothing is mapped under it yet (409
+    otherwise)."""
+    await society_service.delete_society_location(db, society_id, location_id)
+
+
 @router.post("/{society_id}/structure/flats", response_model=list[PropertyOut])
 async def generate_flats_structure(
     society_id: uuid.UUID,

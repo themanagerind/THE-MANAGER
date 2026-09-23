@@ -446,6 +446,72 @@ async def test_non_platform_owner_cannot_edit_society_location(
     assert resp.status_code == 403
 
 
+async def test_platform_owner_can_delete_an_unused_location(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    society_id = two_societies_with_admins["a"]["society_id"]
+    owner = await _seed_platform_owner(db_session, "9700000039")
+    headers = auth_headers(owner.id, None, Role.PLATFORM_OWNER, [Role.PLATFORM_OWNER])
+
+    resp = await client.post(
+        f"/api/v1/societies/{society_id}/locations",
+        json={"name": "Row A", "location_type": "ROW"},
+        headers=headers,
+    )
+    location_id = resp.json()["id"]
+
+    resp = await client.delete(f"/api/v1/societies/{society_id}/locations/{location_id}", headers=headers)
+    assert resp.status_code == 204
+
+    resp = await client.get(f"/api/v1/societies/{society_id}/locations", headers=headers)
+    assert all(loc["id"] != location_id for loc in resp.json())
+
+
+async def test_platform_owner_cannot_delete_a_location_still_in_use(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    society_id = two_societies_with_admins["a"]["society_id"]
+    owner = await _seed_platform_owner(db_session, "9700000040")
+    headers = auth_headers(owner.id, None, Role.PLATFORM_OWNER, [Role.PLATFORM_OWNER])
+
+    resp = await client.post(
+        f"/api/v1/societies/{society_id}/locations",
+        json={"name": "Row A", "location_type": "ROW"},
+        headers=headers,
+    )
+    location_id = resp.json()["id"]
+    await client.post(
+        f"/api/v1/societies/{society_id}/properties",
+        json={"location_id": location_id, "house_number": "1", "house_type": "BUNGALOW"},
+        headers=headers,
+    )
+
+    resp = await client.delete(f"/api/v1/societies/{society_id}/locations/{location_id}", headers=headers)
+    assert resp.status_code == 409
+
+
+async def test_location_delete_404_for_unknown_location(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    society_id = two_societies_with_admins["a"]["society_id"]
+    owner = await _seed_platform_owner(db_session, "9700000041")
+    headers = auth_headers(owner.id, None, Role.PLATFORM_OWNER, [Role.PLATFORM_OWNER])
+
+    resp = await client.delete(f"/api/v1/societies/{society_id}/locations/{uuid.uuid4()}", headers=headers)
+    assert resp.status_code == 404
+
+
+async def test_non_platform_owner_cannot_delete_society_location(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    admin_id = two_societies_with_admins["a"]["admin_id"]
+    society_id = two_societies_with_admins["a"]["society_id"]
+    headers = auth_headers(admin_id, society_id, Role.ADMIN, [Role.ADMIN])
+
+    resp = await client.delete(f"/api/v1/societies/{society_id}/locations/{uuid.uuid4()}", headers=headers)
+    assert resp.status_code == 403
+
+
 async def test_platform_owner_can_generate_flats_structure_with_per_wing_shape(
     client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
 ):

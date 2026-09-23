@@ -94,6 +94,32 @@ async def update_location(
     return location
 
 
+async def delete_location(db: AsyncSession, society_id: uuid.UUID, location_id: uuid.UUID) -> None:
+    """Removing a wrongly-added (or no-longer-needed) Wing/Row from the
+    Society Mapping page — only safe while no Property still points at it;
+    fk_properties_society_location (no ON DELETE) turns that into an
+    IntegrityError, surfaced here as a 409 rather than a raw 500."""
+    location = (
+        await db.execute(
+            select(SocietyLocation).where(
+                SocietyLocation.id == location_id, SocietyLocation.society_id == society_id
+            )
+        )
+    ).scalar_one_or_none()
+    if location is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Location not found in this society")
+
+    await db.delete(location)
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "Can't delete — this Wing/Row still has flats/houses on it. Delete those first.",
+        )
+
+
 async def create_property(
     db: AsyncSession, society_id: uuid.UUID, body: PropertyCreateIn
 ) -> Property:
