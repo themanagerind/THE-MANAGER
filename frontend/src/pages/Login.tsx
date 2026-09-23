@@ -35,6 +35,7 @@ export function Login() {
   });
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [devOtp, setDevOtp] = useState<string | null>(null);
 
   useEffect(() => {
     if (accounts.length > 0) {
@@ -46,7 +47,11 @@ export function Login() {
     setError(null);
     setLoading(true);
     try {
-      await requestOtp(mobile);
+      const dev = await requestOtp(mobile);
+      if (dev) {
+        setDevOtp(dev);
+        setOtp(dev);
+      }
       setStep("otp");
     } catch (e) {
       setError(errorMessage(e, "Could not send OTP. Try again in a moment."));
@@ -130,6 +135,15 @@ export function Login() {
         {step === "otp" && (
           <div className="space-y-4">
             <p className="text-sm text-navy-muted">Enter the code sent to {mobile}.</p>
+            {devOtp && (
+              <div
+                data-testid="dev-otp-banner"
+                className="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800"
+              >
+                <span className="font-semibold">Dev mode:</span> SMS is mocked. Your code is{" "}
+                <span className="font-mono font-bold tracking-widest">{devOtp}</span> (auto-filled below).
+              </div>
+            )}
             <Input
               label="Verification code"
               type="text"

@@ -1,15 +1,14 @@
 # Test Credentials — Housing Society Management Platform
 
-Auth is **OTP-based** (mobile number → 6-digit OTP). SMS is MOCKED — the OTP is
-not sent by SMS. To obtain an OTP for testing, generate it via the backend's
-own service (it returns the plaintext OTP), because it is stored HASHED in Redis:
+Auth is **OTP-based** (mobile number → 6-digit OTP). SMS is MOCKED. In
+**development** the OTP is now returned by `POST /api/v1/auth/otp/request` as
+`dev_otp` and shown/auto-filled on the Login screen (yellow "Dev mode" banner),
+so login is completable without a real SMS gateway. In production
+(environment != "development") `dev_otp` is never populated.
 
-```bash
-cd /app/backend && redis-cli --scan --pattern 'otp:*' | xargs -r redis-cli del
-/root/.venv/bin/python -c "import asyncio; from app.services.otp_service import request_otp; print(asyncio.run(request_otp('9999999999')))"
-```
-
-Then POST the printed OTP to `/api/v1/auth/otp/verify` with the mobile.
+To log in as Platform Owner: open the app → enter mobile **9999999999** →
+"Send code" → the 6-digit code appears on screen (auto-filled) → "Verify &
+continue" → logged in as PLATFORM_OWNER.
 
 ## Seeded account
 | Role | Mobile | Notes |

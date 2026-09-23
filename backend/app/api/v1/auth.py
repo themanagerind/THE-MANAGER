@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
 from app.core.db import get_db
 from app.core.security import (
     CurrentUser,
@@ -30,6 +31,7 @@ from app.services.otp_service import request_otp, verify_otp
 from app.services.sms_service import send_otp_sms
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+settings = get_settings()
 
 
 @router.post("/otp/request", response_model=OTPRequestOut)
@@ -40,6 +42,9 @@ async def request_otp_endpoint(body: OTPRequestIn) -> OTPRequestOut:
     # end-to-end. Swap sms_service.send_otp_sms for a real provider when
     # one is chosen; nothing else here needs to change.
     await send_otp_sms(body.mobile, otp)
+    # Dev-only: echo the OTP so login works without a real SMS gateway.
+    if settings.environment == "development":
+        return OTPRequestOut(dev_otp=otp)
     return OTPRequestOut()
 
 

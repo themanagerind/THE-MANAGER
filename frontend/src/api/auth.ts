@@ -33,7 +33,8 @@ export interface CurrentUserOut {
 }
 
 export const authApi = {
-  requestOtp: (mobile: string) => apiClient.post<{ message: string }>("/auth/otp/request", { mobile }),
+  requestOtp: (mobile: string) =>
+    apiClient.post<{ message: string; dev_otp?: string | null }>("/auth/otp/request", { mobile }),
 
   verifyOtp: (mobile: string, otp: string) =>
     apiClient.post<OTPVerifyOut>("/auth/otp/verify", { mobile, otp }),
