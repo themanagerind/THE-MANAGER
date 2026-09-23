@@ -18,6 +18,13 @@ import { AdminOverview } from "@/pages/admin/Overview";
 import { AdminResidents } from "@/pages/admin/Residents";
 import { AdminProperties } from "@/pages/admin/Properties";
 import { AdminDues } from "@/pages/admin/Dues";
+import { AdminComplaints } from "@/pages/admin/Complaints";
+import { AdminVisitors } from "@/pages/admin/Visitors";
+import { AdminNotices } from "@/pages/admin/Notices";
+import { AdminAmenities } from "@/pages/admin/Amenities";
+import { AdminProposals } from "@/pages/admin/Proposals";
+import { AdminExpenseBills } from "@/pages/admin/ExpenseBills";
+import { AdminAccounts } from "@/pages/admin/Accounts";
 import { ManagerTodos } from "@/pages/manager/Todos";
 import { ManagerComplaints } from "@/pages/manager/Complaints";
 
@@ -53,13 +60,13 @@ export function App() {
             <Route path="/admin/residents" element={<AdminResidents />} />
             <Route path="/admin/properties" element={<AdminProperties />} />
             <Route path="/admin/dues" element={<AdminDues />} />
-            <Route path="/admin/complaints" element={<PlaceholderPage title="Complaints" />} />
-            <Route path="/admin/visitors" element={<PlaceholderPage title="Visitors" />} />
-            <Route path="/admin/notices" element={<PlaceholderPage title="Notices" />} />
-            <Route path="/admin/amenities" element={<PlaceholderPage title="Amenities" />} />
-            <Route path="/admin/proposals" element={<PlaceholderPage title="Proposals" />} />
-            <Route path="/admin/expense-bills" element={<PlaceholderPage title="Expense Bills" />} />
-            <Route path="/admin/accounts" element={<PlaceholderPage title="Accounts" />} />
+            <Route path="/admin/complaints" element={<AdminComplaints />} />
+            <Route path="/admin/visitors" element={<AdminVisitors />} />
+            <Route path="/admin/notices" element={<AdminNotices />} />
+            <Route path="/admin/amenities" element={<AdminAmenities />} />
+            <Route path="/admin/proposals" element={<AdminProposals />} />
+            <Route path="/admin/expense-bills" element={<AdminExpenseBills />} />
+            <Route path="/admin/accounts" element={<AdminAccounts />} />
           </Route>
 
           <Route element={<ProtectedRoute allow={["SUB_ADMIN"]} />}>

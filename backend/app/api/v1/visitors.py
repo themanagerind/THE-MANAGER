@@ -11,8 +11,33 @@ from app.models.enums import Role, VisitorStatus
 from app.schemas.pagination import Page, Pagination, pagination_params
 from app.schemas.visitor import GuardVisitorOut, VisitorOut, VisitorPreApproveIn
 from app.services import visitor_service
+from app.services.scope_service import subadmin_has_scope_over_property
 
 router = APIRouter(prefix="/visitors", tags=["visitors"])
+
+
+@router.get("", response_model=Page[VisitorOut])
+async def list_all(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current: Annotated[CurrentUser, Depends(require_role(Role.ADMIN, Role.SUB_ADMIN))],
+    pagination: Annotated[Pagination, Depends(pagination_params)],
+) -> Page[VisitorOut]:
+    """Admin/Sub-admin view of every visitor in the society — was missing
+    entirely; only Resident's-own and Guard's restricted projection
+    existed before this."""
+    if current.active_role == Role.SUB_ADMIN:
+        all_visitors = await visitor_service.list_all_visitors_for_society(db, current.society_id)
+        scoped = [
+            v for v in all_visitors
+            if await subadmin_has_scope_over_property(db, current.user_id, v.property_id, current.society_id)
+        ]
+        total = len(scoped)
+        visitors = scoped[pagination.skip : pagination.skip + pagination.limit]
+    else:
+        visitors, total = await visitor_service.list_visitors_for_society(
+            db, current.society_id, pagination.skip, pagination.limit
+        )
+    return Page(items=[VisitorOut.model_validate(v) for v in visitors], total=total, skip=pagination.skip, limit=pagination.limit)
 
 
 @router.post("", response_model=VisitorOut)

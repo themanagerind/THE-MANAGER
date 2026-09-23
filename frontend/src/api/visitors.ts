@@ -35,4 +35,7 @@ export const visitorsApi = {
     apiClient.get<Page<VisitorOut>>("/visitors/mine", { params: { skip, limit } }),
   updateStatus: (id: string, status: Extract<VisitorStatus, "EXPECTED" | "CANCELLED">) =>
     apiClient.patch<VisitorOut>(`/visitors/${id}/status`, null, { params: { new_status: status } }),
+  /** Admin/Sub-admin — every visitor in the society (Sub-admin scoped
+   * server-side to their assigned Wing/Row). */
+  list: (skip = 0, limit = 20) => apiClient.get<Page<VisitorOut>>("/visitors", { params: { skip, limit } }),
 };

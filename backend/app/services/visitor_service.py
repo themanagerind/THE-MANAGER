@@ -130,6 +130,37 @@ async def list_visitors_for_resident(db: AsyncSession, society_id: uuid.UUID, re
     return rows, total
 
 
+async def list_visitors_for_society(
+    db: AsyncSession, society_id: uuid.UUID, skip: int = 0, limit: int = 20
+) -> tuple[list[Visitor], int]:
+    """Admin/Sub-admin view — full VisitorOut (unlike the Guard's
+    restricted projection above), paginated. Sub-admin scope filtering
+    happens at the API layer, same pattern as payments/dues/residents."""
+    from sqlalchemy import func
+
+    total = (
+        await db.execute(select(func.count()).select_from(Visitor).where(Visitor.society_id == society_id))
+    ).scalar_one()
+    rows = (
+        await db.execute(
+            select(Visitor).where(Visitor.society_id == society_id)
+            .order_by(Visitor.visit_date.desc()).offset(skip).limit(limit)
+        )
+    ).scalars().all()
+    return rows, total
+
+
+async def list_all_visitors_for_society(db: AsyncSession, society_id: uuid.UUID) -> list[Visitor]:
+    """Unpaginated — used when the caller (Sub-admin) needs to filter by
+    scope before paginating, same reasoning as
+    payment_service.list_all_payments_for_society."""
+    return (
+        await db.execute(
+            select(Visitor).where(Visitor.society_id == society_id).order_by(Visitor.visit_date.desc())
+        )
+    ).scalars().all()
+
+
 async def list_visitors_for_guard(db: AsyncSession, society_id: uuid.UUID) -> list[tuple[Visitor, str]]:
     """Section 21 data boundary — returns (visitor, property_house_number)
     pairs only; the router projects this into GuardVisitorOut, never
