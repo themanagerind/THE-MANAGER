@@ -17,8 +17,12 @@ from app.models.enums import HouseType, LocationType
 from app.models.identity import Property, SocietyLocation
 from app.schemas.property import PropertyCreateIn, SocietyLocationCreateIn
 
-# Section 11: FLAT belongs to a Wing, Bungalow belongs to a Row.
-_EXPECTED_LOCATION_TYPE = {
+# Section 11: FLAT belongs to a Wing, Bungalow belongs to a Row. Public —
+# also used by admin_service.signup_admin's optional property capture,
+# which validates this same consistency rule without going through
+# create_property (that commits internally; the signup flow needs
+# everything in one transaction so a later failure rolls back cleanly).
+EXPECTED_LOCATION_TYPE = {
     HouseType.FLAT: LocationType.WING,
     HouseType.BUNGALOW: LocationType.ROW,
 }
@@ -56,7 +60,7 @@ async def create_property(
     if location is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Location not found in this society")
 
-    expected = _EXPECTED_LOCATION_TYPE[body.house_type]
+    expected = EXPECTED_LOCATION_TYPE[body.house_type]
     if location.location_type != expected:
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,

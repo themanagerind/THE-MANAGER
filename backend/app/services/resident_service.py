@@ -117,7 +117,7 @@ async def decide_resident_approval(
     return resident
 
 
-async def _has_active_owner(db: AsyncSession, property_id: uuid.UUID) -> bool:
+async def has_active_owner(db: AsyncSession, property_id: uuid.UUID) -> bool:
     row = (
         await db.execute(
             select(PropertyResident).where(
@@ -151,7 +151,7 @@ async def link_resident_to_property(
     if resident is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Active resident not found in this society")
 
-    if body.relationship_type == RelationshipType.TENANT and not await _has_active_owner(
+    if body.relationship_type == RelationshipType.TENANT and not await has_active_owner(
         db, body.property_id
     ):
         raise HTTPException(
@@ -191,7 +191,7 @@ async def link_admin_as_resident(
     if prop is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Property not found in this society")
 
-    if body.relationship_type == RelationshipType.TENANT and not await _has_active_owner(
+    if body.relationship_type == RelationshipType.TENANT and not await has_active_owner(
         db, body.property_id
     ):
         raise HTTPException(

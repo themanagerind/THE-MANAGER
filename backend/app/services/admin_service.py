@@ -7,7 +7,7 @@ existence/ACTIVE check, clean duplicate-signup error) — same shape of
 problem, different role and a different approver.
 """
 import uuid
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 from fastapi import HTTPException, status
 from sqlalchemy import select
@@ -15,9 +15,10 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.redis_client import get_redis
-from app.models.enums import Role, SocietyStatus, UserStatus
-from app.models.identity import Society, User, UserRole
+from app.models.enums import RelationshipType, Role, SocietyStatus, UserStatus
+from app.models.identity import Property, PropertyResident, Society, SocietyLocation, User, UserRole
 from app.schemas.admin import AdminSignupIn
+from app.services.property_service import EXPECTED_LOCATION_TYPE
 
 _SIGNUP_MAX_PER_HOUR = 5
 _SIGNUP_RATE_WINDOW_SECONDS = 3600
@@ -67,6 +68,76 @@ async def signup_admin(db: AsyncSession, body: AdminSignupIn) -> User:
             assigned_at=datetime.now(timezone.utc),
         )
     )
+
+    # Optional dual-role capture (Section 4: ADMIN+RESIDENT) — schema
+    # validation guarantees these are all-or-nothing. Everything here
+    # stays uncommitted (db.add only) until the single db.commit() below,
+    # alongside the admin User/ADMIN role added above — so a failure
+    # partway through (e.g. a duplicate house_number) rolls back the
+    # WHOLE signup instead of leaving a half-created Admin account with a
+    # confusing error. Nothing is reachable either way until Platform
+    # Owner approval activates the account (decide_admin_approval below).
+    #
+    # Owner only, deliberately: this always describes a brand-new unit,
+    # which can never have a Tenant without an existing Owner already on
+    # it (Section 12 invariant). Tenant — or Owner of a unit that already
+    # exists — goes through POST /residents/self-link after approval
+    # instead, which picks from real existing properties.
+    if body.property_location_name is not None:
+        expected_location_type = EXPECTED_LOCATION_TYPE[body.house_type]
+        if body.property_location_type != expected_location_type:
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                f"{body.house_type.value} must be under a {expected_location_type.value}, "
+                f"not a {body.property_location_type.value}",
+            )
+
+        location = (
+            await db.execute(
+                select(SocietyLocation).where(
+                    SocietyLocation.society_id == body.society_id,
+                    SocietyLocation.name == body.property_location_name,
+                    SocietyLocation.location_type == body.property_location_type,
+                )
+            )
+        ).scalar_one_or_none()
+        if location is None:
+            location = SocietyLocation(
+                society_id=body.society_id, name=body.property_location_name,
+                location_type=body.property_location_type,
+            )
+            db.add(location)
+            await db.flush()  # need location.id before building the Property row below
+
+        prop = Property(
+            society_id=body.society_id, location_id=location.id, house_number=body.house_number,
+            house_type=body.house_type, floor_number=body.floor_number, status="ACTIVE",
+        )
+        db.add(prop)
+        try:
+            await db.flush()  # surface a duplicate house_number now, before adding more rows
+        except IntegrityError as exc:
+            await db.rollback()
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                f"House number '{body.house_number}' already exists in this society — "
+                "link to it from the Properties page after your account is approved instead.",
+            ) from exc
+
+        db.add(
+            UserRole(
+                user_id=admin.id, role=Role.RESIDENT, assigned_by=None,
+                assigned_at=datetime.now(timezone.utc),
+            )
+        )
+        db.add(
+            PropertyResident(
+                society_id=body.society_id, property_id=prop.id, resident_id=admin.id,
+                relationship_type=RelationshipType.OWNER, is_active=True,
+                start_date=date.today(), created_at=datetime.now(timezone.utc),
+            )
+        )
+
     await db.commit()
     await db.refresh(admin)
     return admin

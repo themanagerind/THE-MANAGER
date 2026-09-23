@@ -6,6 +6,7 @@ import { apiErrorMessage } from "@/components/States";
 import { societiesApi, type SocietySearchResultOut } from "@/api/societies";
 import { residentsApi } from "@/api/residents";
 import { adminsApi } from "@/api/admins";
+import type { HouseType, LocationType } from "@/types/enums";
 
 type SignupRole = "RESIDENT" | "ADMIN";
 type Step = "society" | "details" | "done";
@@ -41,6 +42,18 @@ export function Signup() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // Admin-only: optionally describe a unit they also own here (Section 4
+  // dual-role — ADMIN+RESIDENT), instead of a separate manual step after
+  // approval. Always a brand-new unit, so always Owner (see
+  // admin_service.signup_admin — Tenant needs an existing Owner already
+  // on the property, which a just-described unit can't have).
+  const [hasOwnUnit, setHasOwnUnit] = useState(false);
+  const [locationName, setLocationName] = useState("");
+  const [locationType, setLocationType] = useState<LocationType>("WING");
+  const [houseNumber, setHouseNumber] = useState("");
+  const [houseType, setHouseType] = useState<HouseType>("FLAT");
+  const [floorNumber, setFloorNumber] = useState("");
+
   function resetForRoleChange(next: SignupRole) {
     setRole(next);
     setStep("society");
@@ -52,6 +65,12 @@ export function Signup() {
     setMobile("");
     setEmail("");
     setError(null);
+    setHasOwnUnit(false);
+    setLocationName("");
+    setLocationType("WING");
+    setHouseNumber("");
+    setHouseType("FLAT");
+    setFloorNumber("");
   }
 
   // Debounced name search — picks a society without needing to already
@@ -96,7 +115,16 @@ export function Signup() {
       if (role === "RESIDENT") {
         await residentsApi.signup(body);
       } else {
-        await adminsApi.signup(body);
+        await adminsApi.signup({
+          ...body,
+          ...(hasOwnUnit && {
+            property_location_name: locationName.trim(),
+            property_location_type: locationType,
+            house_number: houseNumber.trim(),
+            house_type: houseType,
+            floor_number: houseType === "FLAT" ? Number(floorNumber) : (floorNumber ? Number(floorNumber) : undefined),
+          }),
+        });
       }
       setStep("done");
     } catch (e) {
@@ -106,7 +134,12 @@ export function Signup() {
     }
   }
 
-  const canSubmit = fullName.trim().length > 0 && MOBILE_RE.test(mobile);
+  const ownUnitValid =
+    !hasOwnUnit ||
+    (locationName.trim().length > 0 &&
+      houseNumber.trim().length > 0 &&
+      (houseType === "BUNGALOW" || !!floorNumber));
+  const canSubmit = fullName.trim().length > 0 && MOBILE_RE.test(mobile) && ownUnitValid;
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-paper px-4">
@@ -195,6 +228,73 @@ export function Signup() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
+
+            {role === "ADMIN" && (
+              <div className="border border-line rounded p-3 space-y-3">
+                <label className="flex items-center gap-2 text-sm text-ink">
+                  <input
+                    type="checkbox"
+                    checked={hasOwnUnit}
+                    onChange={(e) => setHasOwnUnit(e.target.checked)}
+                  />
+                  I also own a unit in this society
+                </label>
+
+                {hasOwnUnit && (
+                  <div className="space-y-3 pt-1">
+                    <p className="text-xs text-navy-muted">
+                      Describes a new unit and adds you as its Owner. Already-listed units, or a
+                      Tenant relationship, can be linked from the Properties page after approval.
+                    </p>
+                    <div>
+                      <label className="block text-sm text-navy-muted mb-1">Unit type</label>
+                      <div className="flex gap-2">
+                        {(["FLAT", "BUNGALOW"] as HouseType[]).map((opt) => (
+                          <button
+                            key={opt}
+                            type="button"
+                            onClick={() => { setHouseType(opt); setLocationType(opt === "FLAT" ? "WING" : "ROW"); }}
+                            className={`px-3 py-1.5 rounded text-sm border ${
+                              houseType === opt ? "bg-navy text-white border-navy" : "border-line text-navy-muted"
+                            }`}
+                          >
+                            {opt === "FLAT" ? "Flat" : "Bungalow"}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <Input
+                      label={houseType === "FLAT" ? "Wing name" : "Row name"}
+                      value={locationName}
+                      onChange={(e) => setLocationName(e.target.value)}
+                      placeholder="e.g. Wing A"
+                    />
+                    <Input
+                      label="House/unit number"
+                      value={houseNumber}
+                      onChange={(e) => setHouseNumber(e.target.value)}
+                    />
+                    {houseType === "FLAT" && (
+                      <Input
+                        label="Floor number"
+                        type="number"
+                        value={floorNumber}
+                        onChange={(e) => setFloorNumber(e.target.value)}
+                      />
+                    )}
+                    {houseType === "BUNGALOW" && (
+                      <Input
+                        label="Floor number (optional)"
+                        type="number"
+                        value={floorNumber}
+                        onChange={(e) => setFloorNumber(e.target.value)}
+                      />
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
             {error && <p className="text-sm text-danger">{error}</p>}
             <Button className="w-full" loading={loading} disabled={!canSubmit} onClick={handleSubmit}>
               Submit
