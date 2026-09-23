@@ -3,6 +3,12 @@
 # for fast hot-reload; this just saves installing Postgres/Redis by hand,
 # which is especially painful for Redis on Windows.
 #
+# Postgres is exposed on host port 5433 (not the standard 5432) — a lot of
+# Windows machines already have a native postgres.exe Windows Service quietly
+# bound to 5432 (from some other install), which silently steals every
+# connection meant for this container and is very confusing to debug. 5433
+# avoids that collision without needing to touch whatever else owns 5432.
+#
 # Usage: docker compose up -d
 services:
   postgres:
@@ -12,7 +18,7 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: housing_dev
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
