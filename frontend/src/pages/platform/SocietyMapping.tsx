@@ -138,11 +138,13 @@ export function SocietyMapping() {
       {tab === "FLOORS" && (
         <FloorsStep
           wings={wings}
+          locations={locations}
           properties={propertiesQuery.data ?? []}
           floorsForWing={floorsForWing}
           addFloorToWing={addFloorToWing}
           canRemoveFloor={canRemoveFloor}
           removeFloorFromWing={removeFloorFromWing}
+          onGoToUnits={() => setTab("UNITS")}
         />
       )}
 
@@ -320,20 +322,39 @@ function LocationRow({
 }
 
 function FloorsStep({
-  wings, properties, floorsForWing, addFloorToWing, canRemoveFloor, removeFloorFromWing,
+  wings, locations, properties, floorsForWing, addFloorToWing, canRemoveFloor, removeFloorFromWing, onGoToUnits,
 }: {
   wings: SocietyLocationOut[];
+  locations: SocietyLocationOut[];
   properties: PropertyOut[];
   floorsForWing: (wingId: string) => number[];
   addFloorToWing: (wingId: string, floorNumber: number) => void;
   canRemoveFloor: (wingId: string, floorNumber: number) => boolean;
   removeFloorFromWing: (wingId: string, floorNumber: number) => void;
+  onGoToUnits: () => void;
 }) {
   const [selectedWingId, setSelectedWingId] = useState("");
   const [newFloor, setNewFloor] = useState("");
   const selectedWing = wings.find((w) => w.id === selectedWingId);
+  const hasRows = locations.some((l) => l.location_type === "ROW");
 
   if (wings.length === 0) {
+    if (hasRows) {
+      return (
+        <div className="max-w-md space-y-3 rounded border border-line bg-paper p-4">
+          <p className="text-sm text-ink">
+            This society has no Wings — only Rows (Bungalow). <strong>Floor mapping is Wings-only</strong> and
+            doesn't apply to Rows, so there's nothing to do on this tab. This isn't an error — it's expected for a
+            Bungalow-type society.
+          </p>
+          <p className="text-sm text-navy-muted">
+            Each Row's houses are added directly on the "Flats &amp; Houses" tab (no floor step needed), and any
+            house's own "Floors above ground" (storeys) is set there too, once it's on record.
+          </p>
+          <Button onClick={onGoToUnits}>Go to Flats &amp; Houses &rarr;</Button>
+        </div>
+      );
+    }
     return (
       <p className="text-sm text-navy-muted">
         Add a Wing in the "Wings &amp; Rows" tab first. (Rows/Bungalows don't need floor mapping — go straight to
