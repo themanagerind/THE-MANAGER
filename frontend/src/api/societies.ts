@@ -96,9 +96,18 @@ export const societiesApi = {
   /** Bulk-generates every tower/floor/flat combination in one request —
    * one Wing per entry in `wings`, each with its own floor count and
    * flats/floor (a taller tower next to a shorter one is fine). A Wing
-   * with no name gets an auto-generated one server-side ("Tower N"). */
-  generateFlatsStructure: (id: string, wings: { name?: string; floor_count: number; flats_per_floor: number }[]) =>
-    apiClient.post<PropertyOut[]>(`/societies/${id}/structure/flats`, { wings }),
+   * with no name gets an auto-generated one server-side ("Tower N").
+   * `floor_overrides` lists per-floor exceptions to that Wing's default
+   * flats_per_floor (e.g. a ground floor with fewer flats). */
+  generateFlatsStructure: (
+    id: string,
+    wings: {
+      name?: string;
+      floor_count: number;
+      flats_per_floor: number;
+      floor_overrides?: { floor_number: number; flats: number }[];
+    }[]
+  ) => apiClient.post<PropertyOut[]>(`/societies/${id}/structure/flats`, { wings }),
   /** Bulk-generates every row/house at ground-floor-only — extra storeys
    * per house are set afterward via updatePropertyFloors. */
   generateBungalowStructure: (id: string, rowCount: number, housesPerRow: number) =>

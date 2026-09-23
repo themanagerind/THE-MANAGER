@@ -198,10 +198,35 @@ interface LocationRow {
   location_type: LocationType;
 }
 
+interface FloorOverrideRow {
+  floorNumber: string;
+  flats: string;
+}
+
 interface WingSpecRow {
   name: string;
   floorCount: string;
   flatsPerFloor: string;
+  overrides: FloorOverrideRow[];
+}
+
+function isWingComplete(wing: WingSpecRow): boolean {
+  return wing.floorCount.trim() !== "" && wing.flatsPerFloor.trim() !== "";
+}
+
+function wingHasIncompleteOverride(wing: WingSpecRow): boolean {
+  return wing.overrides.some((o) => (o.floorNumber.trim() !== "") !== (o.flats.trim() !== ""));
+}
+
+function wingRowToPayload(wing: WingSpecRow) {
+  return {
+    name: wing.name.trim() || undefined,
+    floor_count: Number(wing.floorCount),
+    flats_per_floor: Number(wing.flatsPerFloor),
+    floor_overrides: wing.overrides
+      .filter((o) => o.floorNumber.trim() !== "" && o.flats.trim() !== "")
+      .map((o) => ({ floor_number: Number(o.floorNumber), flats: Number(o.flats) })),
+  };
 }
 
 /** Shared by CreateSocietyModal/BulkStructureSection's Flats generator —
@@ -209,10 +234,12 @@ interface WingSpecRow {
  * taller tower next to a shorter one, or one with bigger flats and fewer
  * per floor, is the whole point — see backend WingSpec's docstring).
  * Name is optional per row; a blank one gets an auto-generated
- * "Tower N" server-side. */
+ * "Tower N" server-side. Each Wing can also list specific floors that
+ * don't match its default flats/floor (e.g. a ground floor with fewer
+ * flats than the rest of the tower), via "Customize a floor". */
 function WingRowsEditor({ wings, onChange }: { wings: WingSpecRow[]; onChange: (wings: WingSpecRow[]) => void }) {
   function addWing() {
-    onChange([...wings, { name: "", floorCount: "", flatsPerFloor: "" }]);
+    onChange([...wings, { name: "", floorCount: "", flatsPerFloor: "", overrides: [] }]);
   }
   function updateWing(index: number, patch: Partial<WingSpecRow>) {
     onChange(wings.map((w, i) => (i === index ? { ...w, ...patch } : w)));
@@ -220,38 +247,88 @@ function WingRowsEditor({ wings, onChange }: { wings: WingSpecRow[]; onChange: (
   function removeWing(index: number) {
     onChange(wings.filter((_, i) => i !== index));
   }
+  function addOverride(wingIndex: number) {
+    updateWing(wingIndex, { overrides: [...wings[wingIndex].overrides, { floorNumber: "", flats: "" }] });
+  }
+  function updateOverride(wingIndex: number, overrideIndex: number, patch: Partial<FloorOverrideRow>) {
+    updateWing(wingIndex, {
+      overrides: wings[wingIndex].overrides.map((o, i) => (i === overrideIndex ? { ...o, ...patch } : o)),
+    });
+  }
+  function removeOverride(wingIndex: number, overrideIndex: number) {
+    updateWing(wingIndex, { overrides: wings[wingIndex].overrides.filter((_, i) => i !== overrideIndex) });
+  }
 
   return (
     <div className="space-y-2">
       {wings.map((wing, i) => (
-        <div key={i} className="flex gap-2 items-center">
-          <input
-            value={wing.name}
-            onChange={(e) => updateWing(i, { name: e.target.value })}
-            placeholder={`Tower ${i + 1} (name optional)`}
-            className="flex-1 px-2 py-1.5 border border-line rounded text-sm text-ink bg-white focus:border-navy"
-          />
-          <input
-            type="number"
-            value={wing.floorCount}
-            onChange={(e) => updateWing(i, { floorCount: e.target.value })}
-            placeholder="Floors"
-            className="w-20 px-2 py-1.5 border border-line rounded text-sm text-ink bg-white focus:border-navy"
-          />
-          <input
-            type="number"
-            value={wing.flatsPerFloor}
-            onChange={(e) => updateWing(i, { flatsPerFloor: e.target.value })}
-            placeholder="Flats/floor"
-            className="w-24 px-2 py-1.5 border border-line rounded text-sm text-ink bg-white focus:border-navy"
-          />
+        <div key={i} className="border border-line rounded p-2 space-y-1.5">
+          <div className="flex gap-2 items-center">
+            <input
+              value={wing.name}
+              onChange={(e) => updateWing(i, { name: e.target.value })}
+              placeholder={`Tower ${i + 1} (name optional)`}
+              className="flex-1 px-2 py-1.5 border border-line rounded text-sm text-ink bg-white focus:border-navy"
+            />
+            <input
+              type="number"
+              value={wing.floorCount}
+              onChange={(e) => updateWing(i, { floorCount: e.target.value })}
+              placeholder="Floors"
+              className="w-20 px-2 py-1.5 border border-line rounded text-sm text-ink bg-white focus:border-navy"
+            />
+            <input
+              type="number"
+              value={wing.flatsPerFloor}
+              onChange={(e) => updateWing(i, { flatsPerFloor: e.target.value })}
+              placeholder="Flats/floor"
+              className="w-24 px-2 py-1.5 border border-line rounded text-sm text-ink bg-white focus:border-navy"
+            />
+            <button
+              type="button"
+              onClick={() => removeWing(i)}
+              aria-label="Remove wing"
+              className="text-navy-muted hover:text-danger text-lg leading-none px-1"
+            >
+              &times;
+            </button>
+          </div>
+
+          {wing.overrides.map((override, oi) => (
+            <div key={oi} className="flex gap-2 items-center pl-4">
+              <span className="text-xs text-navy-muted whitespace-nowrap">Floor #</span>
+              <input
+                type="number"
+                value={override.floorNumber}
+                onChange={(e) => updateOverride(i, oi, { floorNumber: e.target.value })}
+                placeholder="e.g. 1"
+                className="w-16 px-2 py-1 border border-line rounded text-sm text-ink bg-white focus:border-navy"
+              />
+              <span className="text-xs text-navy-muted whitespace-nowrap">has</span>
+              <input
+                type="number"
+                value={override.flats}
+                onChange={(e) => updateOverride(i, oi, { flats: e.target.value })}
+                placeholder="Flats"
+                className="w-20 px-2 py-1 border border-line rounded text-sm text-ink bg-white focus:border-navy"
+              />
+              <span className="text-xs text-navy-muted whitespace-nowrap">flats</span>
+              <button
+                type="button"
+                onClick={() => removeOverride(i, oi)}
+                aria-label="Remove floor override"
+                className="text-navy-muted hover:text-danger text-lg leading-none px-1"
+              >
+                &times;
+              </button>
+            </div>
+          ))}
           <button
             type="button"
-            onClick={() => removeWing(i)}
-            aria-label="Remove wing"
-            className="text-navy-muted hover:text-danger text-lg leading-none px-1"
+            onClick={() => addOverride(i)}
+            className="text-xs text-navy-muted hover:text-navy underline pl-4"
           >
-            &times;
+            + Customize a floor
           </button>
         </div>
       ))}
@@ -280,8 +357,8 @@ function CreateSocietyModal({ onClose, onSuccess }: { onClose: () => void; onSuc
   const [createdHouses, setCreatedHouses] = useState<PropertyOut[] | null>(null);
   const [structureError, setStructureError] = useState<string | null>(null);
 
-  const completeWings = wings.filter((w) => w.floorCount.trim() !== "" && w.flatsPerFloor.trim() !== "");
-  const flatsPartial = wings.length > 0 && completeWings.length !== wings.length;
+  const completeWings = wings.filter(isWingComplete);
+  const flatsPartial = (wings.length > 0 && completeWings.length !== wings.length) || wings.some(wingHasIncompleteOverride);
   const bungalowFieldsFilled = [rowCount, housesPerRow].filter((v) => v.trim() !== "").length;
   const bungalowPartial = bungalowFieldsFilled > 0 && bungalowFieldsFilled < 2;
   const structureIncomplete = structureType === "FLATS" ? flatsPartial : bungalowPartial;
@@ -301,14 +378,7 @@ function CreateSocietyModal({ onClose, onSuccess }: { onClose: () => void; onSuc
       let structureErr: string | null = null;
       if (structureType === "FLATS" && completeWings.length > 0 && !flatsPartial) {
         try {
-          await societiesApi.generateFlatsStructure(
-            society.id,
-            completeWings.map((w) => ({
-              name: w.name.trim() || undefined,
-              floor_count: Number(w.floorCount),
-              flats_per_floor: Number(w.flatsPerFloor),
-            }))
-          );
+          await societiesApi.generateFlatsStructure(society.id, completeWings.map(wingRowToPayload));
         } catch (e) {
           structureErr = apiErrorMessage(
             e, "Society was created, but the Flats structure couldn't be generated — add it from Edit."
@@ -485,7 +555,7 @@ function CreateSocietyModal({ onClose, onSuccess }: { onClose: () => void; onSuc
           {structureIncomplete ? (
             <p className="text-xs text-danger mt-1">
               {structureType === "FLATS"
-                ? "Every Wing needs both a floor count and flats/floor — fill them in or remove that Wing."
+                ? "Every Wing needs both a floor count and flats/floor, and every floor override needs both a floor # and a flat count — fill them in or remove the incomplete one."
                 : "Fill in all the fields above, or clear them to skip."}
             </p>
           ) : (
@@ -758,19 +828,11 @@ function BulkStructureSection({
     queryFn: () => societiesApi.listProperties(societyId).then((r) => r.data),
   });
 
-  const completeWings = wings.filter((w) => w.floorCount.trim() !== "" && w.flatsPerFloor.trim() !== "");
-  const wingsIncomplete = wings.length > 0 && completeWings.length !== wings.length;
+  const completeWings = wings.filter(isWingComplete);
+  const wingsIncomplete = (wings.length > 0 && completeWings.length !== wings.length) || wings.some(wingHasIncompleteOverride);
 
   const generateFlats = useMutation({
-    mutationFn: () =>
-      societiesApi.generateFlatsStructure(
-        societyId,
-        completeWings.map((w) => ({
-          name: w.name.trim() || undefined,
-          floor_count: Number(w.floorCount),
-          flats_per_floor: Number(w.flatsPerFloor),
-        }))
-      ),
+    mutationFn: () => societiesApi.generateFlatsStructure(societyId, completeWings.map(wingRowToPayload)),
     onSuccess: (r) => {
       setStructureSuccess(`Created ${r.data.length} flats across ${completeWings.length} wing(s).`);
       setStructureError(null);
@@ -827,7 +889,8 @@ function BulkStructureSection({
           <WingRowsEditor wings={wings} onChange={setWings} />
           {wingsIncomplete && (
             <p className="text-xs text-danger mt-1">
-              Every Wing needs both a floor count and flats/floor — fill them in or remove that Wing.
+              Every Wing needs both a floor count and flats/floor, and every floor override needs both a
+              floor # and a flat count — fill them in or remove the incomplete one.
             </p>
           )}
         </div>

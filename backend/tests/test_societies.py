@@ -482,6 +482,80 @@ async def test_platform_owner_can_generate_flats_structure_with_per_wing_shape(
     assert all(loc.location_type == "WING" for loc in locations)
 
 
+async def test_platform_owner_can_override_flats_on_specific_floors(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    """A Wing with 5 floors, 4 flats/floor by default, except floor 1
+    (2 flats) — the ground floor commonly has fewer units than the rest
+    of the tower (lobby/parking eats the space)."""
+    society_id = two_societies_with_admins["a"]["society_id"]
+    owner = await _seed_platform_owner(db_session, "9700000030")
+    headers = auth_headers(owner.id, None, Role.PLATFORM_OWNER, [Role.PLATFORM_OWNER])
+
+    resp = await client.post(
+        f"/api/v1/societies/{society_id}/structure/flats",
+        json={
+            "wings": [
+                {
+                    "floor_count": 5,
+                    "flats_per_floor": 4,
+                    "floor_overrides": [{"floor_number": 1, "flats": 2}],
+                }
+            ]
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    properties = resp.json()
+    assert len(properties) == 2 + 4 * 4  # floor 1 = 2, floors 2-5 = 4 each
+
+    by_floor: dict[int, int] = {}
+    for p in properties:
+        by_floor[p["floor_number"]] = by_floor.get(p["floor_number"], 0) + 1
+    assert by_floor == {1: 2, 2: 4, 3: 4, 4: 4, 5: 4}
+
+
+async def test_floor_override_rejects_floor_beyond_wing_floor_count(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    society_id = two_societies_with_admins["a"]["society_id"]
+    owner = await _seed_platform_owner(db_session, "9700000031")
+    headers = auth_headers(owner.id, None, Role.PLATFORM_OWNER, [Role.PLATFORM_OWNER])
+
+    resp = await client.post(
+        f"/api/v1/societies/{society_id}/structure/flats",
+        json={
+            "wings": [
+                {"floor_count": 3, "flats_per_floor": 4, "floor_overrides": [{"floor_number": 10, "flats": 2}]}
+            ]
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 422
+
+
+async def test_floor_override_rejects_duplicate_floor_number(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    society_id = two_societies_with_admins["a"]["society_id"]
+    owner = await _seed_platform_owner(db_session, "9700000032")
+    headers = auth_headers(owner.id, None, Role.PLATFORM_OWNER, [Role.PLATFORM_OWNER])
+
+    resp = await client.post(
+        f"/api/v1/societies/{society_id}/structure/flats",
+        json={
+            "wings": [
+                {
+                    "floor_count": 3, "flats_per_floor": 4,
+                    "floor_overrides": [{"floor_number": 1, "flats": 2}, {"floor_number": 1, "flats": 3}],
+                }
+            ]
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 422
+
+
 async def test_generate_flats_structure_rejects_total_over_cap(
     client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
 ):

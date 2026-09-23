@@ -83,13 +83,46 @@ _MAX_FLOORS_ABOVE_GROUND = 20
 _MAX_TOTAL_FLATS_PER_REQUEST = 5000
 
 
+class FloorOverride(BaseModel):
+    """One floor within a Wing that doesn't match that Wing's default
+    flats_per_floor — e.g. the ground floor has 2 flats (lobby/parking
+    eats the rest of the space) while every other floor has 4."""
+
+    floor_number: int = Field(ge=1, le=_MAX_FLOORS_PER_TOWER)
+    flats: int = Field(ge=1, le=_MAX_FLATS_PER_FLOOR)
+
+
 class WingSpec(BaseModel):
     """One Wing's own shape — every Wing can differ (Tower A has 10 floors,
-    Tower B has 15; one Wing has 2 flats/floor, another has 4)."""
+    Tower B has 15; one Wing has 2 flats/floor, another has 4).
+    `flats_per_floor` is the default for every floor in this Wing;
+    `floor_overrides` lists the exceptions (by floor_number) — most
+    buildings are uniform except for a handful of odd floors, so this
+    avoids having to spell out every single floor's count."""
 
     name: str | None = Field(default=None, max_length=100)
     floor_count: int = Field(ge=1, le=_MAX_FLOORS_PER_TOWER)
     flats_per_floor: int = Field(ge=1, le=_MAX_FLATS_PER_FLOOR)
+    floor_overrides: list[FloorOverride] = []
+
+    @model_validator(mode="after")
+    def _overrides_are_valid(self) -> "WingSpec":
+        floor_numbers = [fo.floor_number for fo in self.floor_overrides]
+        if len(floor_numbers) != len(set(floor_numbers)):
+            raise ValueError("floor_overrides has more than one entry for the same floor_number")
+        out_of_range = [fn for fn in floor_numbers if fn > self.floor_count]
+        if out_of_range:
+            raise ValueError(
+                f"floor_overrides names floor(s) {sorted(out_of_range)}, "
+                f"but this Wing only has {self.floor_count} floor(s)"
+            )
+        return self
+
+    def flats_on_floor(self, floor_number: int) -> int:
+        for fo in self.floor_overrides:
+            if fo.floor_number == floor_number:
+                return fo.flats
+        return self.flats_per_floor
 
 
 class FlatsStructureIn(BaseModel):
@@ -103,7 +136,9 @@ class FlatsStructureIn(BaseModel):
 
     @model_validator(mode="after")
     def _total_within_cap(self) -> "FlatsStructureIn":
-        total = sum(w.floor_count * w.flats_per_floor for w in self.wings)
+        total = sum(
+            w.flats_on_floor(floor) for w in self.wings for floor in range(1, w.floor_count + 1)
+        )
         if total > _MAX_TOTAL_FLATS_PER_REQUEST:
             raise ValueError(
                 f"This would generate {total} flats in one request — "

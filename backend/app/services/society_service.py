@@ -157,12 +157,14 @@ async def generate_flats_structure(
     db: AsyncSession, society_id: uuid.UUID, body: FlatsStructureIn
 ) -> list[Property]:
     """Bulk-generates one Wing per entry in `body.wings`, each with its own
-    floor_count x flats_per_floor grid of FLAT properties — every
-    tower/floor/flat combination in one atomic transaction (single final
-    commit, only flush() for the intermediate Wing ids, same pattern as
-    create_society's locations loop above). Wings don't have to match each
-    other (see FlatsStructureIn's docstring) — a taller tower next to a
-    shorter one is exactly what this is for."""
+    floor_count x flats_per_floor grid of FLAT properties (per-floor
+    exceptions via WingSpec.floor_overrides/flats_on_floor — e.g. a
+    ground floor with fewer flats than the rest of the Wing) in one
+    atomic transaction (single final commit, only flush() for the
+    intermediate Wing ids, same pattern as create_society's locations
+    loop above). Wings don't have to match each other (see
+    FlatsStructureIn's docstring) — a taller tower next to a shorter one
+    is exactly what this is for."""
     await _get_society_or_404(db, society_id)
 
     towers = [
@@ -179,7 +181,7 @@ async def generate_flats_structure(
     properties: list[Property] = []
     for t_idx, (wing, tower) in enumerate(zip(body.wings, towers), start=1):
         for floor in range(1, wing.floor_count + 1):
-            for unit in range(1, wing.flats_per_floor + 1):
+            for unit in range(1, wing.flats_on_floor(floor) + 1):
                 properties.append(
                     Property(
                         society_id=society_id,
