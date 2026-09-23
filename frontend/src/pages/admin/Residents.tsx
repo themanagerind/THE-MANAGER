@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { residentsApi, subadminsApi, type ResidentOut, type SubAdminScopeOut } from "@/api/residents";
+import {
+  residentsApi, subadminsApi, type PropertyLinkRequestOut, type ResidentOut, type SubAdminScopeOut,
+} from "@/api/residents";
 import { propertiesApi, type PropertyOut } from "@/api/properties";
 import { locationsApi, type SocietyLocationOut } from "@/api/societies";
 import { Loader, EmptyState, ErrorState, apiErrorMessage } from "@/components/States";
@@ -15,6 +17,7 @@ export function AdminResidents() {
   const [linkingResident, setLinkingResident] = useState<ResidentOut | null>(null);
   const [rejectingResident, setRejectingResident] = useState<ResidentOut | null>(null);
   const [promotingResident, setPromotingResident] = useState<ResidentOut | null>(null);
+  const [rejectingLinkRequest, setRejectingLinkRequest] = useState<PropertyLinkRequestOut | null>(null);
 
   const pendingQuery = useQuery({
     queryKey: ["admin", "residents", "pending"],
@@ -26,6 +29,17 @@ export function AdminResidents() {
     queryFn: () => residentsApi.list("ACTIVE").then((r) => r.data),
   });
 
+  const linkRequestsQueryKey = ["admin", "residents", "property-link-requests"];
+  const linkRequestsQuery = useQuery({
+    queryKey: linkRequestsQueryKey,
+    queryFn: () => residentsApi.pendingPropertyLinkRequests().then((r) => r.data),
+  });
+
+  const propertiesQuery = useQuery({
+    queryKey: ["admin", "properties"],
+    queryFn: () => propertiesApi.list().then((r) => r.data),
+  });
+
   const approve = useMutation({
     mutationFn: (id: string) => residentsApi.decideApproval(id, true),
     onSuccess: () => {
@@ -33,6 +47,14 @@ export function AdminResidents() {
       void queryClient.invalidateQueries({ queryKey: ["admin", "residents", "active"] });
     },
   });
+
+  const approveLinkRequest = useMutation({
+    mutationFn: (id: string) => residentsApi.decidePropertyLinkRequest(id, true),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: linkRequestsQueryKey }),
+  });
+
+  const residentById = new Map((activeResidentsQuery.data ?? []).map((r) => [r.id, r]));
+  const propertyById = new Map((propertiesQuery.data ?? []).map((p) => [p.id, p]));
 
   return (
     <div className="space-y-6">
@@ -106,6 +128,45 @@ export function AdminResidents() {
         )}
       </section>
 
+      <section className="space-y-2">
+        <h2 className="text-sm font-medium text-navy-muted">Property link requests</h2>
+        {(linkRequestsQuery.isLoading || propertiesQuery.isLoading) && <Loader />}
+        {linkRequestsQuery.isError && (
+          <ErrorState message="Couldn't load requests." onRetry={() => linkRequestsQuery.refetch()} />
+        )}
+        {linkRequestsQuery.data && linkRequestsQuery.data.length === 0 && (
+          <EmptyState title="No pending property link requests" />
+        )}
+        {linkRequestsQuery.data && linkRequestsQuery.data.length > 0 && (
+          <Table<PropertyLinkRequestOut>
+            keyFor={(r) => r.id}
+            columns={[
+              { header: "Resident", render: (r) => residentById.get(r.resident_id)?.full_name ?? "—" },
+              { header: "Property", render: (r) => propertyById.get(r.property_id)?.house_number ?? "—" },
+              { header: "As", render: (r) => (r.relationship_type === "OWNER" ? "Owner" : "Tenant") },
+              { header: "Reason", render: (r) => r.reason ?? "—" },
+              {
+                header: "",
+                render: (r) => (
+                  <div className="flex gap-2 justify-end">
+                    <Button variant="secondary" onClick={() => setRejectingLinkRequest(r)}>
+                      Reject
+                    </Button>
+                    <Button
+                      loading={approveLinkRequest.isPending && approveLinkRequest.variables === r.id}
+                      onClick={() => approveLinkRequest.mutate(r.id)}
+                    >
+                      Approve
+                    </Button>
+                  </div>
+                ),
+              },
+            ]}
+            rows={linkRequestsQuery.data}
+          />
+        )}
+      </section>
+
       {linkingResident && (
         <LinkPropertyModal
           resident={linkingResident}
@@ -127,6 +188,18 @@ export function AdminResidents() {
 
       {promotingResident && (
         <PromoteModal resident={promotingResident} onClose={() => setPromotingResident(null)} />
+      )}
+
+      {rejectingLinkRequest && (
+        <RejectLinkRequestModal
+          request={rejectingLinkRequest}
+          residentName={residentById.get(rejectingLinkRequest.resident_id)?.full_name ?? "this resident"}
+          onClose={() => setRejectingLinkRequest(null)}
+          onSuccess={() => {
+            setRejectingLinkRequest(null);
+            void queryClient.invalidateQueries({ queryKey: linkRequestsQueryKey });
+          }}
+        />
       )}
     </div>
   );
@@ -380,6 +453,34 @@ function PromoteModal({ resident, onClose }: { resident: ResidentOut; onClose: (
           <Button variant="secondary" onClick={onClose}>Done</Button>
           <Button loading={assign.isPending} disabled={selected.size === 0} onClick={() => assign.mutate()}>
             Assign
+          </Button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+function RejectLinkRequestModal({
+  request, residentName, onClose, onSuccess,
+}: { request: PropertyLinkRequestOut; residentName: string; onClose: () => void; onSuccess: () => void }) {
+  const [reason, setReason] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  const reject = useMutation({
+    mutationFn: () => residentsApi.decidePropertyLinkRequest(request.id, false, reason.trim() || undefined),
+    onSuccess,
+    onError: (e) => setError(apiErrorMessage(e, "Could not reject the request.")),
+  });
+
+  return (
+    <Modal open onClose={onClose} title={`Reject property link — ${residentName}`}>
+      <div className="space-y-4">
+        <Input label="Reason (optional)" value={reason} onChange={(e) => setReason(e.target.value)} />
+        {error && <p className="text-sm text-danger">{error}</p>}
+        <div className="flex gap-2 justify-end pt-2">
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button variant="danger" loading={reject.isPending} onClick={() => reject.mutate()}>
+            Reject
           </Button>
         </div>
       </div>

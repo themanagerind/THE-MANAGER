@@ -4,7 +4,7 @@ from datetime import date, datetime
 
 from pydantic import BaseModel
 
-from app.models.enums import RelationshipType, UserStatus
+from app.models.enums import RelationshipType, RoleRequestStatus, UserStatus
 
 
 class ResidentSignupIn(BaseModel):
@@ -77,3 +77,35 @@ class PropertyResidentOut(BaseModel):
     end_date: date | None
 
     model_config = {"from_attributes": True}
+
+
+class PropertyLinkRequestIn(BaseModel):
+    """An already-ACTIVE Resident, from their own Profile page, requesting
+    to link themselves to an (additional) property — Owner or Tenant.
+    Unlike the Admin-driven property-links flow, this stays PENDING until
+    the Admin approves it (see PropertyLinkRequestOut/DecisionIn below)."""
+
+    property_id: uuid.UUID
+    relationship_type: RelationshipType
+    reason: str | None = None
+
+
+class PropertyLinkRequestOut(BaseModel):
+    id: uuid.UUID
+    society_id: uuid.UUID
+    resident_id: uuid.UUID
+    property_id: uuid.UUID
+    relationship_type: RelationshipType
+    status: RoleRequestStatus
+    reason: str | None
+    reviewed_by: uuid.UUID | None
+    reviewed_at: datetime | None
+    decision_reason: str | None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class PropertyLinkRequestDecisionIn(BaseModel):
+    approve: bool
+    decision_reason: str | None = None

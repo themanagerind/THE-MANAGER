@@ -42,6 +42,20 @@ export interface RoleRequestOut {
   created_at: string;
 }
 
+export interface PropertyLinkRequestOut {
+  id: string;
+  society_id: string;
+  resident_id: string;
+  property_id: string;
+  relationship_type: RelationshipType;
+  status: RoleRequestStatus;
+  reason: string | null;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  decision_reason: string | null;
+  created_at: string;
+}
+
 export const residentsApi = {
   /** Public — no auth required. Resident waits for their society's Admin
    * to approve (see pending/decideApproval below). property_id/
@@ -75,6 +89,23 @@ export const residentsApi = {
       property_id: propertyId, relationship_type: relationshipType,
     }),
   byProperty: (propertyId: string) => apiClient.get<PropertyResidentOut[]>(`/residents/by-property/${propertyId}`),
+  /** Resident-only — from their own Profile page, requesting to link
+   * themselves to an additional property. Unlike linkSelf/signup, this
+   * stays PENDING until the Admin approves it (see decidePropertyLinkRequest
+   * below) — approval is what actually creates the real link. */
+  requestPropertyLink: (propertyId: string, relationshipType: RelationshipType, reason?: string) =>
+    apiClient.post<PropertyLinkRequestOut>("/residents/property-link-requests", {
+      property_id: propertyId, relationship_type: relationshipType, reason,
+    }),
+  /** Resident's own requests, any status — so their Profile page can show
+   * pending/approved/rejected instead of the request just vanishing. */
+  myPropertyLinkRequests: () => apiClient.get<PropertyLinkRequestOut[]>("/residents/property-link-requests/mine"),
+  pendingPropertyLinkRequests: () =>
+    apiClient.get<PropertyLinkRequestOut[]>("/residents/property-link-requests/pending"),
+  decidePropertyLinkRequest: (requestId: string, approve: boolean, decisionReason?: string) =>
+    apiClient.post<PropertyLinkRequestOut>(`/residents/property-link-requests/${requestId}/decision`, {
+      approve, decision_reason: decisionReason,
+    }),
 };
 
 export const subadminsApi = {

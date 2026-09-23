@@ -291,6 +291,70 @@ class PropertyResident(Base, UUIDPKMixin):
     )
 
 
+class PropertyLinkRequest(Base, UUIDPKMixin):
+    """v1.5 addition — an already-ACTIVE Resident requesting to link
+    themselves to an (additional) property from their own Profile page.
+    Unlike the signup-time link (created immediately, inert until account
+    approval) and the Admin-driven property-links endpoint (immediate,
+    no approval needed — the Admin already runs the society), THIS path
+    is Resident-initiated after the fact, so it stays PENDING until the
+    Admin reviews it; approving it is what actually creates the real
+    PropertyResident row (resident_service.decide_property_link_request),
+    same "approval materializes the record" pattern as Resident/Admin
+    signup approval."""
+
+    __tablename__ = "property_link_requests"
+
+    society_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("societies.id"), nullable=False
+    )
+    resident_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    property_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    relationship_type: Mapped[RelationshipType] = mapped_column(
+        pg_enum(RelationshipType, "relationship_type_enum"), nullable=False
+    )
+    status: Mapped[RoleRequestStatus] = mapped_column(
+        pg_enum(RoleRequestStatus, "role_request_status_enum"),
+        nullable=False,
+        default=RoleRequestStatus.PENDING,
+    )
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reviewed_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+    )
+    reviewed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    decision_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+
+    __table_args__ = (
+        # A resident can't spam multiple pending requests for the same
+        # property — service layer also checks this (clean error before
+        # hitting this constraint), same pattern as submit_resignation's
+        # existing-pending check.
+        Index(
+            "ux_property_link_requests_pending",
+            "resident_id",
+            "property_id",
+            unique=True,
+            postgresql_where="status = 'PENDING'",
+        ),
+        ForeignKeyConstraint(
+            ["society_id", "resident_id"],
+            ["users.society_id", "users.id"],
+            name="fk_property_link_requests_society_resident",
+        ),
+        ForeignKeyConstraint(
+            ["society_id", "property_id"],
+            ["properties.society_id", "properties.id"],
+            name="fk_property_link_requests_society_property",
+        ),
+    )
+
+
 class SubAdminScope(Base, UUIDPKMixin):
     __tablename__ = "sub_admin_scopes"
 

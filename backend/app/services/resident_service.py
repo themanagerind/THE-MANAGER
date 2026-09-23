@@ -17,9 +17,14 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.redis_client import get_redis
-from app.models.enums import RelationshipType, Role, SocietyStatus, UserStatus
-from app.models.identity import Property, PropertyResident, Society, User, UserRole
-from app.schemas.resident import AdminSelfResidentLinkIn, PropertyResidentLinkIn, ResidentSignupIn
+from app.models.enums import RelationshipType, Role, RoleRequestStatus, SocietyStatus, UserStatus
+from app.models.identity import Property, PropertyLinkRequest, PropertyResident, Society, User, UserRole
+from app.schemas.resident import (
+    AdminSelfResidentLinkIn,
+    PropertyLinkRequestIn,
+    PropertyResidentLinkIn,
+    ResidentSignupIn,
+)
 
 _SIGNUP_MAX_PER_HOUR = 5
 _SIGNUP_RATE_WINDOW_SECONDS = 3600
@@ -364,3 +369,162 @@ async def list_resident_properties(
             )
         )
     ).scalars().all()
+
+
+async def submit_property_link_request(
+    db: AsyncSession, society_id: uuid.UUID, resident_id: uuid.UUID, body: PropertyLinkRequestIn
+) -> PropertyLinkRequest:
+    """An already-ACTIVE Resident requesting (from their own Profile page)
+    to link themselves to an additional property — unlike self-signup's
+    property_id/relationship_type (immediate) or the Admin-driven
+    property-links endpoint (also immediate — the Admin already runs the
+    society), this stays PENDING until the Admin reviews it
+    (decide_property_link_request below)."""
+    prop = (
+        await db.execute(
+            select(Property).where(Property.id == body.property_id, Property.society_id == society_id)
+        )
+    ).scalar_one_or_none()
+    if prop is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Property not found in this society")
+
+    already_linked = (
+        await db.execute(
+            select(PropertyResident).where(
+                PropertyResident.property_id == body.property_id,
+                PropertyResident.resident_id == resident_id,
+                PropertyResident.relationship_type == body.relationship_type,
+                PropertyResident.is_active.is_(True),
+            )
+        )
+    ).scalar_one_or_none()
+    if already_linked is not None:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, f"You're already an active {body.relationship_type.value.title()} of this property"
+        )
+
+    if body.relationship_type == RelationshipType.TENANT and not await has_active_owner(db, body.property_id):
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "This property has no active Owner yet — a Tenant request needs an Owner on record first "
+            "(Section 12 invariant).",
+        )
+
+    existing_pending = (
+        await db.execute(
+            select(PropertyLinkRequest).where(
+                PropertyLinkRequest.resident_id == resident_id,
+                PropertyLinkRequest.property_id == body.property_id,
+                PropertyLinkRequest.status == RoleRequestStatus.PENDING,
+            )
+        )
+    ).scalar_one_or_none()
+    if existing_pending is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "A request for this property is already pending")
+
+    req = PropertyLinkRequest(
+        society_id=society_id,
+        resident_id=resident_id,
+        property_id=body.property_id,
+        relationship_type=body.relationship_type,
+        status=RoleRequestStatus.PENDING,
+        reason=body.reason,
+        created_at=datetime.now(timezone.utc),
+    )
+    db.add(req)
+    await db.commit()
+    await db.refresh(req)
+    return req
+
+
+async def list_pending_property_link_requests(db: AsyncSession, society_id: uuid.UUID) -> list[PropertyLinkRequest]:
+    return (
+        await db.execute(
+            select(PropertyLinkRequest).where(
+                PropertyLinkRequest.society_id == society_id,
+                PropertyLinkRequest.status == RoleRequestStatus.PENDING,
+            )
+        )
+    ).scalars().all()
+
+
+async def list_my_property_link_requests(
+    db: AsyncSession, society_id: uuid.UUID, resident_id: uuid.UUID
+) -> list[PropertyLinkRequest]:
+    """Every request the Resident has ever submitted (any status) — so
+    their own Profile page can show "pending"/"approved"/"rejected"
+    instead of the request just disappearing after they submit it."""
+    return (
+        await db.execute(
+            select(PropertyLinkRequest).where(
+                PropertyLinkRequest.society_id == society_id,
+                PropertyLinkRequest.resident_id == resident_id,
+            )
+        )
+    ).scalars().all()
+
+
+async def decide_property_link_request(
+    db: AsyncSession,
+    society_id: uuid.UUID,
+    request_id: uuid.UUID,
+    approve: bool,
+    decision_reason: str | None,
+    reviewed_by: uuid.UUID,
+) -> PropertyLinkRequest:
+    req = (
+        await db.execute(
+            select(PropertyLinkRequest).where(
+                PropertyLinkRequest.id == request_id, PropertyLinkRequest.society_id == society_id
+            )
+        )
+    ).scalar_one_or_none()
+    if req is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Request not found in this society")
+    if req.status != RoleRequestStatus.PENDING:
+        raise HTTPException(status.HTTP_409_CONFLICT, f"Request is already {req.status.value}")
+
+    if approve:
+        # Re-validate now, not just at submission time — circumstances
+        # (the property deleted, the Owner unlinked) may have changed
+        # since the Resident submitted this request. Left PENDING (not
+        # silently approved or auto-rejected) so the Admin can retry once
+        # fixed, or reject it themselves.
+        prop = (
+            await db.execute(
+                select(Property).where(Property.id == req.property_id, Property.society_id == society_id)
+            )
+        ).scalar_one_or_none()
+        if prop is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "This property no longer exists in this society")
+        if req.relationship_type == RelationshipType.TENANT and not await has_active_owner(db, req.property_id):
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                "This property no longer has an active Owner — can't approve as Tenant",
+            )
+
+        db.add(
+            PropertyResident(
+                society_id=society_id,
+                property_id=req.property_id,
+                resident_id=req.resident_id,
+                relationship_type=req.relationship_type,
+                is_active=True,
+                start_date=date.today(),
+                created_at=datetime.now(timezone.utc),
+            )
+        )
+
+    req.status = RoleRequestStatus.APPROVED if approve else RoleRequestStatus.REJECTED
+    req.reviewed_by = reviewed_by
+    req.reviewed_at = datetime.now(timezone.utc)
+    req.decision_reason = decision_reason
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, "This Resident already holds that exact link — nothing to approve."
+        )
+    await db.refresh(req)
+    return req

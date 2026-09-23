@@ -10,6 +10,9 @@ from app.core.security import CurrentUser, require_role
 from app.models.enums import Role, UserStatus
 from app.schemas.resident import (
     AdminSelfResidentLinkIn,
+    PropertyLinkRequestDecisionIn,
+    PropertyLinkRequestIn,
+    PropertyLinkRequestOut,
     PropertyResidentLinkIn,
     PropertyResidentOut,
     ResidentApprovalIn,
@@ -116,6 +119,50 @@ async def get_property_residents(
         raise HTTPException(status.HTTP_403_FORBIDDEN, "This property is outside your assigned scope")
     links = await resident_service.list_property_residents(db, current.society_id, property_id)
     return [PropertyResidentOut.model_validate(link) for link in links]
+
+
+@router.post("/property-link-requests", response_model=PropertyLinkRequestOut)
+async def request_property_link(
+    body: PropertyLinkRequestIn,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current: Annotated[CurrentUser, Depends(require_role(Role.RESIDENT))],
+) -> PropertyLinkRequestOut:
+    """An already-ACTIVE Resident requesting (from their own Profile page)
+    to link themselves to an additional property — stays PENDING until
+    the Admin approves it (Section 12/26)."""
+    req = await resident_service.submit_property_link_request(db, current.society_id, current.user_id, body)
+    return PropertyLinkRequestOut.model_validate(req)
+
+
+@router.get("/property-link-requests/mine", response_model=list[PropertyLinkRequestOut])
+async def my_property_link_requests(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current: Annotated[CurrentUser, Depends(require_role(Role.RESIDENT))],
+) -> list[PropertyLinkRequestOut]:
+    reqs = await resident_service.list_my_property_link_requests(db, current.society_id, current.user_id)
+    return [PropertyLinkRequestOut.model_validate(r) for r in reqs]
+
+
+@router.get("/property-link-requests/pending", response_model=list[PropertyLinkRequestOut])
+async def pending_property_link_requests(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current: Annotated[CurrentUser, Depends(require_role(Role.ADMIN))],
+) -> list[PropertyLinkRequestOut]:
+    reqs = await resident_service.list_pending_property_link_requests(db, current.society_id)
+    return [PropertyLinkRequestOut.model_validate(r) for r in reqs]
+
+
+@router.post("/property-link-requests/{request_id}/decision", response_model=PropertyLinkRequestOut)
+async def decide_property_link_request(
+    request_id: uuid.UUID,
+    body: PropertyLinkRequestDecisionIn,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current: Annotated[CurrentUser, Depends(require_role(Role.ADMIN))],
+) -> PropertyLinkRequestOut:
+    req = await resident_service.decide_property_link_request(
+        db, current.society_id, request_id, body.approve, body.decision_reason, current.user_id
+    )
+    return PropertyLinkRequestOut.model_validate(req)
 
 
 @router.get("/{resident_id}/properties", response_model=list[PropertyResidentOut])
