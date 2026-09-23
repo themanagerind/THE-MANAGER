@@ -5,7 +5,7 @@ import { societiesApi, type SocietyLocationOut } from "@/api/societies";
 import type { PropertyOut } from "@/api/properties";
 import type { HouseType, LocationType } from "@/types/enums";
 import { Loader, ErrorState, apiErrorMessage } from "@/components/States";
-import { StructureDiagram } from "@/components/StructureDiagram";
+import { StructureDiagram, WingPreview, RowCard } from "@/components/StructureDiagram";
 import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
 
@@ -138,6 +138,7 @@ export function SocietyMapping() {
       {tab === "FLOORS" && (
         <FloorsStep
           wings={wings}
+          properties={propertiesQuery.data ?? []}
           floorsForWing={floorsForWing}
           addFloorToWing={addFloorToWing}
           canRemoveFloor={canRemoveFloor}
@@ -295,9 +296,10 @@ function LocationRow({
 }
 
 function FloorsStep({
-  wings, floorsForWing, addFloorToWing, canRemoveFloor, removeFloorFromWing,
+  wings, properties, floorsForWing, addFloorToWing, canRemoveFloor, removeFloorFromWing,
 }: {
   wings: SocietyLocationOut[];
+  properties: PropertyOut[];
   floorsForWing: (wingId: string) => number[];
   addFloorToWing: (wingId: string, floorNumber: number) => void;
   canRemoveFloor: (wingId: string, floorNumber: number) => boolean;
@@ -305,6 +307,7 @@ function FloorsStep({
 }) {
   const [selectedWingId, setSelectedWingId] = useState("");
   const [newFloor, setNewFloor] = useState("");
+  const selectedWing = wings.find((w) => w.id === selectedWingId);
 
   if (wings.length === 0) {
     return (
@@ -337,8 +340,14 @@ function FloorsStep({
         </select>
       </div>
 
-      {selectedWingId && (
+      {selectedWingId && selectedWing && (
         <>
+          <WingPreview
+            wing={selectedWing}
+            floors={floors}
+            properties={properties.filter((p) => p.location_id === selectedWingId)}
+            highlightFloor={newFloor.trim() && !Number.isNaN(Number(newFloor)) ? Number(newFloor) : null}
+          />
           {floors.length === 0 && <p className="text-xs text-navy-muted">No floors added yet for this Wing.</p>}
           {floors.length > 0 && (
             <ul className="flex flex-wrap gap-2">
@@ -506,6 +515,18 @@ function UnitsStep({
           </div>
         )}
       </div>
+
+      {selectedLocation && isWing && (
+        <WingPreview
+          wing={selectedLocation}
+          floors={floors}
+          properties={properties.filter((p) => p.location_id === selectedLocationId)}
+          highlightFloor={selectedFloor ? Number(selectedFloor) : null}
+        />
+      )}
+      {selectedLocation && !isWing && (
+        <RowCard row={selectedLocation} properties={properties.filter((p) => p.location_id === selectedLocationId)} />
+      )}
 
       {isWing && selectedLocationId && floors.length === 0 && (
         <QuickAddFloor onAdd={(f) => { addFloorToWing(selectedLocationId, f); setSelectedFloor(String(f)); }} />

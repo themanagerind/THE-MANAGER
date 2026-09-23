@@ -154,7 +154,90 @@ function BuildingCard({
   );
 }
 
-function RowCard({
+/**
+ * A live preview of one Wing while it's being mapped — same look as
+ * BuildingCard above, but driven by the FULL floor list (including
+ * floors with no flats yet, shown as an empty band) rather than only
+ * floors that already have properties, and with `highlightFloor` picked
+ * out (the floor being worked on right now). Used by the Floor-mapping
+ * and Flats & Houses-mapping steps so the Platform Owner can see the
+ * building take shape floor by floor instead of only at the end.
+ */
+export function WingPreview({
+  wing, floors, properties, highlightFloor,
+}: {
+  wing: SocietyLocationOut;
+  floors: number[];
+  properties: PropertyOut[];
+  highlightFloor?: number | null;
+}) {
+  if (floors.length === 0) return <EmptyCard label={wing.name} />;
+
+  const PREVIEW_FLOOR_H = 54; // taller than FLOOR_H — leaves room for the "F<n>" label above the windows
+  const sortedFloors = [...floors].sort((a, b) => b - a); // highest at the top
+  const flatsPerFloor = sortedFloors.map((f) => properties.filter((p) => p.floor_number === f).sort(byHouseNumber));
+  const maxFlats = Math.max(...flatsPerFloor.map((f) => f.length), 1);
+  const width = SIDE_PAD * 2 + maxFlats * WIN_W + (maxFlats - 1) * WIN_GAP;
+  const height = sortedFloors.length * PREVIEW_FLOOR_H;
+
+  return (
+    <div className="flex flex-col items-center">
+      <div className="text-sm font-bold text-navy mb-1">{wing.name}</div>
+      <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
+        <rect x={0} y={0} width={width} height={height} fill="#FFFFFF" stroke="#0A1F44" strokeWidth={1.5} />
+        {sortedFloors.map((floorNumber, i) => {
+          const floorTop = i * PREVIEW_FLOOR_H;
+          const flats = flatsPerFloor[i];
+          const highlighted = highlightFloor === floorNumber;
+          const n = flats.length;
+          const rowW = n * WIN_W + (n - 1) * WIN_GAP;
+          const startX = (width - rowW) / 2;
+          const wy = floorTop + 22;
+          return (
+            <g key={floorNumber}>
+              {i > 0 && <line x1={0} y1={floorTop} x2={width} y2={floorTop} stroke="#E3E6EB" strokeWidth={1} />}
+              {highlighted && (
+                <rect
+                  x={1} y={floorTop + 1} width={width - 2} height={PREVIEW_FLOOR_H - 2}
+                  fill="#FBF3E4" stroke="#B8873A" strokeWidth={1.5}
+                />
+              )}
+              <text x={width / 2} y={floorTop + 13} textAnchor="middle" fontSize={10} fontWeight={700} fill="#3A4E6E">
+                Floor {floorNumber}
+              </text>
+              {n === 0 ? (
+                <text x={width / 2} y={floorTop + 36} textAnchor="middle" fontSize={10} fill="#9AA5B1">
+                  no flats yet
+                </text>
+              ) : (
+                flats.map((p, j) => {
+                  const wx = startX + j * (WIN_W + WIN_GAP);
+                  const occ = p.is_occupied;
+                  return (
+                    <g key={p.id}>
+                      <rect
+                        x={wx} y={wy} width={WIN_W} height={WIN_H} rx={2}
+                        fill={occ ? OCC_FILL : VAC_FILL} stroke={occ ? OCC_STROKE : VAC_STROKE} strokeWidth={1.4}
+                      />
+                      <text
+                        x={wx + WIN_W / 2} y={wy + WIN_H / 2 + 4} textAnchor="middle" fontSize={10} fontWeight={600}
+                        fill={occ ? OCC_TEXT : VAC_TEXT}
+                      >
+                        {p.house_number}
+                      </text>
+                    </g>
+                  );
+                })
+              )}
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
+export function RowCard({
   row, properties, onSelectUnit,
 }: { row: SocietyLocationOut; properties: PropertyOut[]; onSelectUnit?: (locationId: string, floorNumber: number | null) => void }) {
   if (properties.length === 0) return <EmptyCard label={row.name} />;
