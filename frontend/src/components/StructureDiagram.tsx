@@ -1,14 +1,17 @@
 import type { SocietyLocationOut } from "@/api/societies";
 import type { PropertyOut } from "@/api/properties";
 
-const FLOOR_H = 42;
 const WIN_W = 46;
 const WIN_H = 26;
-const WIN_GAP = 8;
+const GAP_X = 8;
+const GAP_Y = 6;
 const SIDE_PAD = 10;
 const HOUSE_W = 54;
 const HOUSE_H = 40;
-const HOUSE_GAP = 8;
+// Cap how wide any single diagram grows before wrapping to a new row —
+// without this, a Row with 86 houses (a real case) renders as one
+// off-screen-long strip instead of a compact, roughly-square block.
+const MAX_GRID_WIDTH = 480;
 
 const OCC_FILL = "#E3F1E8";
 const OCC_STROKE = "#2F7A4D";
@@ -33,10 +36,21 @@ function boxWidthFor(labels: string[], base: number): number {
   return Math.max(base, longest * 6 + 16);
 }
 
+/** How many columns to wrap a set of `count` same-size boxes into, so the
+ * block reads as a compact, roughly-square grid instead of one long row —
+ * picks the column count that makes the grid's width and height come out
+ * closest to equal, capped so it never exceeds MAX_GRID_WIDTH. */
+function gridColumns(count: number, boxW: number, boxH: number): number {
+  if (count <= 1) return 1;
+  const maxCols = Math.max(1, Math.floor((MAX_GRID_WIDTH + GAP_X) / (boxW + GAP_X)));
+  const idealCols = Math.max(1, Math.round(Math.sqrt((count * boxH) / boxW)));
+  return Math.min(count, maxCols, idealCols);
+}
+
 /**
  * A small building-elevation / row-of-houses diagram of everything mapped
  * so far — one card per Wing (floors stacked, flats as windows) or Row
- * (a row of houses), colored by occupancy (green = a Resident is linked,
+ * (a grid of houses), colored by occupancy (green = a Resident is linked,
  * grey = vacant). Read-only unless `onSelectUnit` is given, in which case
  * clicking a flat/house calls it back with the location (and floor, for a
  * Wing) so a caller like the Society Mapping page can jump straight to
@@ -104,6 +118,14 @@ function groupFlatsByFloor(properties: PropertyOut[]) {
     .map(([floorNumber, flats]) => ({ floorNumber, flats: [...flats].sort(byHouseNumber) }));
 }
 
+/** A floor's flats laid out in a wrapped grid (not one row) — a floor
+ * with a lot of flats on it stays a compact block instead of stretching
+ * the whole building sideways. `cols` is shared across every floor in
+ * the same building so the columns line up. */
+function floorGrid(flats: PropertyOut[], cols: number): { rows: number } {
+  return { rows: flats.length === 0 ? 1 : Math.ceil(flats.length / cols) };
+}
+
 function BuildingCard({
   wing, properties, onSelectUnit,
 }: { wing: SocietyLocationOut; properties: PropertyOut[]; onSelectUnit?: (locationId: string, floorNumber: number | null) => void }) {
@@ -112,8 +134,19 @@ function BuildingCard({
 
   const winW = boxWidthFor(properties.map((p) => p.house_number), WIN_W);
   const maxFlats = Math.max(...floors.map((f) => f.flats.length), 1);
-  const width = SIDE_PAD * 2 + maxFlats * winW + (maxFlats - 1) * WIN_GAP;
-  const height = floors.length * FLOOR_H;
+  const cols = gridColumns(maxFlats, winW, WIN_H);
+  const width = SIDE_PAD * 2 + cols * winW + (cols - 1) * GAP_X;
+
+  const floorLayouts = floors.map((floor) => floorGrid(floor.flats, cols));
+  const floorHeights = floorLayouts.map((l) => l.rows * WIN_H + (l.rows - 1) * GAP_Y + 12);
+  const height = floorHeights.reduce((a, b) => a + b, 0);
+
+  let yCursor = 0;
+  const floorTops = floorHeights.map((h) => {
+    const top = yCursor;
+    yCursor += h;
+    return top;
+  });
 
   return (
     <div className="flex flex-col items-center">
@@ -121,16 +154,20 @@ function BuildingCard({
       <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
         <rect x={0} y={0} width={width} height={height} fill="#FFFFFF" stroke="#0A1F44" strokeWidth={1.5} />
         {floors.map((floor, i) => {
-          const floorTop = i * FLOOR_H;
+          const floorTop = floorTops[i];
+          const floorH = floorHeights[i];
           const n = floor.flats.length;
-          const rowW = n * winW + (n - 1) * WIN_GAP;
-          const startX = (width - rowW) / 2;
-          const wy = floorTop + (FLOOR_H - WIN_H) / 2;
+          const gridW = Math.min(n, cols) * winW + (Math.min(n, cols) - 1) * GAP_X;
+          const startX = (width - gridW) / 2;
+          const gridTop = floorTop + (floorH - floorLayouts[i].rows * WIN_H - (floorLayouts[i].rows - 1) * GAP_Y) / 2;
           return (
             <g key={floor.floorNumber}>
               {i > 0 && <line x1={0} y1={floorTop} x2={width} y2={floorTop} stroke="#E3E6EB" strokeWidth={1} />}
               {floor.flats.map((p, j) => {
-                const wx = startX + j * (winW + WIN_GAP);
+                const col = j % cols;
+                const row = Math.floor(j / cols);
+                const wx = startX + col * (winW + GAP_X);
+                const wy = gridTop + row * (WIN_H + GAP_Y);
                 const occ = p.is_occupied;
                 return (
                   <g
@@ -182,13 +219,23 @@ export function WingPreview({
 }) {
   if (floors.length === 0) return <EmptyCard label={wing.name} />;
 
-  const PREVIEW_FLOOR_H = 54; // taller than FLOOR_H — leaves room for the "F<n>" label above the windows
+  const LABEL_H = 22; // room for the "Floor <n>" label above each floor's grid
   const sortedFloors = [...floors].sort((a, b) => b - a); // highest at the top
   const flatsPerFloor = sortedFloors.map((f) => properties.filter((p) => p.floor_number === f).sort(byHouseNumber));
   const winW = boxWidthFor(properties.map((p) => p.house_number), WIN_W);
   const maxFlats = Math.max(...flatsPerFloor.map((f) => f.length), 1);
-  const width = SIDE_PAD * 2 + maxFlats * winW + (maxFlats - 1) * WIN_GAP;
-  const height = sortedFloors.length * PREVIEW_FLOOR_H;
+  const cols = gridColumns(maxFlats, winW, WIN_H);
+  const width = SIDE_PAD * 2 + cols * winW + (cols - 1) * GAP_X;
+
+  const floorLayouts = flatsPerFloor.map((flats) => floorGrid(flats, cols));
+  const floorHeights = floorLayouts.map((l) => LABEL_H + l.rows * WIN_H + (l.rows - 1) * GAP_Y + 8);
+  const height = floorHeights.reduce((a, b) => a + b, 0);
+  let yCursor = 0;
+  const floorTops = floorHeights.map((h) => {
+    const top = yCursor;
+    yCursor += h;
+    return top;
+  });
 
   return (
     <div className="flex flex-col items-center">
@@ -196,19 +243,20 @@ export function WingPreview({
       <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
         <rect x={0} y={0} width={width} height={height} fill="#FFFFFF" stroke="#0A1F44" strokeWidth={1.5} />
         {sortedFloors.map((floorNumber, i) => {
-          const floorTop = i * PREVIEW_FLOOR_H;
+          const floorTop = floorTops[i];
+          const floorH = floorHeights[i];
           const flats = flatsPerFloor[i];
           const highlighted = highlightFloor === floorNumber;
           const n = flats.length;
-          const rowW = n * winW + (n - 1) * WIN_GAP;
-          const startX = (width - rowW) / 2;
-          const wy = floorTop + 22;
+          const gridW = Math.min(Math.max(n, 1), cols) * winW + (Math.min(Math.max(n, 1), cols) - 1) * GAP_X;
+          const startX = (width - gridW) / 2;
+          const gridTop = floorTop + LABEL_H;
           return (
             <g key={floorNumber}>
               {i > 0 && <line x1={0} y1={floorTop} x2={width} y2={floorTop} stroke="#E3E6EB" strokeWidth={1} />}
               {highlighted && (
                 <rect
-                  x={1} y={floorTop + 1} width={width - 2} height={PREVIEW_FLOOR_H - 2}
+                  x={1} y={floorTop + 1} width={width - 2} height={floorH - 2}
                   fill="#FBF3E4" stroke="#B8873A" strokeWidth={1.5}
                 />
               )}
@@ -216,12 +264,15 @@ export function WingPreview({
                 Floor {floorNumber}
               </text>
               {n === 0 ? (
-                <text x={width / 2} y={floorTop + 36} textAnchor="middle" fontSize={10} fill="#9AA5B1">
+                <text x={width / 2} y={gridTop + WIN_H / 2 + 4} textAnchor="middle" fontSize={10} fill="#9AA5B1">
                   no flats yet
                 </text>
               ) : (
                 flats.map((p, j) => {
-                  const wx = startX + j * (winW + WIN_GAP);
+                  const col = j % cols;
+                  const row = Math.floor(j / cols);
+                  const wx = startX + col * (winW + GAP_X);
+                  const wy = gridTop + row * (WIN_H + GAP_Y);
                   const occ = p.is_occupied;
                   return (
                     <g key={p.id}>
@@ -254,14 +305,20 @@ export function RowCard({
 
   const houses = [...properties].sort(byHouseNumber);
   const houseW = boxWidthFor(houses.map((p) => p.house_number), HOUSE_W);
-  const width = houses.length * houseW + (houses.length - 1) * HOUSE_GAP;
+  const cols = gridColumns(houses.length, houseW, HOUSE_H);
+  const rows = Math.ceil(houses.length / cols);
+  const width = cols * houseW + (cols - 1) * GAP_X;
+  const height = rows * HOUSE_H + (rows - 1) * GAP_Y;
 
   return (
     <div className="flex flex-col items-center">
       <div className="text-sm font-bold text-navy mb-1">{row.name}</div>
-      <svg width={width} height={HOUSE_H} viewBox={`0 0 ${width} ${HOUSE_H}`}>
+      <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
         {houses.map((p, i) => {
-          const x = i * (houseW + HOUSE_GAP);
+          const col = i % cols;
+          const rowIdx = Math.floor(i / cols);
+          const x = col * (houseW + GAP_X);
+          const y = rowIdx * (HOUSE_H + GAP_Y);
           const occ = p.is_occupied;
           return (
             <g
@@ -271,10 +328,10 @@ export function RowCard({
             >
               <title>{`${p.house_number} — ${occ ? "occupied" : "vacant"}`}</title>
               <rect
-                x={x} y={0} width={houseW} height={HOUSE_H} rx={4}
+                x={x} y={y} width={houseW} height={HOUSE_H} rx={4}
                 fill={occ ? OCC_FILL : VAC_FILL} stroke={occ ? OCC_STROKE : VAC_STROKE} strokeWidth={1.4}
               />
-              <text x={x + houseW / 2} y={HOUSE_H / 2 + 4} textAnchor="middle" fontSize={10} fontWeight={600} fill={occ ? OCC_TEXT : VAC_TEXT}>
+              <text x={x + houseW / 2} y={y + HOUSE_H / 2 + 4} textAnchor="middle" fontSize={10} fontWeight={600} fill={occ ? OCC_TEXT : VAC_TEXT}>
                 {p.house_number}
               </text>
             </g>
