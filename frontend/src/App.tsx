@@ -34,6 +34,7 @@ import { ManagerDues } from "@/pages/manager/Dues";
 import { SubAdminOverview } from "@/pages/subadmin/Overview";
 import { SubAdminDues } from "@/pages/subadmin/Dues";
 import { SubAdminExpenseBills } from "@/pages/subadmin/ExpenseBills";
+import { GuardVisitors } from "@/pages/guard/Visitors";
 
 function RoleHomeRedirect() {
   const { activeRole } = useAuth();
@@ -111,7 +112,7 @@ export function App() {
           </Route>
 
           <Route element={<ProtectedRoute allow={["SECURITY_GUARD"]} />}>
-            <Route path="/guard" element={<PlaceholderPage title="Visitors" />} />
+            <Route path="/guard" element={<GuardVisitors />} />
           </Route>
         </Route>
       </Route>
