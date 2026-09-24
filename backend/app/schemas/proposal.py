@@ -49,6 +49,12 @@ class ProposalStatusDetailOut(BaseModel):
     subadmin_percent: float
     resident_threshold_met: bool
     subadmin_threshold_met: bool
+    # The CALLER's own current vote (None if they haven't voted yet) — a
+    # voter can change their vote until the proposal closes (cast_vote
+    # upserts), so the UI needs this to show "you voted APPROVE" rather
+    # than leaving the Approve/Reject buttons looking untouched after a
+    # vote is cast, which read as "did that even register?" (audit fix).
+    my_vote: Vote | None
 
 
 class CastVoteIn(BaseModel):

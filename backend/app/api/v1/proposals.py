@@ -53,7 +53,8 @@ async def get_detail(
 ) -> ProposalStatusDetailOut:
     proposal = await proposal_service.get_proposal(db, current.society_id, proposal_id)
     detail = await proposal_service.compute_status_detail(db, proposal)
-    return ProposalStatusDetailOut(proposal=ProposalOut.model_validate(proposal), **detail)
+    my_vote = await proposal_service.get_my_vote(db, proposal_id, current.user_id)
+    return ProposalStatusDetailOut(proposal=ProposalOut.model_validate(proposal), my_vote=my_vote, **detail)
 
 
 @router.post("/{proposal_id}/vote", response_model=VoteOut)

@@ -155,6 +155,15 @@ async def compute_status_detail(db: AsyncSession, proposal: Proposal) -> dict:
     }
 
 
+async def get_my_vote(db: AsyncSession, proposal_id: uuid.UUID, voter_id: uuid.UUID) -> Vote | None:
+    vote_row = (
+        await db.execute(
+            select(ProposalVote).where(ProposalVote.proposal_id == proposal_id, ProposalVote.voter_id == voter_id)
+        )
+    ).scalar_one_or_none()
+    return vote_row.vote if vote_row is not None else None
+
+
 async def cast_vote(
     db: AsyncSession,
     society_id: uuid.UUID,

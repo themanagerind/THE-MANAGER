@@ -80,13 +80,31 @@ function ProposalDetailModal({ id, onClose }: { id: string; onClose: () => void 
           {error && <p className="text-sm text-danger">{error}</p>}
 
           {detailQuery.data.proposal.status === "OPEN" && (
-            <div className="flex gap-2 justify-end pt-2">
-              <Button variant="secondary" loading={vote.isPending} onClick={() => vote.mutate("REJECT")}>
-                Reject
-              </Button>
-              <Button loading={vote.isPending} onClick={() => vote.mutate("APPROVE")}>
-                Approve
-              </Button>
+            <div className="space-y-2 pt-2">
+              {detailQuery.data.my_vote && (
+                <p className="text-sm text-success text-right">
+                  ✓ You voted {detailQuery.data.my_vote === "APPROVE" ? "Approve" : "Reject"} — you can change it
+                  below until the vote closes.
+                </p>
+              )}
+              <div className="flex gap-2 justify-end">
+                <Button
+                  variant={detailQuery.data.my_vote === "REJECT" ? "danger" : "secondary"}
+                  loading={vote.isPending && vote.variables === "REJECT"}
+                  disabled={vote.isPending}
+                  onClick={() => vote.mutate("REJECT")}
+                >
+                  {detailQuery.data.my_vote === "REJECT" ? "✓ Rejected" : "Reject"}
+                </Button>
+                <Button
+                  variant={detailQuery.data.my_vote === "REJECT" ? "secondary" : "primary"}
+                  loading={vote.isPending && vote.variables === "APPROVE"}
+                  disabled={vote.isPending}
+                  onClick={() => vote.mutate("APPROVE")}
+                >
+                  {detailQuery.data.my_vote === "APPROVE" ? "✓ Approved" : "Approve"}
+                </Button>
+              </div>
             </div>
           )}
         </div>

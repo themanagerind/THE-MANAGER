@@ -24,6 +24,9 @@ export interface ProposalStatusDetail {
   subadmin_percent: number;
   resident_threshold_met: boolean;
   subadmin_threshold_met: boolean;
+  /** The caller's own current vote — null if they haven't voted yet. A
+   * vote can be changed until the proposal closes. */
+  my_vote: Vote | null;
 }
 
 export interface Page<T> {
