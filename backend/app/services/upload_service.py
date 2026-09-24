@@ -132,3 +132,78 @@ def resolve_payment_proof_path(storage_key: str) -> Path:
     if not candidate.is_file():
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Proof file not found")
     return candidate
+
+
+# --- Profile photo (avatar) uploads — Resident/Admin/Sub-admin self-service,
+# same local-disk pattern as payment proofs but smaller, and with the old
+# file deleted synchronously on replace/remove (there's exactly one avatar
+# per user at a time, so no orphan-cleanup script is needed here). ---
+
+_MAX_AVATAR_BYTES = 2 * 1024 * 1024  # 2 MB
+_MAX_AVATAR_UPLOADS_PER_HOUR = 10
+
+
+def _avatar_rate_key(user_id: uuid.UUID) -> str:
+    return f"avatar_upload:rate:{user_id}"
+
+
+async def save_user_avatar(file: UploadFile, user_id: uuid.UUID) -> str:
+    """Validates the file is actually a JPEG or PNG (by signature) and
+    within the size limit, saves it to disk, and returns a storage key to
+    store as User.avatar_key — NOT a fetchable URL."""
+    r = get_redis()
+    attempts = await r.incr(_avatar_rate_key(user_id))
+    if attempts == 1:
+        await r.expire(_avatar_rate_key(user_id), _UPLOAD_RATE_WINDOW_SECONDS)
+    if attempts > _MAX_AVATAR_UPLOADS_PER_HOUR:
+        raise HTTPException(
+            status.HTTP_429_TOO_MANY_REQUESTS, "Too many uploads — try again in an hour"
+        )
+
+    contents = await file.read()
+    if len(contents) > _MAX_AVATAR_BYTES:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"File too large — max {_MAX_AVATAR_BYTES // (1024 * 1024)} MB",
+        )
+    if len(contents) == 0:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Empty file")
+
+    detected = _detect_image_type(contents)
+    if detected is None:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "Only JPEG or PNG images are accepted as a profile photo",
+        )
+    _content_type, ext = detected
+
+    avatar_dir = Path(settings.upload_dir) / "avatars"
+    avatar_dir.mkdir(parents=True, exist_ok=True)
+
+    filename = f"{uuid.uuid4()}{ext}"
+    (avatar_dir / filename).write_bytes(contents)
+
+    return f"avatars/{filename}"
+
+
+def resolve_avatar_path(storage_key: str) -> Path:
+    """Same path-traversal-safe resolution as resolve_payment_proof_path,
+    scoped to avatar storage keys."""
+    base = Path(settings.upload_dir).resolve()
+    candidate = (base / storage_key).resolve()
+    if base not in candidate.parents and candidate != base:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Photo not found")
+    if not candidate.is_file():
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Photo not found")
+    return candidate
+
+
+def delete_avatar_file(storage_key: str) -> None:
+    """Best-effort delete of a previous avatar file when it's replaced or
+    removed — ignores a missing file rather than raising, since the DB
+    row being updated is what actually matters."""
+    try:
+        path = resolve_avatar_path(storage_key)
+    except HTTPException:
+        return
+    path.unlink(missing_ok=True)

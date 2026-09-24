@@ -16,6 +16,9 @@ class UserOut(BaseModel):
     status: UserStatus
     roles: list[Role]
     created_at: datetime
+    # True when a custom profile photo is set — GET /users/me/avatar fetches
+    # the actual bytes (same authenticated-file pattern as payment proofs).
+    has_avatar: bool = False
 
     model_config = {"from_attributes": True}
 

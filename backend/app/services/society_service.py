@@ -102,6 +102,13 @@ async def _get_society_or_404(db: AsyncSession, society_id: uuid.UUID) -> Societ
     return society
 
 
+async def get_society(db: AsyncSession, society_id: uuid.UUID) -> Society:
+    """Public wrapper for GET /societies/me — any authenticated role with
+    a society_id looking up their own society's name for the sidebar
+    header (app/layouts/AppShell.tsx's Security Guard case)."""
+    return await _get_society_or_404(db, society_id)
+
+
 async def update_society_profile(db: AsyncSession, society_id: uuid.UUID, body: SocietyUpdateIn) -> Society:
     """Platform Owner edits a society's profile after creation — name and
     address details only; `code` stays fixed (see SocietyUpdateIn's

@@ -5,7 +5,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from app.core.db import get_db
-from app.core.security import CurrentUser, require_role
+from app.core.security import CurrentUser, get_current_user, require_role
 from app.models.enums import Role
 from app.schemas.property import (
     BungalowStructureIn,
@@ -61,6 +61,21 @@ async def search(
     client_ip = request.client.host if request.client else "unknown"
     societies = await society_service.search_societies_by_name(db, q, client_ip)
     return [SocietySearchResultOut(id=s.id, name=s.name, city=s.city) for s in societies]
+
+
+@router.get("/me", response_model=SocietyLookupOut)
+async def my_society(
+    current: Annotated[CurrentUser, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> SocietyLookupOut:
+    """Any authenticated role with a society_id looking up their own
+    society's name — powers the sidebar header for Security Guard
+    (app/layouts/AppShell.tsx), who see the society's name there instead
+    of their own. 404 for a Platform Owner (no society_id)."""
+    if current.society_id is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No society for this account")
+    society = await society_service.get_society(db, current.society_id)
+    return SocietyLookupOut(id=society.id, name=society.name)
 
 
 @router.get("/{society_id}/properties/public", response_model=list[PropertyOut])

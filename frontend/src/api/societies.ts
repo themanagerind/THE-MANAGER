@@ -87,6 +87,9 @@ export const societiesApi = {
   /** Public — used by the Admin/Resident signup forms to resolve a
    * society code to its id/name before submitting. */
   lookup: (code: string) => apiClient.get<SocietyLookupOut>(`/societies/lookup/${encodeURIComponent(code)}`),
+  /** Any authenticated role with a society_id — powers the sidebar
+   * header's Security Guard case (AppShell.tsx). 404 for Platform Owner. */
+  me: () => apiClient.get<SocietyLookupOut>("/societies/me"),
   /** Public — name-search picker alternative to typing the exact code.
    * Backend enforces a 3-char minimum and rate-limits by IP; never
    * returns `code` (see SocietySearchResultOut). */

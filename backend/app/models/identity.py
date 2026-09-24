@@ -106,6 +106,11 @@ class User(Base, UUIDPKMixin, TimestampMixin):
     approved_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    # Local-disk storage key (same pattern as PaymentProof.file_url) for a
+    # self-uploaded profile photo shown in the sidebar in place of the
+    # default logo — Resident/Admin/Sub-admin only (app/api/v1/users.py).
+    # NULL means "no custom photo".
+    avatar_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     society: Mapped["Society | None"] = relationship(back_populates="users")
     roles: Mapped[list["UserRole"]] = relationship(

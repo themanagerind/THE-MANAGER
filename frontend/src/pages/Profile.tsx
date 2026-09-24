@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/auth/AuthContext";
 import { usersApi } from "@/api/users";
@@ -9,7 +9,11 @@ import { Badge } from "@/components/Badge";
 import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
 import { Modal } from "@/components/Modal";
+import { AuthenticatedImage } from "@/components/AuthenticatedImage";
 import type { RelationshipType } from "@/types/enums";
+
+/** Same roles the backend allows on POST/DELETE /users/me/avatar. */
+const AVATAR_ROLES = new Set(["RESIDENT", "ADMIN", "SUB_ADMIN"]);
 
 const roleLabels: Record<string, string> = {
   PLATFORM_OWNER: "Platform Owner",
@@ -72,6 +76,8 @@ export function Profile() {
         ))}
       </div>
 
+      {activeRole && AVATAR_ROLES.has(activeRole) && <ProfilePhotoSection hasAvatar={profile.has_avatar} />}
+
       <div className="space-y-4 rounded border border-line bg-paper p-4">
         <Input
           label="Full name"
@@ -109,6 +115,82 @@ export function Profile() {
       {profile.roles.includes("RESIDENT") && (
         <MyPropertiesSection residentId={profile.id} canManage={activeRole === "RESIDENT"} />
       )}
+    </div>
+  );
+}
+
+/**
+ * Profile photo — Resident/Admin/Sub-admin can replace the sidebar's
+ * default logo with their own photo. Backend validates it's actually a
+ * JPEG/PNG (by signature) and caps size at 2 MB (see upload_service.py).
+ */
+function ProfilePhotoSection({ hasAvatar }: { hasAvatar: boolean }) {
+  const queryClient = useQueryClient();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  function invalidateAfterChange() {
+    void queryClient.invalidateQueries({ queryKey: ["profile", "me"] });
+    // AppShell's sidebar header photo — see layouts/AppShell.tsx.
+    void queryClient.invalidateQueries({ queryKey: ["appshell", "profile"] });
+  }
+
+  const upload = useMutation({
+    mutationFn: (file: File) => usersApi.uploadAvatar(file),
+    onSuccess: () => { setError(null); invalidateAfterChange(); },
+    onError: (e) => setError(apiErrorMessage(e, "Couldn't upload your photo.")),
+  });
+
+  const remove = useMutation({
+    mutationFn: () => usersApi.removeAvatar(),
+    onSuccess: () => { setError(null); invalidateAfterChange(); },
+    onError: (e) => setError(apiErrorMessage(e, "Couldn't remove your photo.")),
+  });
+
+  function handleFileChange(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-selecting the same file next time
+    if (file) upload.mutate(file);
+  }
+
+  return (
+    <div className="flex items-center gap-4 rounded border border-line bg-paper p-4">
+      {hasAvatar ? (
+        <AuthenticatedImage
+          src="/users/me/avatar"
+          alt="Your profile photo"
+          className="w-14 h-14 rounded-full object-cover shrink-0 border border-line"
+        />
+      ) : (
+        <div className="w-14 h-14 rounded-full bg-line/50 shrink-0 flex items-center justify-center text-xs text-navy-muted">
+          No photo
+        </div>
+      )}
+      <div className="flex-1 space-y-1.5">
+        <p className="text-sm text-navy-muted">Shown in your sidebar in place of the app logo.</p>
+        {error && <p className="text-xs text-danger">{error}</p>}
+        <div className="flex gap-2">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png"
+            className="hidden"
+            onChange={handleFileChange}
+          />
+          <Button
+            variant="secondary"
+            loading={upload.isPending}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            {hasAvatar ? "Change photo" : "Add photo"}
+          </Button>
+          {hasAvatar && (
+            <Button variant="secondary" loading={remove.isPending} onClick={() => remove.mutate()}>
+              Remove
+            </Button>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
