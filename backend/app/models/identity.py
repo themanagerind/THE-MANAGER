@@ -456,9 +456,12 @@ class RoleRequest(Base, UUIDPKMixin):
 
 
 class AdminChangeRequest(Base, UUIDPKMixin):
-    """Platform Owner-initiated replacement of a society's Admin. Unlike
-    every other approval flow in this app (one decision-maker), this one
-    needs UNANIMOUS sign-off from every Sub-admin the society has at the
+    """Replacement of a society's Admin — either Platform Owner-initiated
+    (a brand-new outside person, name/mobile/email only) or Admin-
+    initiated self-resignation (an EXISTING Resident/Sub-admin in the
+    same society, picked via new_admin_user_id). Unlike every other
+    approval flow in this app (one decision-maker), this one needs
+    UNANIMOUS sign-off from every Sub-admin the society has at the
     moment the request is created — snapshotted as AdminChangeApproval
     rows below, not re-computed later, so a Sub-admin promoted afterward
     doesn't retroactively need to weigh in. A single reject cancels the
@@ -466,9 +469,12 @@ class AdminChangeRequest(Base, UUIDPKMixin):
     society with no Sub-admin at all has no one to approve, so the
     request finalizes immediately at creation. Finalizing fully replaces
     the Admin: the old Admin's ADMIN role is revoked (their account and
-    any other role they hold, e.g. RESIDENT, is untouched) and a
-    brand-new ACTIVE Admin account is created for the incoming person —
-    no separate signup/approval step for them, since Platform Owner +
+    any other role they hold, e.g. RESIDENT, is untouched); the new
+    Admin either has the ADMIN role granted on their existing account
+    (new_admin_user_id set — resignation path, their other roles like
+    RESIDENT/SUB_ADMIN are untouched too) or is created as a brand-new
+    ACTIVE account (new_admin_user_id NULL — Platform Owner's path) —
+    either way no separate signup/approval step, since initiator +
     unanimous Sub-admin consent already IS the approval."""
 
     __tablename__ = "admin_change_requests"
@@ -480,6 +486,12 @@ class AdminChangeRequest(Base, UUIDPKMixin):
     new_admin_full_name: Mapped[str] = mapped_column(String(150), nullable=False)
     new_admin_mobile: Mapped[str] = mapped_column(String(15), nullable=False)
     new_admin_email: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    # Set only on the Admin self-resignation path — an existing Resident/
+    # Sub-admin's user_id, snapshotted into new_admin_full_name/mobile/
+    # email above at request creation for display consistency with the
+    # Platform Owner path (which has no such row to read from). NULL on
+    # the Platform Owner path.
+    new_admin_user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     status: Mapped[RoleRequestStatus] = mapped_column(
         pg_enum(RoleRequestStatus, "role_request_status_enum"),
         nullable=False,
@@ -488,8 +500,10 @@ class AdminChangeRequest(Base, UUIDPKMixin):
     initiated_by: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
     )
-    # Filled in only once finalized (status -> APPROVED) — the new admin
-    # doesn't exist as a User row until every required approval is in.
+    # Filled in only once finalized (status -> APPROVED) — whoever ended
+    # up becoming the new Admin, whether that account was just created
+    # (Platform Owner path) or already existed (new_admin_user_id, same
+    # value, resignation path).
     new_admin_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
     )
@@ -506,6 +520,11 @@ class AdminChangeRequest(Base, UUIDPKMixin):
             ["society_id", "new_admin_id"],
             ["users.society_id", "users.id"],
             name="fk_admin_change_requests_society_new_admin",
+        ),
+        ForeignKeyConstraint(
+            ["society_id", "new_admin_user_id"],
+            ["users.society_id", "users.id"],
+            name="fk_admin_change_requests_society_new_admin_user",
         ),
     )
 

@@ -1,8 +1,9 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { residentsApi } from "@/api/residents";
 import { paymentsApi } from "@/api/payments";
 import { Loader } from "@/components/States";
+import { Button } from "@/components/Button";
 
 function StatCard({ label, value, to }: { label: string; value: number | string; to: string }) {
   return (
@@ -17,6 +18,7 @@ function StatCard({ label, value, to }: { label: string; value: number | string;
 }
 
 export function AdminOverview() {
+  const navigate = useNavigate();
   const pendingResidents = useQuery({
     queryKey: ["admin", "residents", "pending"],
     queryFn: () => residentsApi.pending().then((r) => r.data),
@@ -30,7 +32,12 @@ export function AdminOverview() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-semibold text-navy">Overview</h1>
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <h1 className="text-xl font-semibold text-navy">Overview</h1>
+        <Button variant="danger" onClick={() => navigate("/admin/resign")}>
+          Resign as Admin
+        </Button>
+      </div>
 
       {loading ? (
         <Loader />

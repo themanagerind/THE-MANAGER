@@ -17,7 +17,7 @@ from tests.conftest import auth_headers
 pytestmark = pytest.mark.asyncio
 
 
-async def _seed(db_session: AsyncSession, subadmin_count: int = 2) -> dict:
+async def _seed(db_session: AsyncSession, subadmin_count: int = 2, include_resident: bool = False) -> dict:
     society = Society(name="Admin Change Test Society", code=f"SOC-ADMCHG-{uuid.uuid4().hex[:6]}", status=SocietyStatus.ACTIVE)
     db_session.add(society)
     await db_session.flush()
@@ -46,11 +46,21 @@ async def _seed(db_session: AsyncSession, subadmin_count: int = 2) -> dict:
         sa = User(society_id=society.id, full_name=f"Sub-admin {i}", mobile=f"9{uuid.uuid4().hex[:9]}", status=UserStatus.ACTIVE)
         db_session.add(sa)
         await db_session.flush()
-        db_session.add(UserRole(user_id=sa.id, role=Role.SUB_ADMIN, assigned_at=datetime.now(timezone.utc)))
+        db_session.add_all([
+            UserRole(user_id=sa.id, role=Role.RESIDENT, assigned_at=datetime.now(timezone.utc)),
+            UserRole(user_id=sa.id, role=Role.SUB_ADMIN, assigned_at=datetime.now(timezone.utc)),
+        ])
         subadmins.append(sa)
 
+    resident = None
+    if include_resident:
+        resident = User(society_id=society.id, full_name="Plain Resident", mobile=f"9{uuid.uuid4().hex[:9]}", status=UserStatus.ACTIVE)
+        db_session.add(resident)
+        await db_session.flush()
+        db_session.add(UserRole(user_id=resident.id, role=Role.RESIDENT, assigned_at=datetime.now(timezone.utc)))
+
     await db_session.commit()
-    return {"society": society, "prop": prop, "owner": owner, "admin": admin, "subadmins": subadmins}
+    return {"society": society, "prop": prop, "owner": owner, "admin": admin, "subadmins": subadmins, "resident": resident}
 
 
 def _owner_headers(seeded: dict) -> dict:
@@ -287,3 +297,190 @@ async def test_pending_for_me_lists_only_assigned_requests(client: AsyncClient, 
     # Still pending for the OTHER Sub-admin.
     resp = await client.get("/api/v1/admin-change-requests/pending-for-me", headers=_subadmin_headers(seeded, 1))
     assert len(resp.json()) == 1
+
+
+# --- Admin self-resignation --------------------------------------------------
+
+
+async def test_resignation_candidates_lists_residents_and_subadmins(client: AsyncClient, db_session: AsyncSession):
+    seeded = await _seed(db_session, subadmin_count=2, include_resident=True)
+    resp = await client.get("/api/v1/admin-change-requests/resignation-candidates", headers=_admin_headers(seeded))
+    assert resp.status_code == 200
+    rows = {r["id"]: r for r in resp.json()}
+    assert str(seeded["resident"].id) in rows
+    assert rows[str(seeded["resident"].id)]["role_label"] == "RESIDENT"
+    for sa in seeded["subadmins"]:
+        assert str(sa.id) in rows
+        assert rows[str(sa.id)]["role_label"] == "SUB_ADMIN"
+    # The Admin themselves never shows up as their own candidate.
+    assert str(seeded["admin"].id) not in rows
+
+
+async def test_resign_requires_admin_role(client: AsyncClient, db_session: AsyncSession):
+    seeded = await _seed(db_session, subadmin_count=1, include_resident=True)
+    resp = await client.post(
+        "/api/v1/admin-change-requests/resign",
+        json={"new_admin_user_id": str(seeded["resident"].id)},
+        headers=_subadmin_headers(seeded),
+    )
+    assert resp.status_code == 403
+
+
+async def test_resign_rejects_self_as_candidate(client: AsyncClient, db_session: AsyncSession):
+    seeded = await _seed(db_session, subadmin_count=0)
+    resp = await client.post(
+        "/api/v1/admin-change-requests/resign",
+        json={"new_admin_user_id": str(seeded["admin"].id)},
+        headers=_admin_headers(seeded),
+    )
+    assert resp.status_code == 400
+
+
+async def test_resign_rejects_candidate_without_resident_or_subadmin_role(client: AsyncClient, db_session: AsyncSession):
+    seeded = await _seed(db_session, subadmin_count=0)
+    outsider = User(society_id=seeded["society"].id, full_name="Guard", mobile="9920000001", status=UserStatus.ACTIVE)
+    db_session.add(outsider)
+    await db_session.flush()
+    db_session.add(UserRole(user_id=outsider.id, role=Role.SECURITY_GUARD, assigned_at=datetime.now(timezone.utc)))
+    await db_session.commit()
+
+    resp = await client.post(
+        "/api/v1/admin-change-requests/resign",
+        json={"new_admin_user_id": str(outsider.id)},
+        headers=_admin_headers(seeded),
+    )
+    assert resp.status_code == 400
+
+
+async def test_resign_with_no_subadmins_finalizes_immediately_keeps_resident_role(
+    client: AsyncClient, db_session: AsyncSession
+):
+    seeded = await _seed(db_session, subadmin_count=0, include_resident=True)
+    resp = await client.post(
+        "/api/v1/admin-change-requests/resign",
+        json={"new_admin_user_id": str(seeded["resident"].id)},
+        headers=_admin_headers(seeded),
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["status"] == "APPROVED"
+    assert body["new_admin_id"] == str(seeded["resident"].id)
+
+    # Dual-role — the RESIDENT role they already held is untouched.
+    resident_role = (
+        await db_session.execute(
+            select(UserRole).where(
+                UserRole.user_id == seeded["resident"].id, UserRole.role == Role.RESIDENT, UserRole.revoked_at.is_(None)
+            )
+        )
+    ).scalar_one_or_none()
+    assert resident_role is not None
+
+    # Old Admin lost their role.
+    old_role = (
+        await db_session.execute(
+            select(UserRole).where(UserRole.user_id == seeded["admin"].id, UserRole.role == Role.ADMIN)
+        )
+    ).scalar_one()
+    assert old_role.revoked_at is not None
+
+    # New Admin can actually log in.
+    new_admin_headers = auth_headers(seeded["resident"].id, seeded["society"].id, Role.ADMIN, [Role.ADMIN, Role.RESIDENT])
+    resp = await client.get("/api/v1/properties", headers=new_admin_headers)
+    assert resp.status_code == 200
+
+
+async def test_resign_subadmin_candidate_becomes_admin_keeps_subadmin_role(client: AsyncClient, db_session: AsyncSession):
+    """A Sub-admin picked as successor becomes ADMIN+SUB_ADMIN+RESIDENT —
+    promotion never revokes a role it doesn't own."""
+    seeded = await _seed(db_session, subadmin_count=1)
+    resp = await client.post(
+        "/api/v1/admin-change-requests/resign",
+        json={"new_admin_user_id": str(seeded["subadmins"][0].id)},
+        headers=_admin_headers(seeded),
+    )
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "PENDING"  # the Sub-admin themselves must still approve
+
+    resp = await client.post(
+        f"/api/v1/admin-change-requests/{resp.json()['id']}/decision", json={"approve": True},
+        headers=_subadmin_headers(seeded, 0),
+    )
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "APPROVED"
+
+    subadmin_role = (
+        await db_session.execute(
+            select(UserRole).where(
+                UserRole.user_id == seeded["subadmins"][0].id, UserRole.role == Role.SUB_ADMIN, UserRole.revoked_at.is_(None)
+            )
+        )
+    ).scalar_one_or_none()
+    assert subadmin_role is not None
+    admin_role = (
+        await db_session.execute(
+            select(UserRole).where(
+                UserRole.user_id == seeded["subadmins"][0].id, UserRole.role == Role.ADMIN, UserRole.revoked_at.is_(None)
+            )
+        )
+    ).scalar_one_or_none()
+    assert admin_role is not None
+
+
+async def test_pending_request_blocks_a_second_one(client: AsyncClient, db_session: AsyncSession):
+    seeded = await _seed(db_session, subadmin_count=1, include_resident=True)
+    resp = await client.post(
+        "/api/v1/admin-change-requests/resign",
+        json={"new_admin_user_id": str(seeded["resident"].id)},
+        headers=_admin_headers(seeded),
+    )
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "PENDING"
+
+    resp = await client.post(
+        "/api/v1/admin-change-requests/resign",
+        json={"new_admin_user_id": str(seeded["subadmins"][0].id)},
+        headers=_admin_headers(seeded),
+    )
+    assert resp.status_code == 409
+
+
+# --- Role history -------------------------------------------------------------
+
+
+async def test_history_shows_assign_and_revoke_timestamps(client: AsyncClient, db_session: AsyncSession):
+    seeded = await _seed(db_session, subadmin_count=0, include_resident=True)
+    resp = await client.post(
+        "/api/v1/admin-change-requests/resign",
+        json={"new_admin_user_id": str(seeded["resident"].id)},
+        headers=_admin_headers(seeded),
+    )
+    assert resp.status_code == 200
+
+    # The old Admin's own token is stale (role now revoked) — history is
+    # still queryable via the new Admin's own token instead.
+    new_admin_headers = auth_headers(seeded["resident"].id, seeded["society"].id, Role.ADMIN, [Role.ADMIN, Role.RESIDENT])
+    resp = await client.get("/api/v1/admin-change-requests/history", headers=new_admin_headers)
+    assert resp.status_code == 200
+    rows = resp.json()
+    old_admin_rows = [r for r in rows if r["id"] and r["full_name"] == "Current Admin"]
+    assert len(old_admin_rows) == 1
+    assert old_admin_rows[0]["assigned_at"] is not None
+    assert old_admin_rows[0]["revoked_at"] is not None
+
+    new_admin_rows = [r for r in rows if r["full_name"] == "Plain Resident" and r["role"] == "ADMIN"]
+    assert len(new_admin_rows) == 1
+    assert new_admin_rows[0]["revoked_at"] is None
+
+
+async def test_history_requires_society_id_for_platform_owner(client: AsyncClient, db_session: AsyncSession):
+    seeded = await _seed(db_session, subadmin_count=0)
+    resp = await client.get("/api/v1/admin-change-requests/history", headers=_owner_headers(seeded))
+    assert resp.status_code == 400
+
+    resp = await client.get(
+        "/api/v1/admin-change-requests/history", params={"society_id": str(seeded["society"].id)},
+        headers=_owner_headers(seeded),
+    )
+    assert resp.status_code == 200
+    assert len(resp.json()) >= 1

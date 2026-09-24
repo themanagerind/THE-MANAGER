@@ -1,12 +1,16 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { adminChangeApi, type AdminChangeRequestOut } from "@/api/adminChange";
+import { adminChangeApi, type AdminChangeRequestOut, type RoleHistoryOut } from "@/api/adminChange";
 import { societiesApi } from "@/api/societies";
 import { Loader, EmptyState, ErrorState, apiErrorMessage } from "@/components/States";
 import { Table } from "@/components/Table";
 import { Badge } from "@/components/Badge";
 import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
+
+function formatDateTime(iso: string): string {
+  return new Date(iso).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" });
+}
 
 /**
  * Platform Owner replaces a society's Admin — at most one active Admin
@@ -34,6 +38,11 @@ export function ChangeAdmin() {
   const requestsQuery = useQuery({
     queryKey: requestsQueryKey,
     queryFn: () => adminChangeApi.list().then((r) => r.data),
+  });
+  const historyQuery = useQuery({
+    queryKey: ["platform", "role-history", societyId],
+    queryFn: () => adminChangeApi.history(societyId).then((r) => r.data),
+    enabled: !!societyId,
   });
 
   const create = useMutation({
@@ -118,6 +127,31 @@ export function ChangeAdmin() {
           </Button>
         </div>
       </div>
+
+      {societyId && (
+        <section className="space-y-2">
+          <h2 className="text-sm font-medium text-navy-muted">
+            Admin &amp; Sub-admin work history — {societyById.get(societyId)?.name ?? "this society"}
+          </h2>
+          {historyQuery.isLoading && <Loader />}
+          {historyQuery.isError && (
+            <ErrorState message="Couldn't load history." onRetry={() => historyQuery.refetch()} />
+          )}
+          {historyQuery.data && historyQuery.data.length === 0 && <EmptyState title="No history yet" />}
+          {historyQuery.data && historyQuery.data.length > 0 && (
+            <Table<RoleHistoryOut>
+              keyFor={(r) => r.id}
+              columns={[
+                { header: "Name", render: (r) => r.full_name },
+                { header: "Role", render: (r) => (r.role === "ADMIN" ? "Admin" : "Sub-admin") },
+                { header: "From", render: (r) => formatDateTime(r.assigned_at) },
+                { header: "To", render: (r) => (r.revoked_at ? formatDateTime(r.revoked_at) : "Current") },
+              ]}
+              rows={historyQuery.data}
+            />
+          )}
+        </section>
+      )}
 
       <section className="space-y-2">
         <h2 className="text-sm font-medium text-navy-muted">Recent Admin-change requests</h2>

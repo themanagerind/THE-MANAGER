@@ -57,8 +57,9 @@ export function SubAdminOverview() {
             {adminChangeApprovals.data.map((a: PendingAdminChangeApprovalOut) => (
               <li key={a.approval_id} className="border border-line rounded p-4 bg-white space-y-2">
                 <p className="text-sm text-ink">
-                  The Platform Owner wants to make <span className="font-medium">{a.new_admin_full_name}</span> (
-                  {a.new_admin_mobile}) the new Admin of your society.
+                  There's a request to make <span className="font-medium">{a.new_admin_full_name}</span> (
+                  {a.new_admin_mobile}) the new Admin of your society — either the Platform Owner started this, or
+                  the current Admin is resigning and picked them as successor.
                 </p>
                 {decide.isError && decide.variables?.requestId === a.request_id && (
                   <p className="text-xs text-danger">
