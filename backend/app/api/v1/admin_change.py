@@ -57,8 +57,25 @@ async def pending_for_me(
 async def resignation_candidates(
     db: Annotated[AsyncSession, Depends(get_db)],
     current: Annotated[CurrentUser, Depends(require_role(Role.ADMIN))],
+    location_id: Annotated[uuid.UUID | None, Query()] = None,
 ) -> list[ResignationCandidateOut]:
-    rows = await admin_change_service.list_resignation_candidates(db, current.society_id, current.user_id)
+    rows = await admin_change_service.list_resignation_candidates(
+        db, current.society_id, exclude_user_id=current.user_id, location_id=location_id
+    )
+    return [ResignationCandidateOut(**r) for r in rows]
+
+
+@router.get("/candidates", response_model=list[ResignationCandidateOut])
+async def change_admin_candidates(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current: Annotated[CurrentUser, Depends(require_role(Role.PLATFORM_OWNER))],
+    society_id: Annotated[uuid.UUID, Query()],
+    location_id: Annotated[uuid.UUID | None, Query()] = None,
+) -> list[ResignationCandidateOut]:
+    """Platform Owner's Change Admin picker — every active Resident/Sub-
+    admin in the chosen society, optionally narrowed to one Wing/Row,
+    instead of typing a new person's details by hand."""
+    rows = await admin_change_service.list_resignation_candidates(db, society_id, location_id=location_id)
     return [ResignationCandidateOut(**r) for r in rows]
 
 

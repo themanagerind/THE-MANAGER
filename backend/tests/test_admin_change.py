@@ -10,8 +10,8 @@ from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.enums import HouseType, LocationType, Role, SocietyStatus, UserStatus
-from app.models.identity import Property, Society, SocietyLocation, User, UserRole
+from app.models.enums import HouseType, LocationType, RelationshipType, Role, SocietyStatus, UserStatus
+from app.models.identity import Property, PropertyResident, Society, SocietyLocation, User, UserRole
 from tests.conftest import auth_headers
 
 pytestmark = pytest.mark.asyncio
@@ -484,3 +484,146 @@ async def test_history_requires_society_id_for_platform_owner(client: AsyncClien
     )
     assert resp.status_code == 200
     assert len(resp.json()) >= 1
+
+
+# --- Platform Owner's Change Admin picker (candidates + new_admin_user_id) ---
+
+
+async def test_platform_owner_candidates_lists_residents_and_subadmins(client: AsyncClient, db_session: AsyncSession):
+    seeded = await _seed(db_session, subadmin_count=1, include_resident=True)
+    resp = await client.get(
+        "/api/v1/admin-change-requests/candidates", params={"society_id": str(seeded["society"].id)},
+        headers=_owner_headers(seeded),
+    )
+    assert resp.status_code == 200
+    names = {r["full_name"] for r in resp.json()}
+    assert names == {"Sub-admin 0", "Plain Resident"}
+    sub_admin_row = next(r for r in resp.json() if r["full_name"] == "Sub-admin 0")
+    assert sub_admin_row["role_label"] == "SUB_ADMIN"
+
+
+async def test_platform_owner_candidates_requires_platform_owner_role(client: AsyncClient, db_session: AsyncSession):
+    seeded = await _seed(db_session, subadmin_count=0, include_resident=True)
+    resp = await client.get(
+        "/api/v1/admin-change-requests/candidates", params={"society_id": str(seeded["society"].id)},
+        headers=_admin_headers(seeded),
+    )
+    assert resp.status_code == 403
+
+
+async def test_platform_owner_candidates_filters_by_location(client: AsyncClient, db_session: AsyncSession):
+    seeded = await _seed(db_session, subadmin_count=0, include_resident=True)
+    society = seeded["society"]
+
+    other_wing = SocietyLocation(society_id=society.id, name="Wing B", location_type=LocationType.WING)
+    db_session.add(other_wing)
+    await db_session.flush()
+    other_prop = Property(
+        society_id=society.id, location_id=other_wing.id, house_number=f"B-{uuid.uuid4().hex[:4]}",
+        house_type=HouseType.FLAT, floor_number=2, status="ACTIVE",
+    )
+    db_session.add(other_prop)
+    await db_session.flush()
+
+    # Link the plain Resident to Wing A's property (seeded by _seed), a
+    # second resident to Wing B's — the candidates list should split by
+    # location_id accordingly.
+    wing_b_resident = User(society_id=society.id, full_name="Wing B Resident", mobile=f"9{uuid.uuid4().hex[:9]}", status=UserStatus.ACTIVE)
+    db_session.add(wing_b_resident)
+    await db_session.flush()
+    db_session.add(UserRole(user_id=wing_b_resident.id, role=Role.RESIDENT, assigned_at=datetime.now(timezone.utc)))
+    db_session.add_all([
+        PropertyResident(
+            society_id=society.id, property_id=seeded["prop"].id, resident_id=seeded["resident"].id,
+            relationship_type=RelationshipType.OWNER, is_active=True, created_at=datetime.now(timezone.utc),
+        ),
+        PropertyResident(
+            society_id=society.id, property_id=other_prop.id, resident_id=wing_b_resident.id,
+            relationship_type=RelationshipType.OWNER, is_active=True, created_at=datetime.now(timezone.utc),
+        ),
+    ])
+    await db_session.commit()
+
+    wing_a = (
+        await db_session.execute(
+            select(SocietyLocation).where(SocietyLocation.society_id == society.id, SocietyLocation.name == "Wing A")
+        )
+    ).scalar_one()
+
+    resp = await client.get(
+        "/api/v1/admin-change-requests/candidates",
+        params={"society_id": str(society.id), "location_id": str(wing_a.id)},
+        headers=_owner_headers(seeded),
+    )
+    assert resp.status_code == 200
+    names = {r["full_name"] for r in resp.json()}
+    assert names == {"Plain Resident"}
+    assert resp.json()[0]["house_number"] == seeded["prop"].house_number
+
+    resp = await client.get(
+        "/api/v1/admin-change-requests/candidates",
+        params={"society_id": str(society.id), "location_id": str(other_wing.id)},
+        headers=_owner_headers(seeded),
+    )
+    assert resp.status_code == 200
+    names = {r["full_name"] for r in resp.json()}
+    assert names == {"Wing B Resident"}
+
+
+async def test_create_admin_change_request_with_existing_user_id(client: AsyncClient, db_session: AsyncSession):
+    seeded = await _seed(db_session, subadmin_count=0, include_resident=True)
+    resp = await client.post(
+        "/api/v1/admin-change-requests",
+        json={"society_id": str(seeded["society"].id), "new_admin_user_id": str(seeded["resident"].id)},
+        headers=_owner_headers(seeded),
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["new_admin_full_name"] == "Plain Resident"
+    assert body["status"] == "APPROVED"  # no Sub-admins — finalizes immediately
+
+    # Old Admin's role is now revoked — confirm the swap via the new
+    # Admin's own token instead.
+    new_admin_headers = auth_headers(seeded["resident"].id, seeded["society"].id, Role.ADMIN, [Role.ADMIN, Role.RESIDENT])
+    resp = await client.get("/api/v1/users/me", headers=new_admin_headers)
+    assert resp.status_code == 200
+    assert "ADMIN" in resp.json()["roles"]
+
+
+async def test_create_admin_change_request_rejects_without_candidate_or_manual_fields(
+    client: AsyncClient, db_session: AsyncSession
+):
+    seeded = await _seed(db_session, subadmin_count=0)
+    resp = await client.post(
+        "/api/v1/admin-change-requests", json={"society_id": str(seeded["society"].id)}, headers=_owner_headers(seeded)
+    )
+    assert resp.status_code == 400
+
+
+async def test_create_admin_change_request_rejects_candidate_outside_society(
+    client: AsyncClient, db_session: AsyncSession
+):
+    seeded_a = await _seed(db_session, subadmin_count=0, include_resident=True)
+    seeded_b = await _seed(db_session, subadmin_count=0, include_resident=True)
+    resp = await client.post(
+        "/api/v1/admin-change-requests",
+        json={"society_id": str(seeded_a["society"].id), "new_admin_user_id": str(seeded_b["resident"].id)},
+        headers=_owner_headers(seeded_a),
+    )
+    assert resp.status_code == 404
+
+
+async def test_create_admin_change_request_rejects_current_admin_as_candidate(
+    client: AsyncClient, db_session: AsyncSession
+):
+    seeded = await _seed(db_session, subadmin_count=1)
+    # The society's current Admin also happens to hold RESIDENT — can't
+    # pick them as their own replacement.
+    db_session.add(UserRole(user_id=seeded["admin"].id, role=Role.RESIDENT, assigned_at=datetime.now(timezone.utc)))
+    await db_session.commit()
+    resp = await client.post(
+        "/api/v1/admin-change-requests",
+        json={"society_id": str(seeded["society"].id), "new_admin_user_id": str(seeded["admin"].id)},
+        headers=_owner_headers(seeded),
+    )
+    assert resp.status_code == 400

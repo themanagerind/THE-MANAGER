@@ -32,6 +32,10 @@ export interface ResignationCandidateOut {
   full_name: string;
   mobile: string;
   role_label: "RESIDENT" | "SUB_ADMIN";
+  house_number: string | null;
+  floor_number: number | null;
+  location_id: string | null;
+  location_name: string | null;
 }
 
 export interface RoleHistoryOut {
@@ -44,14 +48,22 @@ export interface RoleHistoryOut {
 }
 
 export const adminChangeApi = {
-  /** Platform Owner-only — replaces a society's Admin with a brand-new
-   * outside person (Section: at most one active Admin per society).
+  /** Platform Owner-only — replaces a society's Admin, either with an
+   * existing Resident/Sub-admin (pass newAdminUserId — the normal path,
+   * picked from candidates() below) or a brand-new outside person (pass
+   * fullName/mobile/email instead; leave newAdminUserId undefined).
    * Finalizes immediately if the society has no Sub-admin; otherwise
    * stays PENDING until every Sub-admin has approved (a single reject
    * cancels the whole request). */
-  create: (societyId: string, fullName: string, mobile: string, email?: string) =>
+  create: (
+    societyId: string,
+    opts: { newAdminUserId: string } | { fullName: string; mobile: string; email?: string }
+  ) =>
     apiClient.post<AdminChangeRequestOut>("/admin-change-requests", {
-      society_id: societyId, new_admin_full_name: fullName, new_admin_mobile: mobile, new_admin_email: email,
+      society_id: societyId,
+      ...("newAdminUserId" in opts
+        ? { new_admin_user_id: opts.newAdminUserId }
+        : { new_admin_full_name: opts.fullName, new_admin_mobile: opts.mobile, new_admin_email: opts.email }),
     }),
   /** Platform Owner-only — every request across every society, newest
    * first, so they can track progress after creating one. */
@@ -61,9 +73,19 @@ export const adminChangeApi = {
   decide: (requestId: string, approve: boolean) =>
     apiClient.post<AdminChangeRequestOut>(`/admin-change-requests/${requestId}/decision`, { approve }),
   /** Admin-only — every active Resident/Sub-admin in their own society
-   * they could hand the role to (self excluded). */
-  resignationCandidates: () =>
-    apiClient.get<ResignationCandidateOut[]>("/admin-change-requests/resignation-candidates"),
+   * they could hand the role to (self excluded), optionally narrowed to
+   * one Wing/Row. */
+  resignationCandidates: (locationId?: string) =>
+    apiClient.get<ResignationCandidateOut[]>("/admin-change-requests/resignation-candidates", {
+      params: { location_id: locationId },
+    }),
+  /** Platform Owner-only — every active Resident/Sub-admin in the chosen
+   * society, optionally narrowed to one Wing/Row — the Change Admin
+   * picker, instead of typing a new person's details by hand. */
+  candidates: (societyId: string, locationId?: string) =>
+    apiClient.get<ResignationCandidateOut[]>("/admin-change-requests/candidates", {
+      params: { society_id: societyId, location_id: locationId },
+    }),
   /** Admin-only — resigns and picks an existing Resident/Sub-admin as
    * their successor. Same unanimous-Sub-admin-approval rule as create()
    * above; society_id/old_admin_id are inferred from the caller. */

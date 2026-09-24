@@ -16,7 +16,16 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.enums import Role, RoleRequestStatus, UserStatus
-from app.models.identity import AdminChangeApproval, AdminChangeRequest, Society, User, UserRole
+from app.models.identity import (
+    AdminChangeApproval,
+    AdminChangeRequest,
+    Property,
+    PropertyResident,
+    Society,
+    SocietyLocation,
+    User,
+    UserRole,
+)
 from app.schemas.admin_change import AdminChangeRequestIn
 
 
@@ -166,85 +175,21 @@ async def _create_pending_or_finalized(
     return await _as_dict(db, req)
 
 
-async def create_admin_change_request(
-    db: AsyncSession, body: AdminChangeRequestIn, initiated_by: uuid.UUID
-) -> dict:
-    """Platform Owner picks a brand-new outside person as the incoming
-    Admin."""
-    society = (await db.execute(select(Society).where(Society.id == body.society_id))).scalar_one_or_none()
-    if society is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Society not found")
-
-    old_admin = await _current_admin(db, body.society_id)
-    if old_admin is None:
-        raise HTTPException(
-            status.HTTP_409_CONFLICT,
-            "This society has no active Admin yet — use the normal Admin signup instead",
-        )
-
-    await _reject_if_pending_request_exists(db, body.society_id)
-
-    duplicate_mobile = (
-        await db.execute(
-            select(User).where(User.society_id == body.society_id, User.mobile == body.new_admin_mobile)
-        )
-    ).scalar_one_or_none()
-    if duplicate_mobile is not None:
-        raise HTTPException(
-            status.HTTP_409_CONFLICT, "This mobile number already has an account in this society"
-        )
-
-    req = AdminChangeRequest(
-        society_id=body.society_id, old_admin_id=old_admin.id, new_admin_full_name=body.new_admin_full_name,
-        new_admin_mobile=body.new_admin_mobile, new_admin_email=body.new_admin_email,
-        status=RoleRequestStatus.PENDING, initiated_by=initiated_by, created_at=datetime.now(timezone.utc),
-    )
-    db.add(req)
-    await db.flush()  # need req.id before adding approval rows / finalizing
-
-    return await _create_pending_or_finalized(db, req, body.society_id)
-
-
-async def list_resignation_candidates(db: AsyncSession, society_id: uuid.UUID, exclude_user_id: uuid.UUID) -> list[dict]:
-    """The Admin's own resignation picker — every active Resident/Sub-
-    admin in their society except themselves. SUB_ADMIN is shown instead
-    of RESIDENT for someone holding both (subadmin_service.
-    promote_to_subadmin always adds SUB_ADMIN alongside an existing
-    RESIDENT, never instead of it)."""
-    rows = (
-        await db.execute(
-            select(User.id, User.full_name, User.mobile, UserRole.role)
-            .join(UserRole, UserRole.user_id == User.id)
-            .where(
-                User.society_id == society_id, User.status == UserStatus.ACTIVE, User.id != exclude_user_id,
-                UserRole.role.in_([Role.RESIDENT, Role.SUB_ADMIN]), UserRole.revoked_at.is_(None),
-            )
-        )
-    ).all()
-    by_user: dict[uuid.UUID, dict] = {}
-    for user_id, full_name, mobile, role in rows:
-        current = by_user.get(user_id)
-        if current is None or role == Role.SUB_ADMIN:
-            by_user[user_id] = {"id": user_id, "full_name": full_name, "mobile": mobile, "role_label": role.value}
-    return sorted(by_user.values(), key=lambda r: r["full_name"])
-
-
-async def create_resignation_request(
-    db: AsyncSession, society_id: uuid.UUID, old_admin_id: uuid.UUID, new_admin_user_id: uuid.UUID
-) -> dict:
-    """The Admin themselves resigns, picking an existing Resident/Sub-
-    admin as their successor — society_id/old_admin_id are the caller's
-    own (from the auth token), not user input."""
-    await _reject_if_pending_request_exists(db, society_id)
-
+async def _validate_existing_candidate(
+    db: AsyncSession, society_id: uuid.UUID, candidate_id: uuid.UUID, exclude_id: uuid.UUID | None = None
+) -> User:
+    """Shared validation for picking an EXISTING user as the incoming
+    Admin (Platform Owner's picker and an Admin's own resignation
+    picker): must be an active user in this exact society, not the
+    person being replaced, and currently hold RESIDENT or SUB_ADMIN."""
     candidate = (
         await db.execute(
-            select(User).where(User.id == new_admin_user_id, User.society_id == society_id, User.status == UserStatus.ACTIVE)
+            select(User).where(User.id == candidate_id, User.society_id == society_id, User.status == UserStatus.ACTIVE)
         )
     ).scalar_one_or_none()
     if candidate is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Candidate not found in this society")
-    if candidate.id == old_admin_id:
+    if exclude_id is not None and candidate.id == exclude_id:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Can't pick yourself as your own successor")
 
     has_role = (
@@ -259,6 +204,133 @@ async def create_resignation_request(
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST, "Candidate must be an active Resident or Sub-admin in this society"
         )
+    return candidate
+
+
+async def create_admin_change_request(
+    db: AsyncSession, body: AdminChangeRequestIn, initiated_by: uuid.UUID
+) -> dict:
+    """Platform Owner replaces a society's Admin, either by picking an
+    existing Resident/Sub-admin (new_admin_user_id — the normal path,
+    powered by the Wing/Row + search picker) or by entering a brand-new
+    outside person's details by hand (the three manual fields — for
+    someone with no account in the system yet)."""
+    society = (await db.execute(select(Society).where(Society.id == body.society_id))).scalar_one_or_none()
+    if society is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Society not found")
+
+    old_admin = await _current_admin(db, body.society_id)
+    if old_admin is None:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "This society has no active Admin yet — use the normal Admin signup instead",
+        )
+
+    await _reject_if_pending_request_exists(db, body.society_id)
+
+    if body.new_admin_user_id is not None:
+        candidate = await _validate_existing_candidate(
+            db, body.society_id, body.new_admin_user_id, exclude_id=old_admin.id
+        )
+        req = AdminChangeRequest(
+            society_id=body.society_id, old_admin_id=old_admin.id, new_admin_full_name=candidate.full_name,
+            new_admin_mobile=candidate.mobile, new_admin_email=candidate.email, new_admin_user_id=candidate.id,
+            status=RoleRequestStatus.PENDING, initiated_by=initiated_by, created_at=datetime.now(timezone.utc),
+        )
+    else:
+        if not body.new_admin_full_name or not body.new_admin_mobile:
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                "Provide either new_admin_user_id or new_admin_full_name + new_admin_mobile",
+            )
+        duplicate_mobile = (
+            await db.execute(
+                select(User).where(User.society_id == body.society_id, User.mobile == body.new_admin_mobile)
+            )
+        ).scalar_one_or_none()
+        if duplicate_mobile is not None:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT, "This mobile number already has an account in this society"
+            )
+        req = AdminChangeRequest(
+            society_id=body.society_id, old_admin_id=old_admin.id, new_admin_full_name=body.new_admin_full_name,
+            new_admin_mobile=body.new_admin_mobile, new_admin_email=body.new_admin_email,
+            status=RoleRequestStatus.PENDING, initiated_by=initiated_by, created_at=datetime.now(timezone.utc),
+        )
+
+    db.add(req)
+    await db.flush()  # need req.id before adding approval rows / finalizing
+
+    return await _create_pending_or_finalized(db, req, body.society_id)
+
+
+async def list_resignation_candidates(
+    db: AsyncSession,
+    society_id: uuid.UUID,
+    exclude_user_id: uuid.UUID | None = None,
+    location_id: uuid.UUID | None = None,
+) -> list[dict]:
+    """Every active Resident/Sub-admin in a society that can be picked as
+    the new Admin — used by both the Admin's own resignation picker
+    (exclude_user_id=self) and the Platform Owner's Change Admin picker
+    (no exclusion, any society). SUB_ADMIN is shown instead of RESIDENT
+    for someone holding both (subadmin_service.promote_to_subadmin
+    always adds SUB_ADMIN alongside an existing RESIDENT, never instead
+    of it). Left-joins the candidate's active property link so the
+    picker can be filtered by Wing/Row (location_id) and each row can
+    show its floor/flat number — a candidate with no active property
+    link still appears (house/floor/location come back None) unless
+    location_id narrows the query, in which case only linked candidates
+    under that Wing/Row match."""
+    query = (
+        select(
+            User.id, User.full_name, User.mobile, UserRole.role,
+            Property.house_number, Property.floor_number, SocietyLocation.id, SocietyLocation.name,
+        )
+        .join(UserRole, UserRole.user_id == User.id)
+        .outerjoin(
+            PropertyResident,
+            (PropertyResident.resident_id == User.id) & (PropertyResident.is_active.is_(True)),
+        )
+        .outerjoin(Property, Property.id == PropertyResident.property_id)
+        .outerjoin(SocietyLocation, SocietyLocation.id == Property.location_id)
+        .where(
+            User.society_id == society_id, User.status == UserStatus.ACTIVE,
+            UserRole.role.in_([Role.RESIDENT, Role.SUB_ADMIN]), UserRole.revoked_at.is_(None),
+        )
+    )
+    if exclude_user_id is not None:
+        query = query.where(User.id != exclude_user_id)
+    if location_id is not None:
+        query = query.where(SocietyLocation.id == location_id)
+
+    rows = (await db.execute(query)).all()
+    by_user: dict[uuid.UUID, dict] = {}
+    for user_id, full_name, mobile, role, house_number, floor_number, loc_id, loc_name in rows:
+        current = by_user.get(user_id)
+        # Prefer a SUB_ADMIN-labeled row over a RESIDENT one for the same
+        # user, and prefer a row that actually has a property link over
+        # one that doesn't — otherwise keep the first match.
+        if current is None or (role == Role.SUB_ADMIN and current["role_label"] != Role.SUB_ADMIN.value) or (
+            current["house_number"] is None and house_number is not None
+        ):
+            by_user[user_id] = {
+                "id": user_id, "full_name": full_name, "mobile": mobile, "role_label": role.value,
+                "house_number": house_number, "floor_number": floor_number,
+                "location_id": loc_id, "location_name": loc_name,
+            }
+    return sorted(by_user.values(), key=lambda r: r["full_name"])
+
+
+async def create_resignation_request(
+    db: AsyncSession, society_id: uuid.UUID, old_admin_id: uuid.UUID, new_admin_user_id: uuid.UUID
+) -> dict:
+    """The Admin themselves resigns, picking an existing Resident/Sub-
+    admin as their successor — society_id/old_admin_id are the caller's
+    own (from the auth token), not user input."""
+    await _reject_if_pending_request_exists(db, society_id)
+
+    candidate = await _validate_existing_candidate(db, society_id, new_admin_user_id, exclude_id=old_admin_id)
 
     req = AdminChangeRequest(
         society_id=society_id, old_admin_id=old_admin_id, new_admin_full_name=candidate.full_name,
