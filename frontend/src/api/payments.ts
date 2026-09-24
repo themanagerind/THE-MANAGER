@@ -15,6 +15,10 @@ export interface MaintenanceDueOut {
   penalty_enabled: boolean;
   penalty_per_day: number | null;
   penalty_waived: boolean;
+  /** Who waived it and when — the audit trail for an Admin's "forgive
+   * this penalty" decision. */
+  penalty_waived_at: string | null;
+  penalty_waived_by: string | null;
   /** Accrued as of now — 0 if penalty isn't enabled/waived/not yet overdue. */
   penalty_amount: number;
   /** amount + penalty_amount. */

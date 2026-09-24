@@ -53,6 +53,11 @@ class MaintenanceDueOut(BaseModel):
     penalty_enabled: bool
     penalty_per_day: float | None
     penalty_waived: bool
+    # Who waived it and when — the audit trail for an Admin's "forgive
+    # this penalty" decision, same "who/when" shape as every other
+    # override in this app (Payment.approved_by/rejected_by, etc.).
+    penalty_waived_at: datetime | None
+    penalty_waived_by: uuid.UUID | None
     # Accrued as of now — 0 if penalty isn't enabled/waived/not yet overdue.
     penalty_amount: float
     # amount + penalty_amount, for display convenience.

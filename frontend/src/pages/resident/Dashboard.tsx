@@ -50,7 +50,7 @@ export function ResidentDashboard() {
 
       <div className="grid grid-cols-2 gap-3">
         <Link to="/resident/dues" className="border border-line rounded p-4 hover:border-navy transition-colors">
-          <p className="text-xs text-navy-muted mb-1">Pending dues</p>
+          <p className="text-xs text-navy-muted mb-1">PENDING MONTHLY MAINTENANCE</p>
           <p className="text-2xl font-semibold text-navy">
             {duesQuery.isLoading ? "…" : `₹${totalPending.toLocaleString("en-IN")}`}
           </p>

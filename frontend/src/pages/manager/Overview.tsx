@@ -47,7 +47,7 @@ export function ManagerOverview() {
         <div className="grid grid-cols-2 gap-3">
           <StatCard label="Open to-dos" value={openTodos} to="/manager/todos" />
           <StatCard label="Open complaints" value={openComplaints} to="/manager/complaints" />
-          <StatCard label="Maintenance dues" value="→" to="/manager/dues" />
+          <StatCard label="MONTHLY MAINTENANCE" value="→" to="/manager/dues" />
         </div>
       )}
     </div>

@@ -29,7 +29,7 @@ export function ManagerDues() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-xl font-semibold text-navy">Maintenance Dues</h1>
+      <h1 className="text-xl font-semibold text-navy">MONTHLY MAINTENANCE</h1>
       <p className="text-sm text-navy-muted">
         Property-level dues, view-only — pick a property to see its billing history.
       </p>

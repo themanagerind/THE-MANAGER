@@ -28,7 +28,7 @@ export function ResidentDues() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <h1 className="text-xl font-semibold text-navy">Maintenance Dues</h1>
+        <h1 className="text-xl font-semibold text-navy">MONTHLY MAINTENANCE</h1>
         {hasMultipleProperties && (
           <PropertySelector properties={options} activePropertyId={activePropertyId} onChange={setActivePropertyId} />
         )}

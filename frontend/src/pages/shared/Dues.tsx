@@ -66,7 +66,7 @@ export function DuesPage({ canGenerateBills }: { canGenerateBills: boolean }) {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <h1 className="text-xl font-semibold text-navy">Maintenance Dues</h1>
+        <h1 className="text-xl font-semibold text-navy">MONTHLY MAINTENANCE</h1>
         {canGenerateBills && <Button onClick={() => setGenerating(true)}>Generate monthly bills</Button>}
       </div>
 
@@ -121,7 +121,9 @@ export function DuesPage({ canGenerateBills }: { canGenerateBills: boolean }) {
                   !d.penalty_enabled ? (
                     "—"
                   ) : d.penalty_waived ? (
-                    <span className="text-xs text-navy-muted">Waived</span>
+                    <span className="text-xs text-navy-muted">
+                      Waived{d.penalty_waived_at && ` on ${new Date(d.penalty_waived_at).toLocaleDateString("en-IN")}`}
+                    </span>
                   ) : d.penalty_amount > 0 ? (
                     `₹${d.penalty_amount.toLocaleString("en-IN")}`
                   ) : (

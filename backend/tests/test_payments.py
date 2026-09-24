@@ -668,6 +668,17 @@ async def test_admin_can_waive_penalty_and_stops_further_accrual(
     assert body["penalty_waived"] is True
     assert body["penalty_amount"] == 0
     assert body["total_amount"] == 2000.0
+    # Audit trail — who waived it and when, same as every other admin
+    # override in this app (Payment.approved_by/rejected_by, etc.).
+    assert body["penalty_waived_by"] == str(admin_id)
+    assert body["penalty_waived_at"] is not None
+
+    # Re-fetching the due (not just the waive response) shows the same
+    # audit trail — it's a persisted record, not a one-off response.
+    resp = await client.get("/api/v1/payments/maintenance-dues", headers=headers)
+    row = next(d for d in resp.json() if d["id"] == str(due.id))
+    assert row["penalty_waived_by"] == str(admin_id)
+    assert row["penalty_waived_at"] is not None
 
     # A Resident paying now owes only the base amount — penalty stays waived.
     resident_headers = auth_headers(resident.id, society_id, Role.RESIDENT, [Role.RESIDENT])

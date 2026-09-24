@@ -158,7 +158,8 @@ def due_out(due: MaintenanceDue) -> MaintenanceDueOut:
         due_date=due.due_date, status=due.status, billing_month=due.billing_month, generated_at=due.generated_at,
         penalty_enabled=due.penalty_enabled,
         penalty_per_day=float(due.penalty_per_day) if due.penalty_per_day is not None else None,
-        penalty_waived=due.penalty_waived, penalty_amount=penalty, total_amount=float(due.amount) + penalty,
+        penalty_waived=due.penalty_waived, penalty_waived_at=due.penalty_waived_at,
+        penalty_waived_by=due.penalty_waived_by, penalty_amount=penalty, total_amount=float(due.amount) + penalty,
     )
 
 
