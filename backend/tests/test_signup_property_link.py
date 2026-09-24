@@ -2,9 +2,10 @@
 link now happens at signup time, done by the person signing up, instead of
 an Admin manually linking it afterward from the "Link property" modal.
 Covers: the public property-picker endpoint, Resident signup's required
-property_id/relationship_type, and Admin signup's optional
-existing_property_id/existing_property_relationship alternative to
-describing a brand-new unit."""
+property_id/relationship_type, and Admin signup's equally mandatory
+existing_property_id/existing_property_relationship (Section 4 — every
+Admin is ADMIN+RESIDENT; see test_admins.py for the rest of the Admin
+signup/approval coverage)."""
 import uuid
 from datetime import date, datetime, timezone
 
@@ -244,24 +245,6 @@ async def test_admin_signup_existing_property_as_tenant_rejected_without_owner(
         },
     )
     assert resp.status_code == 409
-
-
-async def test_admin_signup_rejects_both_existing_and_new_unit_fields(
-    client: AsyncClient, db_session: AsyncSession
-):
-    society = await _seed_society(db_session)
-    prop = await _seed_property(db_session, society)
-
-    resp = await client.post(
-        "/api/v1/admins/signup",
-        json={
-            "full_name": "Confused Admin", "mobile": "9830000012", "society_id": str(society.id),
-            "existing_property_id": str(prop.id), "existing_property_relationship": "OWNER",
-            "property_location_name": "Wing B", "property_location_type": "WING",
-            "house_number": "B-1", "house_type": "FLAT", "floor_number": 1,
-        },
-    )
-    assert resp.status_code == 422
 
 
 async def test_admin_signup_rejects_partial_existing_property_fields(

@@ -3,24 +3,140 @@ import { Link } from "react-router-dom";
 import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
 import { apiErrorMessage } from "@/components/States";
-import { societiesApi, type SocietySearchResultOut } from "@/api/societies";
+import { societiesApi, type SocietyLocationOut, type SocietySearchResultOut } from "@/api/societies";
 import { residentsApi } from "@/api/residents";
 import { adminsApi } from "@/api/admins";
 import type { PropertyOut } from "@/api/properties";
-import type { HouseType, LocationType, RelationshipType } from "@/types/enums";
+import type { RelationshipType } from "@/types/enums";
 
 type SignupRole = "RESIDENT" | "ADMIN";
 type Step = "society" | "details" | "done";
-/** Admin-only — whether they also link themselves to a unit right here.
- * EXISTING picks from properties already on record (Owner or Tenant, same
- * picker Resident signup uses); NEW describes a brand-new unit (Owner
- * only, unchanged behavior from before). */
-type AdminUnitMode = "NONE" | "EXISTING" | "NEW";
 
 function propertyLabel(p: PropertyOut): string {
   const kind = p.house_type === "FLAT" ? "Flat" : "Bungalow";
   const floor = p.floor_number != null ? `, Floor ${p.floor_number}` : "";
   return `${p.house_number} (${kind}${floor})${p.is_occupied ? " — occupied" : ""}`;
+}
+
+/** Admin signup's unit link (Section 4 dual-role, mandatory — every Admin
+ * is ADMIN+RESIDENT): a real address-like Wing/Row -> Floor -> Flat
+ * cascade instead of one long "house_number (Flat, Floor N)" list, since
+ * an Admin picks their own unit before there's any occupancy history to
+ * make that list meaningful. A Row (Bungalow) has no floor step — its
+ * houses aren't floor-grouped (see StructureDiagram's RowCard). */
+function UnitPicker({
+  locations, properties, propertyId, onPropertyIdChange, relationshipType, onRelationshipTypeChange,
+}: {
+  locations: SocietyLocationOut[];
+  properties: PropertyOut[];
+  propertyId: string;
+  onPropertyIdChange: (id: string) => void;
+  relationshipType: RelationshipType;
+  onRelationshipTypeChange: (r: RelationshipType) => void;
+}) {
+  const selected = properties.find((p) => p.id === propertyId);
+  const [locationId, setLocationId] = useState(selected?.location_id ?? "");
+  const [floor, setFloor] = useState(selected?.floor_number != null ? String(selected.floor_number) : "");
+
+  const sortedLocations = [...locations].sort((a, b) =>
+    a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" })
+  );
+  const propsInLocation = properties.filter((p) => p.location_id === locationId);
+  const floors = Array.from(
+    new Set(propsInLocation.map((p) => p.floor_number).filter((f): f is number => f != null))
+  ).sort((a, b) => a - b);
+  const hasFloors = floors.length > 0;
+  const flatChoices = hasFloors ? propsInLocation.filter((p) => String(p.floor_number) === floor) : propsInLocation;
+
+  function handleLocationChange(id: string) {
+    setLocationId(id);
+    setFloor("");
+    onPropertyIdChange("");
+  }
+  function handleFloorChange(f: string) {
+    setFloor(f);
+    onPropertyIdChange("");
+  }
+
+  return (
+    <div className="space-y-3">
+      <div>
+        <label className="block text-sm text-navy-muted mb-1">Wing / Row</label>
+        <select
+          value={locationId}
+          onChange={(e) => handleLocationChange(e.target.value)}
+          className="w-full px-3 py-2 border border-line rounded text-sm text-ink bg-white focus:border-navy"
+        >
+          <option value="">Select Wing/Row</option>
+          {sortedLocations.map((l) => (
+            <option key={l.id} value={l.id}>
+              {l.name} ({l.location_type === "WING" ? "Wing" : "Row"})
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {locationId && hasFloors && (
+        <div>
+          <label className="block text-sm text-navy-muted mb-1">Floor</label>
+          <select
+            value={floor}
+            onChange={(e) => handleFloorChange(e.target.value)}
+            className="w-full px-3 py-2 border border-line rounded text-sm text-ink bg-white focus:border-navy"
+          >
+            <option value="">Select floor</option>
+            {floors.map((f) => (
+              <option key={f} value={f}>Floor {f}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {locationId && (!hasFloors || floor) && (
+        <div>
+          <label className="block text-sm text-navy-muted mb-1">{hasFloors ? "Flat" : "House"}</label>
+          <select
+            value={propertyId}
+            onChange={(e) => onPropertyIdChange(e.target.value)}
+            className="w-full px-3 py-2 border border-line rounded text-sm text-ink bg-white focus:border-navy"
+          >
+            <option value="">Select {hasFloors ? "flat" : "house"}</option>
+            {flatChoices.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.house_number}{p.is_occupied ? " — occupied" : ""}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {propertyId && (
+        <div>
+          <label className="block text-sm text-navy-muted mb-1">I am the</label>
+          <div className="flex gap-2">
+            {(["OWNER", "TENANT"] as RelationshipType[]).map((opt) => (
+              <button
+                key={opt}
+                type="button"
+                onClick={() => onRelationshipTypeChange(opt)}
+                className={`px-3 py-1.5 rounded text-sm border ${
+                  relationshipType === opt ? "bg-navy text-white border-navy" : "border-line text-navy-muted"
+                }`}
+              >
+                {opt === "OWNER" ? "Owner" : "Tenant"}
+              </button>
+            ))}
+          </div>
+          {relationshipType === "TENANT" && (
+            <p className="text-xs text-navy-muted mt-1">
+              A Tenant signup needs this unit's Owner to already be on record — if the Owner hasn't
+              signed up yet, ask them to go first.
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 // Audit #20 pattern (see Login.tsx) — stops an obviously-invalid mobile
@@ -54,12 +170,13 @@ export function Signup() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // Every ACTIVE property already on record for the chosen society (public,
-  // no auth) — powers the Resident's required house picker and the Admin's
-  // "link to an existing unit" option, below. Fetched once a society is
-  // picked; a Flats or Bungalow society both just show up as PropertyOut
-  // rows here, so nothing here needs to branch on society type.
+  // Every ACTIVE property/Wing/Row already on record for the chosen society
+  // (public, no auth) — powers the Resident's required house picker and the
+  // Admin's mandatory unit picker, below. Fetched once a society is picked;
+  // a Flats or Bungalow society both just show up as PropertyOut rows here,
+  // so nothing here needs to branch on society type.
   const [properties, setProperties] = useState<PropertyOut[]>([]);
+  const [locations, setLocations] = useState<SocietyLocationOut[]>([]);
   const [propertiesLoading, setPropertiesLoading] = useState(false);
   const [propertiesError, setPropertiesError] = useState<string | null>(null);
 
@@ -69,19 +186,11 @@ export function Signup() {
   const [propertyId, setPropertyId] = useState("");
   const [relationshipType, setRelationshipType] = useState<RelationshipType>("OWNER");
 
-  // Admin-only: optionally link themselves to a unit here (Section 4
-  // dual-role — ADMIN+RESIDENT), right at signup instead of a separate
-  // manual step after approval. EXISTING picks a real unit (Owner or
-  // Tenant); NEW describes a brand-new one (Owner only — a just-described
-  // unit can never already have a Tenant on it, Section 12 invariant).
-  const [adminUnitMode, setAdminUnitMode] = useState<AdminUnitMode>("NONE");
+  // Admin: mandatory (Section 4 dual-role — every Admin is ADMIN+RESIDENT)
+  // — picks a real unit already on record, same as Resident above, via the
+  // Wing/Row -> Floor -> Flat cascade (UnitPicker).
   const [existingPropertyId, setExistingPropertyId] = useState("");
   const [existingRelationshipType, setExistingRelationshipType] = useState<RelationshipType>("OWNER");
-  const [locationName, setLocationName] = useState("");
-  const [locationType, setLocationType] = useState<LocationType>("WING");
-  const [houseNumber, setHouseNumber] = useState("");
-  const [houseType, setHouseType] = useState<HouseType>("FLAT");
-  const [floorNumber, setFloorNumber] = useState("");
 
   function resetForRoleChange(next: SignupRole) {
     setRole(next);
@@ -95,31 +204,29 @@ export function Signup() {
     setEmail("");
     setError(null);
     setProperties([]);
+    setLocations([]);
     setPropertiesError(null);
     setPropertyId("");
     setRelationshipType("OWNER");
-    setAdminUnitMode("NONE");
     setExistingPropertyId("");
     setExistingRelationshipType("OWNER");
-    setLocationName("");
-    setLocationType("WING");
-    setHouseNumber("");
-    setHouseType("FLAT");
-    setFloorNumber("");
   }
 
-  // Load the chosen society's public property list once it's picked —
-  // both roles' pickers below read from this same list.
+  // Load the chosen society's public property + Wing/Row lists once it's
+  // picked — both roles' pickers below read from these.
   useEffect(() => {
     if (!society) {
       setProperties([]);
+      setLocations([]);
       return;
     }
     setPropertiesLoading(true);
     setPropertiesError(null);
-    societiesApi
-      .publicProperties(society.id)
-      .then((r) => setProperties(r.data))
+    Promise.all([societiesApi.publicProperties(society.id), societiesApi.publicLocations(society.id)])
+      .then(([propsRes, locsRes]) => {
+        setProperties(propsRes.data);
+        setLocations(locsRes.data);
+      })
       .catch((e) => setPropertiesError(apiErrorMessage(e, "Couldn't load this society's properties.")))
       .finally(() => setPropertiesLoading(false));
   }, [society]);
@@ -168,17 +275,8 @@ export function Signup() {
       } else {
         await adminsApi.signup({
           ...body,
-          ...(adminUnitMode === "EXISTING" && {
-            existing_property_id: existingPropertyId,
-            existing_property_relationship: existingRelationshipType,
-          }),
-          ...(adminUnitMode === "NEW" && {
-            property_location_name: locationName.trim(),
-            property_location_type: locationType,
-            house_number: houseNumber.trim(),
-            house_type: houseType,
-            floor_number: houseType === "FLAT" ? Number(floorNumber) : (floorNumber ? Number(floorNumber) : undefined),
-          }),
+          existing_property_id: existingPropertyId,
+          existing_property_relationship: existingRelationshipType,
         });
       }
       setStep("done");
@@ -189,16 +287,10 @@ export function Signup() {
     }
   }
 
-  const newUnitValid =
-    adminUnitMode !== "NEW" ||
-    (locationName.trim().length > 0 &&
-      houseNumber.trim().length > 0 &&
-      (houseType === "BUNGALOW" || !!floorNumber));
-  const existingUnitValid = adminUnitMode !== "EXISTING" || existingPropertyId.length > 0;
   const canSubmit =
     fullName.trim().length > 0 &&
     MOBILE_RE.test(mobile) &&
-    (role === "RESIDENT" ? propertyId.length > 0 : newUnitValid && existingUnitValid);
+    (role === "RESIDENT" ? propertyId.length > 0 : existingPropertyId.length > 0);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-paper px-4">
@@ -341,116 +433,25 @@ export function Signup() {
 
             {role === "ADMIN" && (
               <div className="border border-line rounded p-3 space-y-3">
-                <label className="block text-sm text-navy-muted">Do you also live in a unit here?</label>
-                <div className="flex gap-2">
-                  {(["NONE", "EXISTING", "NEW"] as AdminUnitMode[]).map((opt) => (
-                    <button
-                      key={opt}
-                      type="button"
-                      onClick={() => setAdminUnitMode(opt)}
-                      className={`px-3 py-1.5 rounded text-sm border ${
-                        adminUnitMode === opt ? "bg-navy text-white border-navy" : "border-line text-navy-muted"
-                      }`}
-                    >
-                      {opt === "NONE" ? "No" : opt === "EXISTING" ? "Yes, an existing unit" : "Yes, a new unit"}
-                    </button>
-                  ))}
-                </div>
-
-                {adminUnitMode === "EXISTING" && (
-                  <div className="space-y-3 pt-1">
-                    {propertiesLoading && <p className="text-sm text-navy-muted">Loading properties…</p>}
-                    {propertiesError && <p className="text-sm text-danger">{propertiesError}</p>}
-                    {!propertiesLoading && !propertiesError && properties.length === 0 && (
-                      <p className="text-xs text-navy-muted">
-                        No properties are on record for this society yet — pick "Yes, a new unit" to
-                        describe one instead.
-                      </p>
-                    )}
-                    {properties.length > 0 && (
-                      <>
-                        <select
-                          value={existingPropertyId}
-                          onChange={(e) => setExistingPropertyId(e.target.value)}
-                          className="w-full px-3 py-2 border border-line rounded text-sm text-ink bg-white focus:border-navy"
-                        >
-                          <option value="">Select the unit</option>
-                          {properties.map((p) => (
-                            <option key={p.id} value={p.id}>{propertyLabel(p)}</option>
-                          ))}
-                        </select>
-                        <div>
-                          <label className="block text-sm text-navy-muted mb-1">I am the</label>
-                          <div className="flex gap-2">
-                            {(["OWNER", "TENANT"] as RelationshipType[]).map((opt) => (
-                              <button
-                                key={opt}
-                                type="button"
-                                onClick={() => setExistingRelationshipType(opt)}
-                                className={`px-3 py-1.5 rounded text-sm border ${
-                                  existingRelationshipType === opt ? "bg-navy text-white border-navy" : "border-line text-navy-muted"
-                                }`}
-                              >
-                                {opt === "OWNER" ? "Owner" : "Tenant"}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      </>
-                    )}
-                  </div>
+                <label className="block text-sm text-navy-muted">Which unit is yours?</label>
+                {propertiesLoading && <p className="text-sm text-navy-muted">Loading properties…</p>}
+                {propertiesError && <p className="text-sm text-danger">{propertiesError}</p>}
+                {!propertiesLoading && !propertiesError && (locations.length === 0 || properties.length === 0) && (
+                  <p className="text-xs text-navy-muted">
+                    This society's Wings/Rows and flats/houses haven't been mapped yet — ask the
+                    Platform Owner to map the structure first (every Admin account is linked to a
+                    unit here).
+                  </p>
                 )}
-
-                {adminUnitMode === "NEW" && (
-                  <div className="space-y-3 pt-1">
-                    <p className="text-xs text-navy-muted">
-                      Describes a brand-new unit not yet on record and adds you as its Owner.
-                    </p>
-                    <div>
-                      <label className="block text-sm text-navy-muted mb-1">Unit type</label>
-                      <div className="flex gap-2">
-                        {(["FLAT", "BUNGALOW"] as HouseType[]).map((opt) => (
-                          <button
-                            key={opt}
-                            type="button"
-                            onClick={() => { setHouseType(opt); setLocationType(opt === "FLAT" ? "WING" : "ROW"); }}
-                            className={`px-3 py-1.5 rounded text-sm border ${
-                              houseType === opt ? "bg-navy text-white border-navy" : "border-line text-navy-muted"
-                            }`}
-                          >
-                            {opt === "FLAT" ? "Flat" : "Bungalow"}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    <Input
-                      label={houseType === "FLAT" ? "Wing name" : "Row name"}
-                      value={locationName}
-                      onChange={(e) => setLocationName(e.target.value)}
-                      placeholder="e.g. Wing A"
-                    />
-                    <Input
-                      label="House/unit number"
-                      value={houseNumber}
-                      onChange={(e) => setHouseNumber(e.target.value)}
-                    />
-                    {houseType === "FLAT" && (
-                      <Input
-                        label="Floor number"
-                        type="number"
-                        value={floorNumber}
-                        onChange={(e) => setFloorNumber(e.target.value)}
-                      />
-                    )}
-                    {houseType === "BUNGALOW" && (
-                      <Input
-                        label="Floor number (optional)"
-                        type="number"
-                        value={floorNumber}
-                        onChange={(e) => setFloorNumber(e.target.value)}
-                      />
-                    )}
-                  </div>
+                {locations.length > 0 && properties.length > 0 && (
+                  <UnitPicker
+                    locations={locations}
+                    properties={properties}
+                    propertyId={existingPropertyId}
+                    onPropertyIdChange={setExistingPropertyId}
+                    relationshipType={existingRelationshipType}
+                    onRelationshipTypeChange={setExistingRelationshipType}
+                  />
                 )}
               </div>
             )}

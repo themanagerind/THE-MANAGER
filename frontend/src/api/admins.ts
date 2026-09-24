@@ -1,5 +1,5 @@
 import { apiClient } from "@/api/client";
-import type { HouseType, LocationType, RelationshipType, UserStatus } from "@/types/enums";
+import type { RelationshipType, UserStatus } from "@/types/enums";
 
 export interface AdminOut {
   id: string;
@@ -16,21 +16,14 @@ export interface AdminSignupInput {
   mobile: string;
   email?: string;
   society_id: string;
-  /** Section 4 dual-role (ADMIN+RESIDENT) — two mutually-exclusive,
-   * both-optional ways to describe a unit the Admin also lives in, right
-   * at signup instead of a separate step after approval:
-   * (1) existing_property_id/existing_property_relationship — pick a
-   *     real unit already on record (Owner or Tenant), same picker
-   *     Resident signup uses (societiesApi.publicProperties).
-   * (2) property_location_name/... (all-or-nothing) — describe a
-   *     brand-new unit not yet on record, Owner only. */
-  existing_property_id?: string;
-  existing_property_relationship?: RelationshipType;
-  property_location_name?: string;
-  property_location_type?: LocationType;
-  house_number?: string;
-  house_type?: HouseType;
-  floor_number?: number;
+  /** Section 4 dual-role (ADMIN+RESIDENT) — mandatory: every Admin also
+   * links to a real unit already on record (Owner or Tenant), same
+   * picker Resident signup uses (societiesApi.publicProperties/
+   * publicLocations). There's no "describe a brand-new unit" option —
+   * the Platform Owner is expected to have mapped the society's
+   * structure before an Admin signs up against it. */
+  existing_property_id: string;
+  existing_property_relationship: RelationshipType;
 }
 
 export const adminsApi = {

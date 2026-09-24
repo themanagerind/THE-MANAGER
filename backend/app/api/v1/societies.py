@@ -77,6 +77,17 @@ async def list_properties_public(
     return [property_service.property_out(p, occupied) for p, occupied in properties]
 
 
+@router.get("/{society_id}/locations/public", response_model=list[SocietyLocationOut])
+async def list_locations_public(
+    society_id: uuid.UUID, db: Annotated[AsyncSession, Depends(get_db)]
+) -> list[SocietyLocationOut]:
+    """Public — no auth required. Powers the Wing/Row picker on the Admin/
+    Resident signup forms (paired with GET .../properties/public for the
+    Floor/Flat steps), same ACTIVE-society-only gate."""
+    locations = await society_service.list_public_locations(db, society_id)
+    return [SocietyLocationOut.model_validate(loc) for loc in locations]
+
+
 @router.post("/signup", response_model=SocietySignupOut)
 async def signup(
     body: SocietySignupIn, db: Annotated[AsyncSession, Depends(get_db)]

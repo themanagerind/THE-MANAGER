@@ -325,6 +325,21 @@ async def list_public_properties(db: AsyncSession, society_id: uuid.UUID) -> lis
     return await property_service.list_properties(db, society_id, active_only=True)
 
 
+async def list_public_locations(db: AsyncSession, society_id: uuid.UUID) -> list[SocietyLocation]:
+    """Public — powers the Wing/Row -> Floor -> Flat picker on the Admin/
+    Resident signup forms (mandatory unit link, Section 4/property-link
+    self-service), before either has an account to call the authenticated
+    GET /societies/{id}/locations with. Same ACTIVE-society-only gate as
+    list_public_properties above; just names/types, no financial/personal
+    data."""
+    society = (
+        await db.execute(select(Society).where(Society.id == society_id, Society.status == SocietyStatus.ACTIVE))
+    ).scalar_one_or_none()
+    if society is None:
+        return []
+    return await property_service.list_locations(db, society_id)
+
+
 async def lookup_society_by_code(db: AsyncSession, code: str) -> Society | None:
     """Public lookup for the Admin/Resident signup forms — only returns an
     ACTIVE society (a PENDING or SUSPENDED one isn't accepting anyone

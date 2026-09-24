@@ -99,6 +99,10 @@ export const societiesApi = {
    * unknown or not-yet-ACTIVE society, same as lookup/search. */
   publicProperties: (societyId: string) =>
     apiClient.get<PropertyOut[]>(`/societies/${societyId}/properties/public`),
+  /** Public — no auth required. Pairs with publicProperties above to power
+   * the Wing/Row -> Floor -> Flat picker on the Admin signup form. */
+  publicLocations: (societyId: string) =>
+    apiClient.get<SocietyLocationOut[]>(`/societies/${societyId}/locations/public`),
   /** Platform Owner reporting dashboard — per-society flats/houses on
    * record, active Resident count, and Admin name/mobile, in one call. */
   reports: () => apiClient.get<SocietyReportOut[]>("/societies/reports"),
