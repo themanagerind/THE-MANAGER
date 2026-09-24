@@ -43,6 +43,24 @@ async def signup_admin(db: AsyncSession, body: AdminSignupIn) -> User:
     if society.status != SocietyStatus.ACTIVE:
         raise HTTPException(status.HTTP_409_CONFLICT, "This society isn't accepting signups right now")
 
+    # At most one active Admin per society (DB trigger
+    # check_one_admin_per_society, migration 0008, is the final backstop
+    # — this is the clean error before hitting it). Also blocks a second
+    # signup while the first is still PENDING approval, not just once
+    # ACTIVE, since the role row exists either way.
+    existing_admin_role = (
+        await db.execute(
+            select(UserRole)
+            .join(User, User.id == UserRole.user_id)
+            .where(User.society_id == body.society_id, UserRole.role == Role.ADMIN, UserRole.revoked_at.is_(None))
+        )
+    ).scalar_one_or_none()
+    if existing_admin_role is not None:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "This society already has an Admin — ask the Platform Owner to change the Admin instead.",
+        )
+
     # Mandatory dual-role link (Section 4: every Admin is ADMIN+RESIDENT)
     # — same picker resident_service.signup_resident uses, for a unit the
     # Platform Owner has already mapped. Checked before creating the User

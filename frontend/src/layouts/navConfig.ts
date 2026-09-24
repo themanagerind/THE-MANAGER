@@ -13,6 +13,7 @@ export interface NavItem {
 export const navByRole: Record<Role, NavItem[]> = {
   PLATFORM_OWNER: [
     { label: "Societies", path: "/platform/societies", icon: "society" },
+    { label: "Change Admin", path: "/platform/change-admin", icon: "people" },
     { label: "Reports", path: "/platform/reports", icon: "report" },
   ],
   ADMIN: [

@@ -453,3 +453,81 @@ class RoleRequest(Base, UUIDPKMixin):
             name="fk_role_requests_society_user",
         ),
     )
+
+
+class AdminChangeRequest(Base, UUIDPKMixin):
+    """Platform Owner-initiated replacement of a society's Admin. Unlike
+    every other approval flow in this app (one decision-maker), this one
+    needs UNANIMOUS sign-off from every Sub-admin the society has at the
+    moment the request is created — snapshotted as AdminChangeApproval
+    rows below, not re-computed later, so a Sub-admin promoted afterward
+    doesn't retroactively need to weigh in. A single reject cancels the
+    whole request (admin_change_service.decide_admin_change_approval). A
+    society with no Sub-admin at all has no one to approve, so the
+    request finalizes immediately at creation. Finalizing fully replaces
+    the Admin: the old Admin's ADMIN role is revoked (their account and
+    any other role they hold, e.g. RESIDENT, is untouched) and a
+    brand-new ACTIVE Admin account is created for the incoming person —
+    no separate signup/approval step for them, since Platform Owner +
+    unanimous Sub-admin consent already IS the approval."""
+
+    __tablename__ = "admin_change_requests"
+
+    society_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("societies.id"), nullable=False
+    )
+    old_admin_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    new_admin_full_name: Mapped[str] = mapped_column(String(150), nullable=False)
+    new_admin_mobile: Mapped[str] = mapped_column(String(15), nullable=False)
+    new_admin_email: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    status: Mapped[RoleRequestStatus] = mapped_column(
+        pg_enum(RoleRequestStatus, "role_request_status_enum"),
+        nullable=False,
+        default=RoleRequestStatus.PENDING,
+    )
+    initiated_by: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
+    )
+    # Filled in only once finalized (status -> APPROVED) — the new admin
+    # doesn't exist as a User row until every required approval is in.
+    new_admin_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["society_id", "old_admin_id"],
+            ["users.society_id", "users.id"],
+            name="fk_admin_change_requests_society_old_admin",
+        ),
+        ForeignKeyConstraint(
+            ["society_id", "new_admin_id"],
+            ["users.society_id", "users.id"],
+            name="fk_admin_change_requests_society_new_admin",
+        ),
+    )
+
+
+class AdminChangeApproval(Base, UUIDPKMixin):
+    """One row per Sub-admin whose sign-off an AdminChangeRequest needs —
+    see that model's docstring. `approved` is NULL until that Sub-admin
+    actually decides (True/False); NOT a status enum since there's no
+    third state beyond pending/approved/rejected an individual Sub-admin
+    can be in here."""
+
+    __tablename__ = "admin_change_approvals"
+
+    request_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("admin_change_requests.id"), nullable=False
+    )
+    sub_admin_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    approved: Mapped[bool | None] = mapped_column(nullable=True)
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "request_id", "sub_admin_id", name="ux_admin_change_approvals_request_subadmin"
+        ),
+    )
