@@ -155,6 +155,25 @@ async def compute_status_detail(db: AsyncSession, proposal: Proposal) -> dict:
     }
 
 
+async def list_vote_history(db: AsyncSession, proposal_id: uuid.UUID) -> list[dict]:
+    """Every vote cast/changed on this proposal, newest first — the
+    ProposalVoteHistory row is already written on every cast_vote call
+    (Section 22), this just surfaces it (Admin/Sub-admin oversight)."""
+    rows = (
+        await db.execute(
+            select(ProposalVoteHistory.id, User.full_name, ProposalVoteHistory.old_vote,
+                   ProposalVoteHistory.new_vote, ProposalVoteHistory.changed_at)
+            .join(User, User.id == ProposalVoteHistory.voter_id)
+            .where(ProposalVoteHistory.proposal_id == proposal_id)
+            .order_by(ProposalVoteHistory.changed_at.desc())
+        )
+    ).all()
+    return [
+        {"id": r[0], "voter_name": r[1], "old_vote": r[2], "new_vote": r[3], "changed_at": r[4]}
+        for r in rows
+    ]
+
+
 async def get_my_vote(db: AsyncSession, proposal_id: uuid.UUID, voter_id: uuid.UUID) -> Vote | None:
     vote_row = (
         await db.execute(

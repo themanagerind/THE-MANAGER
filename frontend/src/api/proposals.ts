@@ -11,6 +11,7 @@ export interface ProposalOut {
   status: ProposalStatus;
   created_by: string;
   withdrawn_at: string | null;
+  withdrawn_by: string | null;
   created_at: string;
 }
 
@@ -36,6 +37,14 @@ export interface Page<T> {
   limit: number;
 }
 
+export interface VoteHistoryEntryOut {
+  id: string;
+  voter_name: string;
+  old_vote: Vote | null;
+  new_vote: Vote;
+  changed_at: string;
+}
+
 export const proposalsApi = {
   list: (skip = 0, limit = 20) => apiClient.get<Page<ProposalOut>>("/proposals", { params: { skip, limit } }),
   detail: (id: string) => apiClient.get<ProposalStatusDetail>(`/proposals/${id}`),
@@ -43,4 +52,7 @@ export const proposalsApi = {
     apiClient.post<ProposalOut>("/proposals", input),
   vote: (id: string, vote: Vote) => apiClient.post(`/proposals/${id}/vote`, { vote }),
   withdraw: (id: string) => apiClient.post<ProposalOut>(`/proposals/${id}/withdraw`),
+  /** Admin/Sub-admin oversight only (backend 403s a plain Resident) —
+   * every vote cast/changed on this proposal, newest first. */
+  history: (id: string) => apiClient.get<VoteHistoryEntryOut[]>(`/proposals/${id}/history`),
 };

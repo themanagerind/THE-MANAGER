@@ -32,6 +32,12 @@ class ProposalOut(BaseModel):
     status: ProposalStatus
     created_by: uuid.UUID
     withdrawn_at: datetime | None
+    # Who withdrew it — was already written to the DB by withdraw_proposal
+    # but never returned to the client, so a withdrawn proposal had no
+    # visible record of who ended the vote or when beyond the bare
+    # WITHDRAWN status (audit fix, same shape as Payment.approved_by/
+    # rejected_by elsewhere in this app).
+    withdrawn_by: uuid.UUID | None
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -69,3 +75,16 @@ class VoteOut(BaseModel):
     voted_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class VoteHistoryEntryOut(BaseModel):
+    """One row per vote cast/changed (proposal_vote_history — already
+    written on every cast_vote call, never exposed until now). Admin/
+    Sub-admin oversight only — not returned to plain Residents, who'd
+    otherwise see how every neighbor voted."""
+
+    id: uuid.UUID
+    voter_name: str
+    old_vote: Vote | None
+    new_vote: Vote
+    changed_at: datetime

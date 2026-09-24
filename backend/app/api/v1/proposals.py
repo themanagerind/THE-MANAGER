@@ -14,6 +14,7 @@ from app.schemas.proposal import (
     ProposalCreateIn,
     ProposalOut,
     ProposalStatusDetailOut,
+    VoteHistoryEntryOut,
     VoteOut,
 )
 from app.services import proposal_service
@@ -55,6 +56,20 @@ async def get_detail(
     detail = await proposal_service.compute_status_detail(db, proposal)
     my_vote = await proposal_service.get_my_vote(db, proposal_id, current.user_id)
     return ProposalStatusDetailOut(proposal=ProposalOut.model_validate(proposal), my_vote=my_vote, **detail)
+
+
+@router.get("/{proposal_id}/history", response_model=list[VoteHistoryEntryOut])
+async def get_vote_history(
+    proposal_id: uuid.UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current: Annotated[CurrentUser, Depends(require_role(Role.ADMIN, Role.SUB_ADMIN))],
+) -> list[VoteHistoryEntryOut]:
+    """Admin/Sub-admin oversight only — every vote cast/changed on this
+    proposal, newest first. Not exposed to plain Residents, who'd
+    otherwise see how every neighbor voted."""
+    await proposal_service.get_proposal(db, current.society_id, proposal_id)
+    history = await proposal_service.list_vote_history(db, proposal_id)
+    return [VoteHistoryEntryOut(**h) for h in history]
 
 
 @router.post("/{proposal_id}/vote", response_model=VoteOut)

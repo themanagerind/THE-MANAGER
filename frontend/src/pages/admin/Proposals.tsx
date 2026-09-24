@@ -72,6 +72,10 @@ function ProposalDetailModal({ id, onClose }: { id: string; onClose: () => void 
     queryKey: ["admin", "proposal-detail", id],
     queryFn: () => proposalsApi.detail(id).then((r) => r.data),
   });
+  const historyQuery = useQuery({
+    queryKey: ["admin", "proposal-history", id],
+    queryFn: () => proposalsApi.history(id).then((r) => r.data),
+  });
 
   const withdraw = useMutation({
     mutationFn: () => proposalsApi.withdraw(id),
@@ -104,6 +108,12 @@ function ProposalDetailModal({ id, onClose }: { id: string; onClose: () => void 
             />
           </div>
 
+          {detailQuery.data.proposal.status === "WITHDRAWN" && detailQuery.data.proposal.withdrawn_at && (
+            <p className="text-xs text-navy-muted">
+              Withdrawn on {new Date(detailQuery.data.proposal.withdrawn_at).toLocaleString("en-IN")}.
+            </p>
+          )}
+
           {error && <p className="text-sm text-danger">{error}</p>}
 
           {detailQuery.data.proposal.status === "OPEN" && (
@@ -113,6 +123,27 @@ function ProposalDetailModal({ id, onClose }: { id: string; onClose: () => void 
               </Button>
             </div>
           )}
+
+          <div className="pt-2 border-t border-line">
+            <h3 className="text-xs font-medium text-navy-muted mb-2">Vote history</h3>
+            {historyQuery.isLoading && <Loader />}
+            {historyQuery.data && historyQuery.data.length === 0 && (
+              <p className="text-xs text-navy-muted">No votes cast yet.</p>
+            )}
+            {historyQuery.data && historyQuery.data.length > 0 && (
+              <ul className="space-y-1.5 max-h-40 overflow-y-auto">
+                {historyQuery.data.map((h) => (
+                  <li key={h.id} className="text-xs text-navy-muted flex items-center justify-between gap-2">
+                    <span>
+                      <span className="text-ink font-medium">{h.voter_name}</span>{" "}
+                      {h.old_vote ? `changed ${h.old_vote} → ${h.new_vote}` : `voted ${h.new_vote}`}
+                    </span>
+                    <span className="shrink-0">{new Date(h.changed_at).toLocaleString("en-IN")}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
       )}
     </Modal>

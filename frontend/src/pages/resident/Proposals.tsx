@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/auth/AuthContext";
 import { proposalsApi, type ProposalOut } from "@/api/proposals";
 import { Loader, EmptyState, ErrorState, apiErrorMessage } from "@/components/States";
 import { Badge } from "@/components/Badge";
@@ -43,14 +44,26 @@ export function ResidentProposals() {
 
 function ProposalDetailModal({ id, onClose }: { id: string; onClose: () => void }) {
   const queryClient = useQueryClient();
+  const { activeRole } = useAuth();
+  // Backend 403s a plain Resident on this endpoint (governance oversight
+  // only — a neighbor's individual vote isn't public) — a Sub-admin
+  // shares this page/modal too (/subadmin/proposals), so only fetch it
+  // for them.
+  const canSeeHistory = activeRole === "SUB_ADMIN";
   const [error, setError] = useState<string | null>(null);
   const detailQuery = useQuery({ queryKey: ["proposal-detail", id], queryFn: () => proposalsApi.detail(id).then((r) => r.data) });
+  const historyQuery = useQuery({
+    queryKey: ["proposal-history", id],
+    queryFn: () => proposalsApi.history(id).then((r) => r.data),
+    enabled: canSeeHistory,
+  });
 
   const vote = useMutation({
     mutationFn: (v: "APPROVE" | "REJECT") => proposalsApi.vote(id, v),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["proposal-detail", id] });
       void queryClient.invalidateQueries({ queryKey: ["proposals"] });
+      void queryClient.invalidateQueries({ queryKey: ["proposal-history", id] });
     },
     onError: (e) => setError(apiErrorMessage(e, "Couldn't cast your vote.")),
   });
@@ -76,6 +89,13 @@ function ProposalDetailModal({ id, onClose }: { id: string; onClose: () => void 
               met={detailQuery.data.subadmin_threshold_met}
             />
           </div>
+
+          {detailQuery.data.proposal.status === "WITHDRAWN" && detailQuery.data.proposal.withdrawn_at && (
+            <p className="text-xs text-navy-muted">
+              Withdrawn by your Admin on {new Date(detailQuery.data.proposal.withdrawn_at).toLocaleString("en-IN")} —
+              voting is closed.
+            </p>
+          )}
 
           {error && <p className="text-sm text-danger">{error}</p>}
 
@@ -105,6 +125,29 @@ function ProposalDetailModal({ id, onClose }: { id: string; onClose: () => void 
                   {detailQuery.data.my_vote === "APPROVE" ? "✓ Approved" : "Approve"}
                 </Button>
               </div>
+            </div>
+          )}
+
+          {canSeeHistory && (
+            <div className="pt-2 border-t border-line">
+              <h3 className="text-xs font-medium text-navy-muted mb-2">Vote history</h3>
+              {historyQuery.isLoading && <Loader />}
+              {historyQuery.data && historyQuery.data.length === 0 && (
+                <p className="text-xs text-navy-muted">No votes cast yet.</p>
+              )}
+              {historyQuery.data && historyQuery.data.length > 0 && (
+                <ul className="space-y-1.5 max-h-40 overflow-y-auto">
+                  {historyQuery.data.map((h) => (
+                    <li key={h.id} className="text-xs text-navy-muted flex items-center justify-between gap-2">
+                      <span>
+                        <span className="text-ink font-medium">{h.voter_name}</span>{" "}
+                        {h.old_vote ? `changed ${h.old_vote} → ${h.new_vote}` : `voted ${h.new_vote}`}
+                      </span>
+                      <span className="shrink-0">{new Date(h.changed_at).toLocaleString("en-IN")}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           )}
         </div>
