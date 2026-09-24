@@ -12,6 +12,7 @@ from app.models.enums import MaintenanceDueStatus, PaymentAuditAction, PaymentMe
 from app.models.identity import Property, PropertyResident, User, UserRole
 from app.models.payments import MaintenanceDue, Payment, PaymentAuditLog, PaymentProof
 from app.schemas.payment import SubmitPaymentIn
+from app.services import maintenance_service
 from app.services.payment_service._finalize import finalize_paid
 
 
@@ -121,6 +122,12 @@ async def submit_payment(
             "Manual UPI/Cash payments require proof (screenshot or receipt photo) — Section 14.2/14.3",
         )
 
+    # Section: late-payment penalty — folded into what's actually charged
+    # at the moment of submission (not re-computed later), so a payment's
+    # amount is a fixed, auditable number even as more days pass after it.
+    penalty = maintenance_service.compute_penalty(due)
+    total_amount = float(due.amount) + penalty
+
     now = datetime.now(timezone.utc)
     payment = Payment(
         society_id=society_id,
@@ -128,7 +135,8 @@ async def submit_payment(
         property_id=due.property_id,
         resident_id=resident_id,
         payment_method=body.payment_method,
-        amount=due.amount,
+        amount=total_amount,
+        penalty_amount=penalty,
         status=(
             PaymentStatus.PAID if body.payment_method == PaymentMethod.MOCK_ONLINE
             else PaymentStatus.PENDING_APPROVAL

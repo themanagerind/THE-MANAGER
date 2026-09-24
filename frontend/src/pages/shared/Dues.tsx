@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { paymentsApi, type PaymentOut } from "@/api/payments";
+import { paymentsApi, type MaintenanceDueOut, type PaymentOut } from "@/api/payments";
+import { propertiesApi } from "@/api/properties";
 import { Loader, EmptyState, ErrorState, apiErrorMessage } from "@/components/States";
 import { AuthenticatedImage } from "@/components/AuthenticatedImage";
 import { Badge } from "@/components/Badge";
@@ -27,6 +28,7 @@ export function DuesPage({ canGenerateBills }: { canGenerateBills: boolean }) {
 
   const invalidateAll = () => {
     void queryClient.invalidateQueries({ queryKey: ["dues", "payments"] });
+    void queryClient.invalidateQueries({ queryKey: ["dues", "maintenance-dues"] });
   };
 
   const pendingQuery = useQuery({
@@ -39,9 +41,26 @@ export function DuesPage({ canGenerateBills }: { canGenerateBills: boolean }) {
     queryFn: () => paymentsApi.list(page * pageSize, pageSize).then((r) => r.data),
   });
 
+  const duesQueryKey = ["dues", "maintenance-dues", "all"];
+  const duesQuery = useQuery({
+    queryKey: duesQueryKey,
+    queryFn: () => paymentsApi.allDues().then((r) => r.data),
+  });
+  const propertiesQuery = useQuery({
+    queryKey: ["dues", "properties"],
+    queryFn: () => propertiesApi.list().then((r) => r.data),
+  });
+  const houseNumberFor = (propertyId: string) =>
+    propertiesQuery.data?.find((p) => p.id === propertyId)?.house_number ?? "—";
+
   const approve = useMutation({
     mutationFn: (id: string) => paymentsApi.approve(id),
     onSuccess: invalidateAll,
+  });
+
+  const waivePenalty = useMutation({
+    mutationFn: (dueId: string) => paymentsApi.waivePenalty(dueId),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: duesQueryKey }),
   });
 
   return (
@@ -77,6 +96,58 @@ export function DuesPage({ canGenerateBills }: { canGenerateBills: boolean }) {
               },
             ]}
             rows={pendingQuery.data}
+          />
+        )}
+      </section>
+
+      <section className="space-y-2">
+        <h2 className="text-sm font-medium text-navy-muted">All maintenance dues</h2>
+        {duesQuery.isLoading && <Loader />}
+        {duesQuery.isError && <ErrorState message="Couldn't load dues." onRetry={() => duesQuery.refetch()} />}
+        {duesQuery.data && duesQuery.data.length === 0 && <EmptyState title="No bills generated yet" />}
+        {duesQuery.data && duesQuery.data.length > 0 && (
+          <Table<MaintenanceDueOut>
+            keyFor={(d) => d.id}
+            columns={[
+              { header: "Property", render: (d) => houseNumberFor(d.property_id) },
+              {
+                header: "Month",
+                render: (d) => new Date(d.billing_month).toLocaleDateString("en-IN", { month: "short", year: "numeric" }),
+              },
+              { header: "Amount", render: (d) => `₹${d.amount.toLocaleString("en-IN")}` },
+              {
+                header: "Penalty",
+                render: (d) =>
+                  !d.penalty_enabled ? (
+                    "—"
+                  ) : d.penalty_waived ? (
+                    <span className="text-xs text-navy-muted">Waived</span>
+                  ) : d.penalty_amount > 0 ? (
+                    `₹${d.penalty_amount.toLocaleString("en-IN")}`
+                  ) : (
+                    "₹0"
+                  ),
+              },
+              { header: "Total", render: (d) => `₹${d.total_amount.toLocaleString("en-IN")}` },
+              { header: "Due date", render: (d) => new Date(d.due_date).toLocaleDateString("en-IN") },
+              { header: "Status", render: (d) => <Badge status={d.status}>{d.status}</Badge> },
+              {
+                header: "",
+                render: (d) =>
+                  canGenerateBills && d.penalty_enabled && !d.penalty_waived && d.penalty_amount > 0 ? (
+                    <div className="flex justify-end">
+                      <Button
+                        variant="secondary"
+                        loading={waivePenalty.isPending && waivePenalty.variables === d.id}
+                        onClick={() => waivePenalty.mutate(d.id)}
+                      >
+                        Waive penalty
+                      </Button>
+                    </div>
+                  ) : null,
+              },
+            ]}
+            rows={duesQuery.data}
           />
         )}
       </section>
@@ -198,15 +269,26 @@ function GenerateBillsModal({ onClose, onSuccess }: { onClose: () => void; onSuc
   const [occupiedAmount, setOccupiedAmount] = useState("");
   const [vacantAmount, setVacantAmount] = useState("");
   const [billingMonth, setBillingMonth] = useState(defaultMonth);
+  const [dueDate, setDueDate] = useState(defaultMonth);
+  const [penaltyEnabled, setPenaltyEnabled] = useState(false);
+  const [penaltyPerDay, setPenaltyPerDay] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const generate = useMutation({
-    mutationFn: () => paymentsApi.generateBills(Number(occupiedAmount), Number(vacantAmount), billingMonth),
+    mutationFn: () =>
+      paymentsApi.generateBills(
+        Number(occupiedAmount), Number(vacantAmount), billingMonth, dueDate,
+        penaltyEnabled, penaltyEnabled ? Number(penaltyPerDay) : undefined
+      ),
     onSuccess,
     onError: (e) => setError(apiErrorMessage(e, "Could not generate bills.")),
   });
 
-  const canSubmit = !!occupiedAmount && Number(occupiedAmount) >= 0 && !!vacantAmount && Number(vacantAmount) >= 0;
+  const canSubmit =
+    !!occupiedAmount && Number(occupiedAmount) >= 0 &&
+    !!vacantAmount && Number(vacantAmount) >= 0 &&
+    !!dueDate &&
+    (!penaltyEnabled || (!!penaltyPerDay && Number(penaltyPerDay) > 0));
 
   return (
     <Modal open onClose={onClose} title="Generate monthly bills">
@@ -233,6 +315,30 @@ function GenerateBillsModal({ onClose, onSuccess }: { onClose: () => void; onSuc
           value={billingMonth}
           onChange={(e) => setBillingMonth(e.target.value)}
         />
+        <Input
+          label="Due date"
+          type="date"
+          value={dueDate}
+          onChange={(e) => setDueDate(e.target.value)}
+        />
+
+        <label className="flex items-center gap-2 text-sm text-ink">
+          <input
+            type="checkbox"
+            checked={penaltyEnabled}
+            onChange={(e) => setPenaltyEnabled(e.target.checked)}
+          />
+          Apply a late-payment penalty after the due date
+        </label>
+        {penaltyEnabled && (
+          <Input
+            label="Penalty per day, after due date (₹)"
+            type="number"
+            value={penaltyPerDay}
+            onChange={(e) => setPenaltyPerDay(e.target.value)}
+          />
+        )}
+
         {error && <p className="text-sm text-danger">{error}</p>}
         <div className="flex gap-2 justify-end pt-2">
           <Button variant="secondary" onClick={onClose}>Cancel</Button>

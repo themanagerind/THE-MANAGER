@@ -12,6 +12,13 @@ export interface MaintenanceDueOut {
   status: MaintenanceDueStatus;
   billing_month: string;
   generated_at: string;
+  penalty_enabled: boolean;
+  penalty_per_day: number | null;
+  penalty_waived: boolean;
+  /** Accrued as of now — 0 if penalty isn't enabled/waived/not yet overdue. */
+  penalty_amount: number;
+  /** amount + penalty_amount. */
+  total_amount: number;
 }
 
 export interface PaymentOut {
@@ -22,6 +29,8 @@ export interface PaymentOut {
   resident_id: string;
   payment_method: PaymentMethod;
   amount: number;
+  /** How much of `amount` was a late-payment penalty (0 if none accrued). */
+  penalty_amount: number;
   status: PaymentStatus;
   reference_number: string | null;
   paid_marked_at: string | null;
@@ -97,12 +106,24 @@ export const paymentsApi = {
   // --- Admin/Sub-admin (Section 13.2, 13.3, 27) ---
   /** occupiedAmount applies to a property with at least one active Owner/
    * Tenant link at generation time; vacantAmount to every other one — a
-   * society always has some empty flats/houses alongside occupied ones. */
-  generateBills: (occupiedAmount: number, vacantAmount: number, billingMonth: string) =>
+   * society always has some empty flats/houses alongside occupied ones.
+   * dueDate is independent of billingMonth. penaltyEnabled is opt-in
+   * (defaults off); when true, penaltyPerDay is required — a fixed
+   * amount added per day once dueDate has passed, on top of the base
+   * amount, until paid or an Admin waives it (waivePenalty below). */
+  generateBills: (
+    occupiedAmount: number, vacantAmount: number, billingMonth: string, dueDate: string,
+    penaltyEnabled: boolean, penaltyPerDay?: number
+  ) =>
     apiClient.post<MaintenanceDueOut[]>("/payments/maintenance-dues/generate", {
       occupied_amount: occupiedAmount, vacant_amount: vacantAmount, billing_month: billingMonth,
+      due_date: dueDate, penalty_enabled: penaltyEnabled, penalty_per_day: penaltyEnabled ? penaltyPerDay : undefined,
     }),
   allDues: () => apiClient.get<MaintenanceDueOut[]>("/payments/maintenance-dues"),
+  /** Admin-only — forgives an already-enabled penalty on this due;
+   * idempotent, one-way (no "re-enable" from here). */
+  waivePenalty: (dueId: string) =>
+    apiClient.post<MaintenanceDueOut>(`/payments/maintenance-dues/${dueId}/waive-penalty`),
   list: (skip: number, limit: number) =>
     apiClient.get<Page<PaymentOut>>("/payments", { params: { skip, limit } }),
   pending: () => apiClient.get<PaymentOut[]>("/payments/pending"),

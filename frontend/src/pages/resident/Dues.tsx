@@ -44,7 +44,19 @@ export function ResidentDues() {
           keyFor={(d) => d.id}
           columns={[
             { header: "Month", render: (d) => new Date(d.billing_month).toLocaleDateString("en-IN", { month: "long", year: "numeric" }) },
-            { header: "Amount", render: (d) => `₹${d.amount.toLocaleString("en-IN")}` },
+            { header: "Due date", render: (d) => new Date(d.due_date).toLocaleDateString("en-IN") },
+            {
+              header: "Amount",
+              render: (d) =>
+                d.penalty_amount > 0 ? (
+                  <span>
+                    ₹{d.total_amount.toLocaleString("en-IN")}{" "}
+                    <span className="text-xs text-danger">(incl. ₹{d.penalty_amount.toLocaleString("en-IN")} penalty)</span>
+                  </span>
+                ) : (
+                  `₹${d.amount.toLocaleString("en-IN")}`
+                ),
+            },
             { header: "Status", render: (d) => <Badge status={d.status}>{d.status}</Badge> },
             {
               header: "",
@@ -120,8 +132,14 @@ function PaymentModal({ due, onClose, onSuccess }: { due: MaintenanceDueOut; onC
   const canSubmit = !isManual || !!proofFile;
 
   return (
-    <Modal open onClose={onClose} title={`Pay ₹${due.amount.toLocaleString("en-IN")}`}>
+    <Modal open onClose={onClose} title={`Pay ₹${due.total_amount.toLocaleString("en-IN")}`}>
       <div className="space-y-4">
+        {due.penalty_amount > 0 && (
+          <p className="text-xs text-danger">
+            Includes a ₹{due.penalty_amount.toLocaleString("en-IN")} late-payment penalty (base amount ₹
+            {due.amount.toLocaleString("en-IN")}).
+          </p>
+        )}
         <div>
           <label className="block text-sm text-navy-muted mb-1">Payment method</label>
           <div className="flex gap-2">

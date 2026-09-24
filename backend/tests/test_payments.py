@@ -1,6 +1,6 @@
 """Payment -> wallet -> ledger tests — priority #3 per Section 42."""
 import uuid
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 import pytest
 from httpx import AsyncClient
@@ -45,12 +45,16 @@ async def _seed_resident_with_property(db_session: AsyncSession, society_id):
     return prop, resident
 
 
-async def _seed_due(db_session: AsyncSession, society_id, property_id, amount=2500.0) -> MaintenanceDue:
+async def _seed_due(
+    db_session: AsyncSession, society_id, property_id, amount=2500.0, due_date=None,
+    penalty_enabled=False, penalty_per_day=None, penalty_waived=False,
+) -> MaintenanceDue:
     now = datetime.now(timezone.utc)
     due = MaintenanceDue(
-        society_id=society_id, property_id=property_id, amount=amount, due_date=date.today(),
+        society_id=society_id, property_id=property_id, amount=amount, due_date=due_date or date.today(),
         status=MaintenanceDueStatus.PENDING, billing_month=date.today().replace(day=1),
         generated_at=now, updated_at=now,
+        penalty_enabled=penalty_enabled, penalty_per_day=penalty_per_day, penalty_waived=penalty_waived,
     )
     db_session.add(due)
     await db_session.commit()
@@ -265,7 +269,11 @@ async def test_manager_can_view_property_dues_but_not_generate_or_correct(
 
     resp = await client.post(
         "/api/v1/payments/maintenance-dues/generate",
-        json={"occupied_amount": 1000.0, "vacant_amount": 500.0, "billing_month": date.today().replace(day=1).isoformat()},
+        json={
+            "occupied_amount": 1000.0, "vacant_amount": 500.0,
+            "billing_month": date.today().replace(day=1).isoformat(),
+            "due_date": date.today().replace(day=1).isoformat(),
+        },
         headers=headers,
     )
     assert resp.status_code == 403
@@ -300,6 +308,7 @@ async def test_generate_bills_charges_occupied_and_vacant_amounts_separately(
         json={
             "occupied_amount": 2000.0, "vacant_amount": 500.0,
             "billing_month": date.today().replace(day=1).isoformat(),
+            "due_date": date.today().replace(day=1).isoformat(),
         },
         headers=headers,
     )
@@ -333,6 +342,7 @@ async def test_generate_bills_treats_a_property_with_only_an_inactive_link_as_va
         json={
             "occupied_amount": 2000.0, "vacant_amount": 500.0,
             "billing_month": date.today().replace(day=1).isoformat(),
+            "due_date": date.today().replace(day=1).isoformat(),
         },
         headers=headers,
     )
@@ -527,3 +537,171 @@ async def test_payment_proof_upload_rejects_when_storage_full(
         headers=headers,
     )
     assert resp.status_code == 507
+
+
+# --- Late-payment penalty (opt-in per bill generation) --------------------
+
+
+async def test_generate_bills_with_penalty_enabled_requires_positive_per_day(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    society_id = two_societies_with_admins["a"]["society_id"]
+    admin_id = two_societies_with_admins["a"]["admin_id"]
+    await _seed_resident_with_property(db_session, society_id)
+    headers = auth_headers(admin_id, society_id, Role.ADMIN, [Role.ADMIN])
+
+    for bad_per_day in (None, 0, -10):
+        body = {
+            "occupied_amount": 2000.0, "vacant_amount": 500.0,
+            "billing_month": date.today().replace(day=1).isoformat(),
+            "due_date": date.today().isoformat(), "penalty_enabled": True,
+        }
+        if bad_per_day is not None:
+            body["penalty_per_day"] = bad_per_day
+        resp = await client.post("/api/v1/payments/maintenance-dues/generate", json=body, headers=headers)
+        assert resp.status_code == 400, bad_per_day
+
+
+async def test_generate_bills_penalty_disabled_ignores_per_day(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    """penalty_per_day sent alongside penalty_enabled=False (the default)
+    is simply not stored — no penalty accrues regardless."""
+    society_id = two_societies_with_admins["a"]["society_id"]
+    admin_id = two_societies_with_admins["a"]["admin_id"]
+    prop, _resident = await _seed_resident_with_property(db_session, society_id)
+    headers = auth_headers(admin_id, society_id, Role.ADMIN, [Role.ADMIN])
+
+    resp = await client.post(
+        "/api/v1/payments/maintenance-dues/generate",
+        json={
+            "occupied_amount": 2000.0, "vacant_amount": 500.0,
+            "billing_month": date.today().replace(day=1).isoformat(),
+            "due_date": (date.today() - timedelta(days=10)).isoformat(),
+            "penalty_enabled": False, "penalty_per_day": 50,
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    due = next(d for d in resp.json() if d["property_id"] == str(prop.id))
+    assert due["penalty_enabled"] is False
+    assert due["penalty_per_day"] is None
+    assert due["penalty_amount"] == 0
+    assert due["total_amount"] == due["amount"]
+
+
+async def test_due_accrues_penalty_only_once_overdue(client: AsyncClient, db_session: AsyncSession, two_societies_with_admins):
+    society_id = two_societies_with_admins["a"]["society_id"]
+    admin_id = two_societies_with_admins["a"]["admin_id"]
+    prop, resident = await _seed_resident_with_property(db_session, society_id)
+
+    future_due = await _seed_due(
+        db_session, society_id, prop.id, amount=2000.0, due_date=date.today() + timedelta(days=5),
+        penalty_enabled=True, penalty_per_day=50.0,
+    )
+    headers = auth_headers(admin_id, society_id, Role.ADMIN, [Role.ADMIN])
+    resp = await client.get("/api/v1/payments/maintenance-dues", headers=headers)
+    assert resp.status_code == 200
+    row = next(d for d in resp.json() if d["id"] == str(future_due.id))
+    assert row["penalty_amount"] == 0
+    assert row["total_amount"] == 2000.0
+
+
+async def test_due_accrues_penalty_after_due_date_passes(client: AsyncClient, db_session: AsyncSession, two_societies_with_admins):
+    society_id = two_societies_with_admins["a"]["society_id"]
+    admin_id = two_societies_with_admins["a"]["admin_id"]
+    prop, resident = await _seed_resident_with_property(db_session, society_id)
+
+    overdue = await _seed_due(
+        db_session, society_id, prop.id, amount=2000.0, due_date=date.today() - timedelta(days=4),
+        penalty_enabled=True, penalty_per_day=50.0,
+    )
+    headers = auth_headers(admin_id, society_id, Role.ADMIN, [Role.ADMIN])
+    resp = await client.get("/api/v1/payments/maintenance-dues", headers=headers)
+    assert resp.status_code == 200
+    row = next(d for d in resp.json() if d["id"] == str(overdue.id))
+    assert row["penalty_amount"] == 200.0  # 4 days * 50/day
+    assert row["total_amount"] == 2200.0
+
+
+async def test_payment_submission_folds_in_accrued_penalty(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    society_id = two_societies_with_admins["a"]["society_id"]
+    prop, resident = await _seed_resident_with_property(db_session, society_id)
+    due = await _seed_due(
+        db_session, society_id, prop.id, amount=2000.0, due_date=date.today() - timedelta(days=3),
+        penalty_enabled=True, penalty_per_day=100.0,
+    )
+
+    headers = auth_headers(resident.id, society_id, Role.RESIDENT, [Role.RESIDENT])
+    resp = await client.post(
+        "/api/v1/payments",
+        json={"maintenance_due_id": str(due.id), "payment_method": "MOCK_ONLINE", "idempotency_key": str(uuid.uuid4())},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["penalty_amount"] == 300.0  # 3 days * 100/day
+    assert body["amount"] == 2300.0  # base + penalty
+    assert body["status"] == "PAID"
+
+    wallet = (await db_session.execute(select(Wallet).where(Wallet.resident_id == resident.id))).scalar_one()
+    assert float(wallet.balance) == 2300.0  # full total credited, not just the base amount
+
+
+async def test_admin_can_waive_penalty_and_stops_further_accrual(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    society_id = two_societies_with_admins["a"]["society_id"]
+    admin_id = two_societies_with_admins["a"]["admin_id"]
+    prop, resident = await _seed_resident_with_property(db_session, society_id)
+    due = await _seed_due(
+        db_session, society_id, prop.id, amount=2000.0, due_date=date.today() - timedelta(days=5),
+        penalty_enabled=True, penalty_per_day=50.0,
+    )
+
+    headers = auth_headers(admin_id, society_id, Role.ADMIN, [Role.ADMIN])
+    resp = await client.post(f"/api/v1/payments/maintenance-dues/{due.id}/waive-penalty", headers=headers)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["penalty_waived"] is True
+    assert body["penalty_amount"] == 0
+    assert body["total_amount"] == 2000.0
+
+    # A Resident paying now owes only the base amount — penalty stays waived.
+    resident_headers = auth_headers(resident.id, society_id, Role.RESIDENT, [Role.RESIDENT])
+    resp = await client.post(
+        "/api/v1/payments",
+        json={"maintenance_due_id": str(due.id), "payment_method": "MOCK_ONLINE", "idempotency_key": str(uuid.uuid4())},
+        headers=resident_headers,
+    )
+    assert resp.status_code == 200
+    assert resp.json()["amount"] == 2000.0
+    assert resp.json()["penalty_amount"] == 0
+
+
+async def test_waive_penalty_requires_penalty_enabled_on_that_due(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    society_id = two_societies_with_admins["a"]["society_id"]
+    admin_id = two_societies_with_admins["a"]["admin_id"]
+    prop, resident = await _seed_resident_with_property(db_session, society_id)
+    due = await _seed_due(db_session, society_id, prop.id, amount=2000.0)  # penalty_enabled=False
+
+    headers = auth_headers(admin_id, society_id, Role.ADMIN, [Role.ADMIN])
+    resp = await client.post(f"/api/v1/payments/maintenance-dues/{due.id}/waive-penalty", headers=headers)
+    assert resp.status_code == 400
+
+
+async def test_waive_penalty_is_admin_only(client: AsyncClient, db_session: AsyncSession, two_societies_with_admins):
+    society_id = two_societies_with_admins["a"]["society_id"]
+    prop, resident = await _seed_resident_with_property(db_session, society_id)
+    due = await _seed_due(
+        db_session, society_id, prop.id, amount=2000.0, due_date=date.today() - timedelta(days=1),
+        penalty_enabled=True, penalty_per_day=10.0,
+    )
+
+    headers = auth_headers(resident.id, society_id, Role.RESIDENT, [Role.RESIDENT])
+    resp = await client.post(f"/api/v1/payments/maintenance-dues/{due.id}/waive-penalty", headers=headers)
+    assert resp.status_code == 403

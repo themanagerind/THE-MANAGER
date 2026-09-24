@@ -35,9 +35,10 @@ async def generate_bills(
 ) -> list[MaintenanceDueOut]:
     """Section 13.2 — Admin one-click monthly generation."""
     dues = await maintenance_service.generate_monthly_bills(
-        db, current.society_id, body.occupied_amount, body.vacant_amount, body.billing_month
+        db, current.society_id, body.occupied_amount, body.vacant_amount, body.billing_month,
+        body.due_date, body.penalty_enabled, body.penalty_per_day,
     )
-    return [MaintenanceDueOut.model_validate(d) for d in dues]
+    return [maintenance_service.due_out(d) for d in dues]
 
 
 @router.get("/maintenance-dues", response_model=list[MaintenanceDueOut])
@@ -56,7 +57,7 @@ async def list_dues(
             d for d in dues
             if await subadmin_has_scope_over_property(db, current.user_id, d.property_id, current.society_id)
         ]
-    return [MaintenanceDueOut.model_validate(d) for d in dues]
+    return [maintenance_service.due_out(d) for d in dues]
 
 
 @router.get("/maintenance-dues/by-property/{property_id}", response_model=list[MaintenanceDueOut])
@@ -83,7 +84,21 @@ async def list_dues_for_property(
             status.HTTP_403_FORBIDDEN, "You are not an active Owner/Tenant of this property"
         )
     dues = await maintenance_service.list_dues_for_property(db, current.society_id, property_id)
-    return [MaintenanceDueOut.model_validate(d) for d in dues]
+    return [maintenance_service.due_out(d) for d in dues]
+
+
+@router.post("/maintenance-dues/{due_id}/waive-penalty", response_model=MaintenanceDueOut)
+async def waive_penalty(
+    due_id: uuid.UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current: Annotated[CurrentUser, Depends(require_role(Role.ADMIN))],
+) -> MaintenanceDueOut:
+    """Admin forgives an already-enabled penalty on this due — idempotent,
+    and irreversible from here (there's no "re-enable" — same "explicit
+    exception, not a toggle" shape as other one-way admin overrides in
+    this app)."""
+    due = await maintenance_service.waive_penalty(db, current.society_id, due_id, current.user_id)
+    return maintenance_service.due_out(due)
 
 
 @router.post("", response_model=PaymentOut)

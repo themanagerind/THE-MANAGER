@@ -63,9 +63,32 @@ class MaintenanceDue(Base, UUIDPKMixin):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False
     )
+    # Late-payment penalty — opt-in per bill generation (never on by
+    # default), a fixed amount added per day once due_date has passed.
+    # penalty_per_day is only ever set alongside penalty_enabled=True
+    # (service-layer validated, not a DB constraint — same reasoning as
+    # AdminChangeRequestIn's new_admin_user_id XOR manual fields).
+    # Accrued penalty is computed on read (maintenance_service.
+    # compute_penalty), never stored as a running total — this app has
+    # no in-app scheduler to accumulate one against.
+    penalty_enabled: Mapped[bool] = mapped_column(nullable=False, default=False)
+    penalty_per_day: Mapped[float | None] = mapped_column(Numeric(12, 2), nullable=True)
+    # Admin can forgive an already-enabled penalty for this specific due
+    # at any time — accrual stops growing from that point on (compute_penalty
+    # always returns 0 once waived, regardless of how overdue it still is).
+    penalty_waived: Mapped[bool] = mapped_column(nullable=False, default=False)
+    penalty_waived_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    penalty_waived_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+    )
 
     __table_args__ = (
         CheckConstraint("amount >= 0", name="ck_maintenance_dues_amount_nonneg"),
+        CheckConstraint(
+            "penalty_per_day IS NULL OR penalty_per_day >= 0", name="ck_maintenance_dues_penalty_per_day_nonneg"
+        ),
         # 1 bill per property per month — DB-enforced (Schema Spec v1.1 fix #1)
         UniqueConstraint(
             "society_id", "property_id", "billing_month", name="ux_maintenance_due_month"
@@ -94,6 +117,12 @@ class Payment(Base, UUIDPKMixin, TimestampMixin):
         pg_enum(PaymentMethod, "payment_method_enum"), nullable=False
     )
     amount: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
+    # How much of `amount` above was a late-payment penalty, folded in at
+    # submission time (payment_service.submission, from maintenance_service.
+    # compute_penalty against the due as of that moment) — 0 for a due with
+    # no penalty enabled/accrued. Kept separate from `amount` purely for
+    # transparency on the resident's payment history/receipt.
+    penalty_amount: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, default=0)
     # exactly 3 values, no separate APPROVED (Section 14 resolution)
     status: Mapped[PaymentStatus] = mapped_column(
         pg_enum(PaymentStatus, "payment_status_enum"),
@@ -125,6 +154,7 @@ class Payment(Base, UUIDPKMixin, TimestampMixin):
 
     __table_args__ = (
         CheckConstraint("amount > 0", name="ck_payments_amount_positive"),
+        CheckConstraint("penalty_amount >= 0", name="ck_payments_penalty_amount_nonneg"),
         UniqueConstraint(
             "maintenance_due_id", "idempotency_key", name="ux_payments_due_idempotency"
         ),

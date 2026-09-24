@@ -18,14 +18,30 @@ class GenerateMonthlyBillsIn(BaseModel):
     occupied ones) + month -> one bill per property, society-wide.
     "Occupied" means the property has at least one active Owner/Tenant
     link (property_residents.is_active) at generation time; everything
-    else gets the vacant amount."""
+    else gets the vacant amount.
+
+    due_date is explicit, separate from billing_month — Admin decides
+    the actual payment deadline. penalty_enabled is an opt-in checkbox
+    (never on by default); when true, penalty_per_day (required in that
+    case, validated service-side since Pydantic alone can't express
+    "required only if this other field is true") is added per day once
+    due_date has passed, on top of the base amount, until paid or an
+    Admin waives it (see MaintenanceDue.penalty_waived)."""
 
     occupied_amount: float
     vacant_amount: float
     billing_month: date  # any date within the month; normalized to 1st
+    due_date: date
+    penalty_enabled: bool = False
+    penalty_per_day: float | None = None
 
 
 class MaintenanceDueOut(BaseModel):
+    """Not built via model_validate — penalty_amount/total_amount are
+    computed on read (maintenance_service.compute_penalty), not columns;
+    see maintenance_service.due_out, same "constructed as a plain dict/
+    object" pattern as admin_change_service._as_dict."""
+
     id: uuid.UUID
     society_id: uuid.UUID
     property_id: uuid.UUID
@@ -34,8 +50,13 @@ class MaintenanceDueOut(BaseModel):
     status: MaintenanceDueStatus
     billing_month: date
     generated_at: datetime
-
-    model_config = {"from_attributes": True}
+    penalty_enabled: bool
+    penalty_per_day: float | None
+    penalty_waived: bool
+    # Accrued as of now — 0 if penalty isn't enabled/waived/not yet overdue.
+    penalty_amount: float
+    # amount + penalty_amount, for display convenience.
+    total_amount: float
 
 
 class SubmitPaymentIn(BaseModel):
@@ -56,6 +77,8 @@ class PaymentOut(BaseModel):
     resident_id: uuid.UUID
     payment_method: PaymentMethod
     amount: float
+    # How much of `amount` was a late-payment penalty (0 if none accrued).
+    penalty_amount: float
     status: PaymentStatus
     reference_number: str | None
     paid_marked_at: datetime | None
