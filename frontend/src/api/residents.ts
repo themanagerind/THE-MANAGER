@@ -1,5 +1,5 @@
 import { apiClient } from "@/api/client";
-import type { RelationshipType, Role, RoleRequestStatus, UserStatus } from "@/types/enums";
+import type { LocationType, RelationshipType, Role, RoleRequestStatus, UserStatus } from "@/types/enums";
 
 export interface ResidentOut {
   id: string;
@@ -30,6 +30,17 @@ export interface SubAdminScopeOut {
   assigned_by: string;
   assigned_at: string;
   revoked_at: string | null;
+}
+
+export interface SubAdminAssignmentOut {
+  scope_id: string;
+  sub_admin_id: string;
+  sub_admin_name: string;
+  sub_admin_mobile: string;
+  location_id: string;
+  location_name: string;
+  location_type: LocationType;
+  assigned_at: string;
 }
 
 export interface RoleRequestOut {
@@ -91,6 +102,9 @@ export const residentsApi = {
       property_id: propertyId, relationship_type: relationshipType,
     }),
   byProperty: (propertyId: string) => apiClient.get<PropertyResidentOut[]>(`/residents/by-property/${propertyId}`),
+  /** Powers the Assign Sub-admin page's picker — Admin picks a Wing/Row
+   * first, then one of the residents actually living there. */
+  byLocation: (locationId: string) => apiClient.get<ResidentOut[]>(`/residents/by-location/${locationId}`),
   /** Tenant-only, on their own active link — self-recording the Owner's
    * contact details (free text, not a real account) since a Tenant can
    * now sign up with no Owner account in the system to look this up
@@ -119,6 +133,9 @@ export const residentsApi = {
 };
 
 export const subadminsApi = {
+  /** Every active Sub-admin scope in the society, denormalized with
+   * names — the Assign Sub-admin page's "Current Sub-admins" overview. */
+  listAll: () => apiClient.get<SubAdminAssignmentOut[]>("/subadmins"),
   promote: (residentId: string, locationIds: string[]) =>
     apiClient.post<SubAdminScopeOut[]>("/subadmins/promote", { resident_id: residentId, location_ids: locationIds }),
   scopes: (subAdminId: string) => apiClient.get<SubAdminScopeOut[]>(`/subadmins/${subAdminId}/scopes`),

@@ -14,11 +14,23 @@ from app.schemas.subadmin import (
     ResignationDecisionIn,
     ResignationRequestIn,
     RoleRequestOut,
+    SubAdminAssignmentOut,
     SubAdminScopeOut,
 )
 from app.services import subadmin_service
 
 router = APIRouter(prefix="/subadmins", tags=["subadmins"])
+
+
+@router.get("", response_model=list[SubAdminAssignmentOut])
+async def list_all(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current: Annotated[CurrentUser, Depends(require_role(Role.ADMIN))],
+) -> list[SubAdminAssignmentOut]:
+    """Every active Sub-admin scope in the society — the Assign Sub-admin
+    page's "Current Sub-admins" overview."""
+    rows = await subadmin_service.list_all_assignments(db, current.society_id)
+    return [SubAdminAssignmentOut(**r) for r in rows]
 
 
 @router.post("/promote", response_model=list[SubAdminScopeOut])

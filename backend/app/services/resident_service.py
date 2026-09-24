@@ -133,10 +133,9 @@ async def list_pending_residents(db: AsyncSession, society_id: uuid.UUID) -> lis
 
 
 async def list_residents(db: AsyncSession, society_id: uuid.UUID, status_filter: UserStatus | None = None) -> list[User]:
-    """Admin's own full resident directory — e.g. the "Make Sub-admin"
-    picker on the Residents page needs every ACTIVE resident, not just the
-    PENDING ones list_pending_residents above returns. Scoped to users
-    currently holding an active RESIDENT role (not just any society
+    """Admin's own full resident directory — every ACTIVE resident, not
+    just the PENDING ones list_pending_residents above returns. Scoped to
+    users currently holding an active RESIDENT role (not just any society
     member — an Admin/Sub-admin/Manager/Guard without a RESIDENT role
     shouldn't show up here), same dual-role-aware pattern as
     subadmin_service.promote_to_subadmin adding SUB_ADMIN alongside an
@@ -149,6 +148,28 @@ async def list_residents(db: AsyncSession, society_id: uuid.UUID, status_filter:
             select(User)
             .join(UserRole, UserRole.user_id == User.id)
             .where(*conditions, UserRole.role == Role.RESIDENT, UserRole.revoked_at.is_(None))
+        )
+    ).scalars().all()
+
+
+async def list_residents_by_location(db: AsyncSession, society_id: uuid.UUID, location_id: uuid.UUID) -> list[User]:
+    """Every ACTIVE resident currently linked (active PropertyResident) to
+    a property under this Wing/Row — powers the Assign Sub-admin page's
+    picker (Admin picks a Wing/Row first, then one of its residents),
+    same for a Flats or Bungalow society since a Row's houses point at a
+    ROW-type location the same way a Wing's flats point at a WING one."""
+    return (
+        await db.execute(
+            select(User)
+            .join(PropertyResident, PropertyResident.resident_id == User.id)
+            .join(Property, Property.id == PropertyResident.property_id)
+            .where(
+                Property.society_id == society_id,
+                Property.location_id == location_id,
+                PropertyResident.is_active.is_(True),
+                User.status == UserStatus.ACTIVE,
+            )
+            .distinct()
         )
     ).scalars().all()
 

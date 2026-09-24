@@ -3,15 +3,15 @@ one or more Wings/Rows (Section 6/7). No prior test coverage existed for
 subadmin_service/router at all; added here alongside wiring the first real
 UI on top of it (Admin's Residents page)."""
 import uuid
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.enums import LocationType, Role, SocietyStatus, UserStatus
-from app.models.identity import Society, SocietyLocation, SubAdminScope, User, UserRole
+from app.models.enums import HouseType, LocationType, RelationshipType, Role, SocietyStatus, UserStatus
+from app.models.identity import Property, PropertyResident, Society, SocietyLocation, SubAdminScope, User, UserRole
 from tests.conftest import auth_headers
 
 pytestmark = pytest.mark.asyncio
@@ -114,6 +114,75 @@ async def test_admin_can_promote_active_resident_to_subadmin(client: AsyncClient
         )
     ).scalar_one_or_none()
     assert resident_role is not None
+
+
+async def test_list_all_assignments_returns_active_scopes_with_names(client: AsyncClient, db_session: AsyncSession):
+    """Assign Sub-admin page's "Current Sub-admins" overview — denormalized
+    resident/location names in one call, revoked scopes excluded."""
+    seeded = await _seed_admin_and_resident(db_session)
+    headers = auth_headers(seeded["admin"].id, seeded["society"].id, Role.ADMIN, [Role.ADMIN])
+
+    resp = await client.post(
+        "/api/v1/subadmins/promote",
+        json={"resident_id": str(seeded["resident"].id), "location_ids": [str(seeded["wing_a"].id)]},
+        headers=headers,
+    )
+    scope_id = resp.json()[0]["id"]
+
+    resp = await client.get("/api/v1/subadmins", headers=headers)
+    assert resp.status_code == 200
+    rows = resp.json()
+    assert len(rows) == 1
+    assert rows[0]["scope_id"] == scope_id
+    assert rows[0]["sub_admin_name"] == "Resident One"
+    assert rows[0]["location_name"] == "Wing A"
+    assert rows[0]["location_type"] == "WING"
+
+    # Revoking drops it from the overview.
+    resp = await client.delete(f"/api/v1/subadmins/scopes/{scope_id}", headers=headers)
+    assert resp.status_code == 200
+    resp = await client.get("/api/v1/subadmins", headers=headers)
+    assert resp.json() == []
+
+
+async def test_list_by_location_returns_only_residents_of_that_wing(client: AsyncClient, db_session: AsyncSession):
+    """The Assign Sub-admin picker's residents list — someone linked to a
+    property in a DIFFERENT Wing doesn't show up."""
+    seeded = await _seed_admin_and_resident(db_session)
+    prop_a = Property(
+        society_id=seeded["society"].id, location_id=seeded["wing_a"].id, house_number="A-1",
+        house_type=HouseType.FLAT, floor_number=1, status="ACTIVE",
+    )
+    prop_b = Property(
+        society_id=seeded["society"].id, location_id=seeded["wing_b"].id, house_number="B-1",
+        house_type=HouseType.FLAT, floor_number=1, status="ACTIVE",
+    )
+    db_session.add_all([prop_a, prop_b])
+    await db_session.flush()
+
+    other_resident = User(society_id=seeded["society"].id, full_name="Resident Two", mobile="9850000004", status=UserStatus.ACTIVE)
+    db_session.add(other_resident)
+    await db_session.flush()
+    db_session.add(UserRole(user_id=other_resident.id, role=Role.RESIDENT, assigned_at=datetime.now(timezone.utc)))
+    db_session.add_all([
+        PropertyResident(
+            society_id=seeded["society"].id, property_id=prop_a.id, resident_id=seeded["resident"].id,
+            relationship_type=RelationshipType.OWNER, is_active=True, start_date=date.today(),
+            created_at=datetime.now(timezone.utc),
+        ),
+        PropertyResident(
+            society_id=seeded["society"].id, property_id=prop_b.id, resident_id=other_resident.id,
+            relationship_type=RelationshipType.OWNER, is_active=True, start_date=date.today(),
+            created_at=datetime.now(timezone.utc),
+        ),
+    ])
+    await db_session.commit()
+
+    headers = auth_headers(seeded["admin"].id, seeded["society"].id, Role.ADMIN, [Role.ADMIN])
+    resp = await client.get(f"/api/v1/residents/by-location/{seeded['wing_a'].id}", headers=headers)
+    assert resp.status_code == 200
+    ids = {r["id"] for r in resp.json()}
+    assert ids == {str(seeded["resident"].id)}
 
 
 async def test_admin_can_promote_with_multiple_locations(client: AsyncClient, db_session: AsyncSession):

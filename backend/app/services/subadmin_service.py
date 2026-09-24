@@ -248,6 +248,34 @@ async def list_subadmin_scopes(
     ).scalars().all()
 
 
+async def list_all_assignments(db: AsyncSession, society_id: uuid.UUID) -> list[dict]:
+    """Every active Sub-admin scope in the society, denormalized with the
+    Sub-admin's and location's own name/mobile — powers the Assign
+    Sub-admin page's "Current Sub-admins" overview (GET /subadmins).
+    Returns plain dicts (SubAdminAssignmentOut(**row)) since this is a
+    join projection, not a single model."""
+    rows = (
+        await db.execute(
+            select(
+                SubAdminScope.id, SubAdminScope.sub_admin_id, User.full_name, User.mobile,
+                SubAdminScope.location_id, SocietyLocation.name, SocietyLocation.location_type,
+                SubAdminScope.assigned_at,
+            )
+            .join(User, User.id == SubAdminScope.sub_admin_id)
+            .join(SocietyLocation, SocietyLocation.id == SubAdminScope.location_id)
+            .where(SubAdminScope.society_id == society_id, SubAdminScope.revoked_at.is_(None))
+            .order_by(SocietyLocation.name)
+        )
+    ).all()
+    return [
+        {
+            "scope_id": r[0], "sub_admin_id": r[1], "sub_admin_name": r[2], "sub_admin_mobile": r[3],
+            "location_id": r[4], "location_name": r[5], "location_type": r[6], "assigned_at": r[7],
+        }
+        for r in rows
+    ]
+
+
 async def submit_resignation(
     db: AsyncSession, society_id: uuid.UUID, sub_admin_id: uuid.UUID, reason: str | None
 ) -> RoleRequest:

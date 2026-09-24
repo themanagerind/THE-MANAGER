@@ -42,10 +42,21 @@ async def list_all(
     current: Annotated[CurrentUser, Depends(require_role(Role.ADMIN))],
     status_filter: Annotated[UserStatus | None, Query(alias="status")] = None,
 ) -> list[ResidentOut]:
-    """Admin's resident directory — e.g. the "Make Sub-admin" picker on
-    the Residents page (?status=ACTIVE), separate from list_pending below
-    which is specifically the approval queue."""
+    """Admin's resident directory (?status=ACTIVE), separate from
+    list_pending below which is specifically the approval queue."""
     residents = await resident_service.list_residents(db, current.society_id, status_filter)
+    return [ResidentOut.model_validate(r) for r in residents]
+
+
+@router.get("/by-location/{location_id}", response_model=list[ResidentOut])
+async def list_by_location(
+    location_id: uuid.UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current: Annotated[CurrentUser, Depends(require_role(Role.ADMIN))],
+) -> list[ResidentOut]:
+    """Powers the Assign Sub-admin page's picker — Admin picks a Wing/Row
+    first, then one of the residents actually living there."""
+    residents = await resident_service.list_residents_by_location(db, current.society_id, location_id)
     return [ResidentOut.model_validate(r) for r in residents]
 
 

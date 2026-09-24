@@ -18,6 +18,7 @@ import { ResidentAmenities } from "@/pages/resident/Amenities";
 import { ResidentProposals } from "@/pages/resident/Proposals";
 import { AdminOverview } from "@/pages/admin/Overview";
 import { AdminResidents } from "@/pages/admin/Residents";
+import { AssignSubAdmin } from "@/pages/admin/AssignSubAdmin";
 import { AdminProperties } from "@/pages/admin/Properties";
 import { AdminDues } from "@/pages/admin/Dues";
 import { AdminComplaints } from "@/pages/admin/Complaints";
@@ -70,6 +71,7 @@ export function App() {
           <Route element={<ProtectedRoute allow={["ADMIN"]} />}>
             <Route path="/admin" element={<AdminOverview />} />
             <Route path="/admin/residents" element={<AdminResidents />} />
+            <Route path="/admin/assign-subadmin" element={<AssignSubAdmin />} />
             <Route path="/admin/properties" element={<AdminProperties />} />
             <Route path="/admin/dues" element={<AdminDues />} />
             <Route path="/admin/complaints" element={<AdminComplaints />} />

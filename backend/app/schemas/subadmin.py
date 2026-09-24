@@ -4,7 +4,7 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
-from app.models.enums import RoleRequestStatus
+from app.models.enums import LocationType, RoleRequestStatus
 
 
 class PromoteToSubAdminIn(BaseModel):
@@ -25,6 +25,21 @@ class SubAdminScopeOut(BaseModel):
     revoked_at: datetime | None
 
     model_config = {"from_attributes": True}
+
+
+class SubAdminAssignmentOut(BaseModel):
+    """One active scope, denormalized with the Sub-admin's and location's
+    own names — powers the Assign Sub-admin page's "Current Sub-admins"
+    overview (GET /subadmins) without a separate lookup per row."""
+
+    scope_id: uuid.UUID
+    sub_admin_id: uuid.UUID
+    sub_admin_name: str
+    sub_admin_mobile: str
+    location_id: uuid.UUID
+    location_name: str
+    location_type: LocationType
+    assigned_at: datetime
 
 
 class ResignationRequestIn(BaseModel):
