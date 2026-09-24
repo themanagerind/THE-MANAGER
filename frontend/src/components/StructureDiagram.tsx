@@ -18,7 +18,7 @@ const OCC_STROKE = "#2F7A4D";
 const OCC_TEXT = "#1D5334";
 const VAC_FILL = "#EEF0F2";
 const VAC_STROKE = "#9AA5B1";
-const VAC_TEXT = "#3A4E6E";
+const VAC_TEXT = "#0A1F44";
 
 function byHouseNumber(a: PropertyOut, b: PropertyOut) {
   return a.house_number.localeCompare(b.house_number, undefined, { numeric: true, sensitivity: "base" });
@@ -51,7 +51,7 @@ function groupByPrefix(locations: SocietyLocationOut[]): SocietyLocationOut[][] 
  * fit its own longest label instead. */
 function boxWidthFor(labels: string[], base: number): number {
   const longest = labels.reduce((max, l) => Math.max(max, l.length), 0);
-  return Math.max(base, longest * 6 + 16);
+  return Math.max(base, longest * 7 + 16);
 }
 
 /** How many columns to wrap a set of `count` same-size boxes into, so the
@@ -227,7 +227,7 @@ function BuildingCard({
                       fill={occ ? OCC_FILL : VAC_FILL} stroke={occ ? OCC_STROKE : VAC_STROKE} strokeWidth={1.4}
                     />
                     <text
-                      x={wx + winW / 2} y={wy + WIN_H / 2 + 4} textAnchor="middle" fontSize={10} fontWeight={600}
+                      x={wx + winW / 2} y={wy + WIN_H / 2 + 4} textAnchor="middle" fontSize={11} fontWeight={700}
                       fill={occ ? OCC_TEXT : VAC_TEXT}
                     >
                       {p.house_number}
@@ -327,7 +327,7 @@ export function WingPreview({
                         fill={occ ? OCC_FILL : VAC_FILL} stroke={occ ? OCC_STROKE : VAC_STROKE} strokeWidth={1.4}
                       />
                       <text
-                        x={wx + winW / 2} y={wy + WIN_H / 2 + 4} textAnchor="middle" fontSize={10} fontWeight={600}
+                        x={wx + winW / 2} y={wy + WIN_H / 2 + 4} textAnchor="middle" fontSize={11} fontWeight={700}
                         fill={occ ? OCC_TEXT : VAC_TEXT}
                       >
                         {p.house_number}
@@ -377,7 +377,7 @@ export function RowCard({
                 x={x} y={y} width={houseW} height={HOUSE_H} rx={4}
                 fill={occ ? OCC_FILL : VAC_FILL} stroke={occ ? OCC_STROKE : VAC_STROKE} strokeWidth={1.4}
               />
-              <text x={x + houseW / 2} y={y + HOUSE_H / 2 + 4} textAnchor="middle" fontSize={10} fontWeight={600} fill={occ ? OCC_TEXT : VAC_TEXT}>
+              <text x={x + houseW / 2} y={y + HOUSE_H / 2 + 4} textAnchor="middle" fontSize={11} fontWeight={700} fill={occ ? OCC_TEXT : VAC_TEXT}>
                 {p.house_number}
               </text>
             </g>
