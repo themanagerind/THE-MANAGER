@@ -5,8 +5,13 @@ Section 26 (Resident approval flow).
 Key invariant enforced here (Schema Spec v1.3 `property_residents` note —
 a trigger/service rule, not a plain CHECK since it's cross-row):
   An active TENANT relationship requires at least one active OWNER
-  relationship on the same property, both when creating a tenant link and
-  when deactivating an owner link.
+  relationship on the same property, when an ADMIN directly links a
+  Tenant themselves (link_resident_to_property/link_admin_as_resident,
+  and when deactivating an owner link, unlink_resident_from_property).
+  NOT enforced on the self-service paths (signup_resident,
+  submit_property_link_request) — those stay PENDING for Admin review
+  regardless, so the Admin who already knows the real-world situation
+  decides at approval time instead of the system guessing upfront.
 """
 import uuid
 from datetime import date, datetime, timezone
@@ -57,10 +62,12 @@ async def signup_resident(db: AsyncSession, body: ResidentSignupIn) -> User:
     if society.status != SocietyStatus.ACTIVE:
         raise HTTPException(status.HTTP_409_CONFLICT, "This society isn't accepting signups right now")
 
-    # Self-service property link, same invariant as the Admin-driven
-    # link_resident_to_property below (Section 12: a Tenant needs an
-    # already-active Owner on the same property) — checked before creating
-    # the User row so a doomed signup never gets that far.
+    # Self-service property link — unlike the Admin-driven
+    # link_resident_to_property below, a Tenant signup here is NOT
+    # required to already have an active Owner on the same property: the
+    # account stays PENDING until the Admin reviews and approves it, and
+    # the Admin can judge the real-world situation for themselves instead
+    # of the system guessing upfront.
     prop = (
         await db.execute(
             select(Property).where(Property.id == body.property_id, Property.society_id == body.society_id)
@@ -68,12 +75,6 @@ async def signup_resident(db: AsyncSession, body: ResidentSignupIn) -> User:
     ).scalar_one_or_none()
     if prop is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Property not found in this society")
-    if body.relationship_type == RelationshipType.TENANT and not await has_active_owner(db, body.property_id):
-        raise HTTPException(
-            status.HTTP_409_CONFLICT,
-            "This property has no active Owner yet — a Tenant signup needs an Owner on record first "
-            "(Section 12 invariant). Ask the Owner to sign up first, or contact your Admin.",
-        )
 
     resident = User(
         society_id=body.society_id,
@@ -403,13 +404,6 @@ async def submit_property_link_request(
             status.HTTP_409_CONFLICT, f"You're already an active {body.relationship_type.value.title()} of this property"
         )
 
-    if body.relationship_type == RelationshipType.TENANT and not await has_active_owner(db, body.property_id):
-        raise HTTPException(
-            status.HTTP_409_CONFLICT,
-            "This property has no active Owner yet — a Tenant request needs an Owner on record first "
-            "(Section 12 invariant).",
-        )
-
     existing_pending = (
         await db.execute(
             select(PropertyLinkRequest).where(
@@ -485,11 +479,12 @@ async def decide_property_link_request(
         raise HTTPException(status.HTTP_409_CONFLICT, f"Request is already {req.status.value}")
 
     if approve:
-        # Re-validate now, not just at submission time — circumstances
-        # (the property deleted, the Owner unlinked) may have changed
-        # since the Resident submitted this request. Left PENDING (not
-        # silently approved or auto-rejected) so the Admin can retry once
-        # fixed, or reject it themselves.
+        # Re-validate now, not just at submission time — the property may
+        # have been deleted since the Resident submitted this request.
+        # Left PENDING (not silently approved or auto-rejected) so the
+        # Admin can retry once fixed, or reject it themselves. No active-
+        # Owner check for a TENANT request here — same as submission time,
+        # the Admin approving this already knows the real-world situation.
         prop = (
             await db.execute(
                 select(Property).where(Property.id == req.property_id, Property.society_id == society_id)
@@ -497,11 +492,6 @@ async def decide_property_link_request(
         ).scalar_one_or_none()
         if prop is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "This property no longer exists in this society")
-        if req.relationship_type == RelationshipType.TENANT and not await has_active_owner(db, req.property_id):
-            raise HTTPException(
-                status.HTTP_409_CONFLICT,
-                "This property no longer has an active Owner — can't approve as Tenant",
-            )
 
         db.add(
             PropertyResident(

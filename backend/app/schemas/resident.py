@@ -13,10 +13,11 @@ class ResidentSignupIn(BaseModel):
     approval step — the Resident picks their own house (from the public,
     already-on-record property list — GET /societies/{id}/properties/
     public) and whether they're Owner or Tenant right at signup, the same
-    for a Flats or Bungalow society. A Tenant signup needs the property to
-    already have an active Owner (Section 12 invariant) — enforced in
-    resident_service.signup_resident, same check as the Admin-driven
-    property-links flow."""
+    for a Flats or Bungalow society. Unlike the Admin-driven property-
+    links flow, a Tenant signup here does NOT require the property to
+    already have an active Owner (Section 12 invariant) — the account
+    stays PENDING until the Admin reviews it, so the Admin judges the
+    real-world situation at approval time instead."""
 
     full_name: str
     mobile: str

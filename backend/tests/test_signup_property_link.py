@@ -126,9 +126,13 @@ async def test_resident_signup_rejects_property_from_another_society(
     assert resp.status_code == 404
 
 
-async def test_resident_signup_as_tenant_rejected_without_active_owner(
+async def test_resident_signup_as_tenant_succeeds_without_active_owner(
     client: AsyncClient, db_session: AsyncSession
 ):
+    """Unlike the Admin-driven property-links endpoint, a Tenant signup
+    does NOT require the property to already have an active Owner — the
+    account stays PENDING until the Admin reviews it (Section 12
+    invariant not enforced on self-service paths)."""
     society = await _seed_society(db_session)
     prop = await _seed_property(db_session, society)
 
@@ -139,7 +143,15 @@ async def test_resident_signup_as_tenant_rejected_without_active_owner(
             "property_id": str(prop.id), "relationship_type": "TENANT",
         },
     )
-    assert resp.status_code == 409
+    assert resp.status_code == 200
+    tenant_id = uuid.UUID(resp.json()["id"])
+
+    link = (
+        await db_session.execute(select(PropertyResident).where(PropertyResident.resident_id == tenant_id))
+    ).scalar_one()
+    assert link.property_id == prop.id
+    assert link.relationship_type == RelationshipType.TENANT
+    assert link.is_active is True
 
 
 async def test_resident_signup_as_tenant_succeeds_with_active_owner(
@@ -231,9 +243,12 @@ async def test_admin_signup_with_existing_property_creates_link_and_resident_rol
     assert resident_role is not None
 
 
-async def test_admin_signup_existing_property_as_tenant_rejected_without_owner(
+async def test_admin_signup_existing_property_as_tenant_succeeds_without_owner(
     client: AsyncClient, db_session: AsyncSession
 ):
+    """Same relaxed rule as Resident signup — an Admin's own dual-role
+    Tenant link doesn't require the property to already have an active
+    Owner; stays PENDING until Platform Owner review."""
     society = await _seed_society(db_session)
     prop = await _seed_property(db_session, society)
 
@@ -244,7 +259,7 @@ async def test_admin_signup_existing_property_as_tenant_rejected_without_owner(
             "existing_property_id": str(prop.id), "existing_property_relationship": "TENANT",
         },
     )
-    assert resp.status_code == 409
+    assert resp.status_code == 200
 
 
 async def test_admin_signup_rejects_partial_existing_property_fields(

@@ -127,12 +127,6 @@ function UnitPicker({
               </button>
             ))}
           </div>
-          {relationshipType === "TENANT" && (
-            <p className="text-xs text-navy-muted mt-1">
-              A Tenant signup needs this unit's Owner to already be on record — if the Owner hasn't
-              signed up yet, ask them to go first.
-            </p>
-          )}
         </div>
       )}
     </div>
@@ -419,12 +413,6 @@ export function Signup() {
                           </button>
                         ))}
                       </div>
-                      {relationshipType === "TENANT" && (
-                        <p className="text-xs text-navy-muted mt-1">
-                          A Tenant signup needs this house's Owner to already be on record — if the
-                          Owner hasn't signed up yet, ask them to go first.
-                        </p>
-                      )}
                     </div>
                   </>
                 )}

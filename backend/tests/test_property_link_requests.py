@@ -94,14 +94,19 @@ async def test_request_rejects_property_from_another_society(client: AsyncClient
     assert resp.status_code == 404
 
 
-async def test_request_rejects_tenant_without_active_owner(client: AsyncClient, db_session: AsyncSession):
+async def test_request_tenant_without_active_owner_succeeds(client: AsyncClient, db_session: AsyncSession):
+    """Unlike the Admin-driven property-links endpoint, a Tenant request
+    here does NOT require the property to already have an active Owner —
+    it stays PENDING until the Admin reviews it, same as Resident/Admin
+    signup (Section 12 invariant not enforced on self-service paths)."""
     seeded = await _seed(db_session)
     resp = await client.post(
         "/api/v1/residents/property-link-requests",
         json={"property_id": str(seeded["prop"].id), "relationship_type": "TENANT"},
         headers=_resident_headers(seeded),
     )
-    assert resp.status_code == 409
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "PENDING"
 
 
 async def test_request_rejects_duplicate_pending(client: AsyncClient, db_session: AsyncSession):

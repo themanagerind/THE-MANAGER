@@ -15,10 +15,9 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.redis_client import get_redis
-from app.models.enums import RelationshipType, Role, SocietyStatus, UserStatus
+from app.models.enums import Role, SocietyStatus, UserStatus
 from app.models.identity import Property, PropertyResident, Society, User, UserRole
 from app.schemas.admin import AdminSignupIn
-from app.services.resident_service import has_active_owner
 
 _SIGNUP_MAX_PER_HOUR = 5
 _SIGNUP_RATE_WINDOW_SECONDS = 3600
@@ -45,9 +44,12 @@ async def signup_admin(db: AsyncSession, body: AdminSignupIn) -> User:
         raise HTTPException(status.HTTP_409_CONFLICT, "This society isn't accepting signups right now")
 
     # Mandatory dual-role link (Section 4: every Admin is ADMIN+RESIDENT)
-    # — same picker/invariant as resident_service.signup_resident, for a
-    # unit the Platform Owner has already mapped. Checked before creating
-    # the User row so a doomed signup never gets that far.
+    # — same picker resident_service.signup_resident uses, for a unit the
+    # Platform Owner has already mapped. Checked before creating the User
+    # row so a doomed signup never gets that far. No active-Owner check
+    # for a TENANT here — same as Resident signup, the account stays
+    # PENDING until Platform Owner review, so the system doesn't need to
+    # guess upfront.
     prop = (
         await db.execute(
             select(Property).where(
@@ -57,14 +59,6 @@ async def signup_admin(db: AsyncSession, body: AdminSignupIn) -> User:
     ).scalar_one_or_none()
     if prop is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Property not found in this society")
-    if body.existing_property_relationship == RelationshipType.TENANT and not await has_active_owner(
-        db, body.existing_property_id
-    ):
-        raise HTTPException(
-            status.HTTP_409_CONFLICT,
-            "This property has no active Owner yet — a Tenant signup needs an Owner on record "
-            "first (Section 12 invariant).",
-        )
 
     admin = User(
         society_id=body.society_id,
