@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/auth/AuthContext";
 import { usersApi } from "@/api/users";
 import { residentsApi } from "@/api/residents";
 import { propertiesApi, type PropertyOut, type PropertyResidentLink } from "@/api/properties";
@@ -27,6 +28,7 @@ const roleLabels: Record<string, string> = {
  */
 export function Profile() {
   const queryClient = useQueryClient();
+  const { activeRole } = useAuth();
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [success, setSuccess] = useState(false);
@@ -104,7 +106,9 @@ export function Profile() {
         </div>
       </div>
 
-      {profile.roles.includes("RESIDENT") && <MyPropertiesSection residentId={profile.id} />}
+      {profile.roles.includes("RESIDENT") && (
+        <MyPropertiesSection residentId={profile.id} canManage={activeRole === "RESIDENT"} />
+      )}
     </div>
   );
 }
@@ -115,10 +119,22 @@ export function Profile() {
  * signup-time link (immediate) this goes to the Admin for approval first
  * (residentsApi.requestPropertyLink); shown for anyone who currently
  * holds a RESIDENT role, dual-role Admin+Resident included.
+ *
+ * Every write here (submitting a request, viewing your own requests) is
+ * gated backend-side on the CALLER'S CURRENTLY ACTIVE role being
+ * RESIDENT (Section 4: role checks are always against active_role, not
+ * "any role you hold") — a dual-role Admin+Resident account currently
+ * viewing as Admin would otherwise see this section, click "+ Add
+ * property", and hit a raw 403 ("Requires one of: ['RESIDENT'], got
+ * ADMIN"). `canManage` (Profile's activeRole === "RESIDENT") gates those
+ * parts; viewing existing links stays available either way since that
+ * GET endpoint allows Admin too.
  */
-function MyPropertiesSection({ residentId }: { residentId: string }) {
+function MyPropertiesSection({ residentId, canManage }: { residentId: string; canManage: boolean }) {
   const queryClient = useQueryClient();
+  const { switchRole } = useAuth();
   const [requesting, setRequesting] = useState(false);
+  const [switching, setSwitching] = useState(false);
 
   const linksQuery = useQuery({
     queryKey: ["profile", "my-properties", residentId],
@@ -132,7 +148,17 @@ function MyPropertiesSection({ residentId }: { residentId: string }) {
   const requestsQuery = useQuery({
     queryKey: requestsQueryKey,
     queryFn: () => residentsApi.myPropertyLinkRequests().then((r) => r.data),
+    enabled: canManage,
   });
+
+  async function handleSwitchToResident() {
+    setSwitching(true);
+    try {
+      await switchRole("RESIDENT");
+    } finally {
+      setSwitching(false);
+    }
+  }
 
   const propertyById = new Map((propertiesQuery.data ?? []).map((p) => [p.id, p]));
   const activeLinks = (linksQuery.data ?? []).filter((l) => l.is_active);
@@ -149,7 +175,13 @@ function MyPropertiesSection({ residentId }: { residentId: string }) {
     <div className="space-y-4 rounded border border-line bg-paper p-4">
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-medium text-navy-muted">My properties</h2>
-        <Button variant="secondary" onClick={() => setRequesting(true)}>+ Add property</Button>
+        {canManage ? (
+          <Button variant="secondary" onClick={() => setRequesting(true)}>+ Add property</Button>
+        ) : (
+          <Button variant="secondary" loading={switching} onClick={() => void handleSwitchToResident()}>
+            Switch to Resident to add a property
+          </Button>
+        )}
       </div>
 
       {(linksQuery.isLoading || propertiesQuery.isLoading) && <Loader />}
