@@ -163,7 +163,7 @@ function floorGrid(flats: PropertyOut[], cols: number): { rows: number } {
 // — without this the Overview diagram showed flats grouped into bands with
 // no way to tell which floor a band was (unlike the live mapping preview,
 // which labels every floor as it's built).
-const FLOOR_LABEL_W = 22;
+const FLOOR_LABEL_W = 28;
 
 function BuildingCard({
   wing, properties, onSelectUnit,
@@ -204,8 +204,8 @@ function BuildingCard({
             <g key={floor.floorNumber}>
               {i > 0 && <line x1={FLOOR_LABEL_W} y1={floorTop} x2={width} y2={floorTop} stroke="#E3E6EB" strokeWidth={1} />}
               <text
-                x={FLOOR_LABEL_W / 2} y={floorTop + floorH / 2 + 4} textAnchor="middle" fontSize={10} fontWeight={700}
-                fill="#3A4E6E"
+                x={FLOOR_LABEL_W / 2} y={floorTop + floorH / 2 + 5} textAnchor="middle" fontSize={14} fontWeight={700}
+                fill="#0A1F44"
               >
                 {floor.floorNumber}
               </text>
