@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { amenitiesApi, type AmenityBookingOut } from "@/api/amenities";
+import { amenitiesApi, type AmenityBookingOut, type AmenitySlotOut } from "@/api/amenities";
 import { useActiveProperty } from "@/hooks/useActiveProperty";
 import { Loader, EmptyState, ErrorState, apiErrorMessage } from "@/components/States";
 import { Badge } from "@/components/Badge";
@@ -86,6 +86,11 @@ function BookingModal({
   const [endTime, setEndTime] = useState("11:00");
   const [error, setError] = useState<string | null>(null);
 
+  const slotsQuery = useQuery({
+    queryKey: ["amenity-slots", amenityId, date],
+    queryFn: () => amenitiesApi.occupiedSlots(amenityId, date).then((r) => r.data),
+  });
+
   const book = useMutation({
     mutationFn: () =>
       amenitiesApi.createBooking({
@@ -93,10 +98,18 @@ function BookingModal({
         booking_date: date, start_time: startTime, end_time: endTime,
       }),
     onSuccess,
-    onError: (e) => setError(apiErrorMessage(e, "Couldn't create the booking.")),
+    onError: (e) => setError(apiErrorMessage(e, "Couldn't create the booking. That slot may already be booked.")),
   });
 
   const validRange = startTime < endTime;
+  // Same overlap rule the backend enforces (start1 < end2 && start2 < end1)
+  // — checked here too so the Resident sees the conflict before submitting,
+  // not just after a 409. The API returns "HH:MM:SS" while these inputs
+  // hold "HH:MM" — comparing the raw strings breaks ("11:00" < "11:00:00"
+  // is true), so both sides are truncated to "HH:MM" first.
+  const overlapsExistingSlot = (slotsQuery.data ?? []).some(
+    (s) => startTime < s.end_time.slice(0, 5) && s.start_time.slice(0, 5) < endTime
+  );
 
   return (
     <Modal open onClose={onClose} title="Book amenity">
@@ -112,10 +125,32 @@ function BookingModal({
           <Input label="Start time" type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
           <Input label="End time" type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} error={!validRange ? "Must be after start time" : undefined} />
         </div>
+
+        <div>
+          <h3 className="text-xs font-medium text-navy-muted mb-1">Already booked on this date</h3>
+          {slotsQuery.isLoading && <Loader />}
+          {slotsQuery.data && slotsQuery.data.length === 0 && (
+            <p className="text-xs text-navy-muted">No bookings yet — any slot is free.</p>
+          )}
+          {slotsQuery.data && slotsQuery.data.length > 0 && (
+            <ul className="space-y-1">
+              {slotsQuery.data.map((s: AmenitySlotOut, i: number) => (
+                <li key={i} className="text-xs text-navy-muted flex items-center gap-2">
+                  <span>{s.start_time.slice(0, 5)}–{s.end_time.slice(0, 5)}</span>
+                  <Badge status={s.status}>{s.status}</Badge>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        {validRange && overlapsExistingSlot && (
+          <p className="text-sm text-danger">This time overlaps a slot that's already booked or pending. Pick another time.</p>
+        )}
         {error && <p className="text-sm text-danger">{error}</p>}
         <div className="flex gap-2 justify-end">
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button loading={book.isPending} disabled={!validRange} onClick={() => book.mutate()}>
+          <Button loading={book.isPending} disabled={!validRange || overlapsExistingSlot} onClick={() => book.mutate()}>
             Request booking
           </Button>
         </div>

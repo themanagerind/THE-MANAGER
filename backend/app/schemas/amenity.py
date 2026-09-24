@@ -54,3 +54,13 @@ class AmenityBookingOut(BaseModel):
 
 class AmenityBookingDecisionIn(BaseModel):
     approve: bool
+
+
+class AmenitySlotOut(BaseModel):
+    """A taken slot on a given amenity/date — no resident_id: a Resident
+    checking availability should see a slot is booked, not who booked it."""
+    start_time: time
+    end_time: time
+    status: BookingStatus
+
+    model_config = {"from_attributes": True}

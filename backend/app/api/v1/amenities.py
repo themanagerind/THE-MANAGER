@@ -1,5 +1,6 @@
 """Amenities endpoints — Section 20."""
 import uuid
+from datetime import date
 from typing import Annotated
 
 from fastapi import APIRouter, Depends
@@ -14,6 +15,7 @@ from app.schemas.amenity import (
     AmenityBookingOut,
     AmenityCreateIn,
     AmenityOut,
+    AmenitySlotOut,
 )
 from app.schemas.pagination import Page, Pagination, pagination_params
 from app.services import amenity_service
@@ -40,6 +42,23 @@ async def list_amenities(
 ) -> list[AmenityOut]:
     amenities = await amenity_service.list_amenities(db, current.society_id)
     return [AmenityOut.model_validate(a) for a in amenities]
+
+
+@router.get("/{amenity_id}/slots", response_model=list[AmenitySlotOut])
+async def get_occupied_slots(
+    amenity_id: uuid.UUID,
+    booking_date: date,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current: Annotated[
+        CurrentUser, Depends(require_role(Role.ADMIN, Role.SUB_ADMIN, Role.RESIDENT))
+    ],
+) -> list[AmenitySlotOut]:
+    """Already-booked/requested slots for this amenity on this date, so a
+    Resident can see what's taken before submitting a request instead of
+    finding out only after a 409 (or, before this fix, not finding out at
+    all — two Residents could book the same slot with no warning)."""
+    slots = await amenity_service.list_occupied_slots(db, current.society_id, amenity_id, booking_date)
+    return [AmenitySlotOut.model_validate(s) for s in slots]
 
 
 @router.post("/bookings", response_model=AmenityBookingOut)

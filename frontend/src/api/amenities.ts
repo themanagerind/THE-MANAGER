@@ -30,6 +30,14 @@ export interface BookingCreateInput {
   end_time: string;
 }
 
+/** A taken slot for an amenity/date — no resident identity, just that the
+ * time is occupied (PENDING or APPROVED), so a Resident can pick another. */
+export interface AmenitySlotOut {
+  start_time: string;
+  end_time: string;
+  status: BookingStatus;
+}
+
 export interface Page<T> {
   items: T[];
   total: number;
@@ -43,6 +51,8 @@ export const amenitiesApi = {
   bookings: (skip = 0, limit = 20) =>
     apiClient.get<Page<AmenityBookingOut>>("/amenities/bookings", { params: { skip, limit } }),
   createBooking: (input: BookingCreateInput) => apiClient.post<AmenityBookingOut>("/amenities/bookings", input),
+  occupiedSlots: (amenityId: string, bookingDate: string) =>
+    apiClient.get<AmenitySlotOut[]>(`/amenities/${amenityId}/slots`, { params: { booking_date: bookingDate } }),
   decideBooking: (id: string, approve: boolean) =>
     apiClient.post<AmenityBookingOut>(`/amenities/bookings/${id}/decision`, { approve }),
 };
