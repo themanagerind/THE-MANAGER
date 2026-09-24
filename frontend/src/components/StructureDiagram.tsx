@@ -159,6 +159,12 @@ function floorGrid(flats: PropertyOut[], cols: number): { rows: number } {
   return { rows: flats.length === 0 ? 1 : Math.ceil(flats.length / cols) };
 }
 
+// Room on the left of each floor's row for its floor number ("5", "4", ...)
+// — without this the Overview diagram showed flats grouped into bands with
+// no way to tell which floor a band was (unlike the live mapping preview,
+// which labels every floor as it's built).
+const FLOOR_LABEL_W = 22;
+
 function BuildingCard({
   wing, properties, onSelectUnit,
 }: { wing: SocietyLocationOut; properties: PropertyOut[]; onSelectUnit?: (locationId: string, floorNumber: number | null) => void }) {
@@ -168,7 +174,8 @@ function BuildingCard({
   const winW = boxWidthFor(properties.map((p) => p.house_number), WIN_W);
   const maxFlats = Math.max(...floors.map((f) => f.flats.length), 1);
   const cols = gridColumns(maxFlats, winW);
-  const width = SIDE_PAD * 2 + cols * winW + (cols - 1) * GAP_X;
+  const gridWidth = SIDE_PAD * 2 + cols * winW + (cols - 1) * GAP_X;
+  const width = FLOOR_LABEL_W + gridWidth;
 
   const floorLayouts = floors.map((floor) => floorGrid(floor.flats, cols));
   const floorHeights = floorLayouts.map((l) => l.rows * WIN_H + (l.rows - 1) * GAP_Y + 12);
@@ -185,17 +192,23 @@ function BuildingCard({
     <div className="flex flex-col items-center">
       <div className="text-sm font-bold text-navy mb-1">{wing.name}</div>
       <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
-        <rect x={0} y={0} width={width} height={height} fill="#FFFFFF" stroke="#0A1F44" strokeWidth={1.5} />
+        <rect x={FLOOR_LABEL_W} y={0} width={gridWidth} height={height} fill="#FFFFFF" stroke="#0A1F44" strokeWidth={1.5} />
         {floors.map((floor, i) => {
           const floorTop = floorTops[i];
           const floorH = floorHeights[i];
           const n = floor.flats.length;
           const gridW = Math.min(n, cols) * winW + (Math.min(n, cols) - 1) * GAP_X;
-          const startX = (width - gridW) / 2;
+          const startX = FLOOR_LABEL_W + (gridWidth - gridW) / 2;
           const gridTop = floorTop + (floorH - floorLayouts[i].rows * WIN_H - (floorLayouts[i].rows - 1) * GAP_Y) / 2;
           return (
             <g key={floor.floorNumber}>
-              {i > 0 && <line x1={0} y1={floorTop} x2={width} y2={floorTop} stroke="#E3E6EB" strokeWidth={1} />}
+              {i > 0 && <line x1={FLOOR_LABEL_W} y1={floorTop} x2={width} y2={floorTop} stroke="#E3E6EB" strokeWidth={1} />}
+              <text
+                x={FLOOR_LABEL_W / 2} y={floorTop + floorH / 2 + 4} textAnchor="middle" fontSize={10} fontWeight={700}
+                fill="#3A4E6E"
+              >
+                {floor.floorNumber}
+              </text>
               {floor.flats.map((p, j) => {
                 const col = j % cols;
                 const row = Math.floor(j / cols);
