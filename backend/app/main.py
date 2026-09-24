@@ -19,6 +19,7 @@ from app.api.v1.properties import router as properties_router
 from app.api.v1.proposals import router as proposals_router
 from app.api.v1.residents import router as residents_router
 from app.api.v1.societies import router as societies_router
+from app.api.v1.staff import router as staff_router
 from app.api.v1.subadmins import router as subadmins_router
 from app.api.v1.uploads import router as uploads_router
 from app.api.v1.users import router as users_router
@@ -37,6 +38,7 @@ app.include_router(societies_router, prefix="/api/v1")
 app.include_router(properties_router, prefix="/api/v1")
 app.include_router(residents_router, prefix="/api/v1")
 app.include_router(subadmins_router, prefix="/api/v1")
+app.include_router(staff_router, prefix="/api/v1")
 app.include_router(payments_router, prefix="/api/v1")
 app.include_router(uploads_router, prefix="/api/v1")
 app.include_router(proposals_router, prefix="/api/v1")

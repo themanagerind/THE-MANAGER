@@ -20,6 +20,7 @@ export const navByRole: Record<Role, NavItem[]> = {
     { label: "Overview", path: "/admin", icon: "home" },
     { label: "Residents", path: "/admin/residents", icon: "people" },
     { label: "Assign Sub-admin", path: "/admin/assign-subadmin", icon: "people" },
+    { label: "Staff", path: "/admin/staff", icon: "people" },
     { label: "Properties", path: "/admin/properties", icon: "society" },
     { label: "MONTHLY MAINTENANCE", path: "/admin/dues", icon: "dues" },
     { label: "Complaints", path: "/admin/complaints", icon: "complaint" },
