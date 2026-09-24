@@ -31,6 +31,8 @@ export interface PaymentOut {
   maintenance_due_id: string;
   property_id: string;
   resident_id: string;
+  resident_name: string;
+  property_house_number: string;
   payment_method: PaymentMethod;
   amount: number;
   /** How much of `amount` was a late-payment penalty (0 if none accrued). */

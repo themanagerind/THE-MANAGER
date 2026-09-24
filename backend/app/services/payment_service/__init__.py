@@ -17,6 +17,8 @@ from app.services.payment_service.queries import (
     list_payments_for_society,
     list_pending_payments,
     list_proofs_for_payment,
+    payment_out,
+    payment_out_list,
 )
 from app.services.payment_service.rejection import reject_payment
 from app.services.payment_service.submission import submit_payment
@@ -31,4 +33,6 @@ __all__ = [
     "list_pending_payments",
     "get_payment",
     "list_proofs_for_payment",
+    "payment_out",
+    "payment_out_list",
 ]

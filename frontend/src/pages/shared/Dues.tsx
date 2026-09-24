@@ -79,6 +79,8 @@ export function DuesPage({ canGenerateBills }: { canGenerateBills: boolean }) {
           <Table<PaymentOut>
             keyFor={(p) => p.id}
             columns={[
+              { header: "Property", render: (p) => p.property_house_number },
+              { header: "Resident", render: (p) => p.resident_name },
               { header: "Amount", render: (p) => `₹${p.amount.toLocaleString("en-IN")}` },
               { header: "Method", render: (p) => p.payment_method },
               { header: "Reference", render: (p) => p.reference_number ?? "—" },
@@ -164,6 +166,8 @@ export function DuesPage({ canGenerateBills }: { canGenerateBills: boolean }) {
             <Table<PaymentOut>
               keyFor={(p) => p.id}
               columns={[
+                { header: "Property", render: (p) => p.property_house_number },
+                { header: "Resident", render: (p) => p.resident_name },
                 { header: "Amount", render: (p) => `₹${p.amount.toLocaleString("en-IN")}` },
                 { header: "Method", render: (p) => p.payment_method },
                 { header: "Status", render: (p) => <Badge status={p.status}>{p.status}</Badge> },

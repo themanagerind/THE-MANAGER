@@ -75,11 +75,20 @@ class SubmitPaymentIn(BaseModel):
 
 
 class PaymentOut(BaseModel):
+    """Not built via model_validate — resident_name/property_house_number
+    are joined in, not columns on Payment; see payment_service.payment_out,
+    same "constructed as a plain object" pattern as maintenance_service.due_out."""
+
     id: uuid.UUID
     society_id: uuid.UUID
     maintenance_due_id: uuid.UUID
     property_id: uuid.UUID
     resident_id: uuid.UUID
+    # Who's paying and which property — without these, an Admin/Sub-admin
+    # approving a payment could only see raw UUIDs and had no way to tell
+    # who the pending approval actually belonged to.
+    resident_name: str
+    property_house_number: str
     payment_method: PaymentMethod
     amount: float
     # How much of `amount` was a late-payment penalty (0 if none accrued).
@@ -93,8 +102,6 @@ class PaymentOut(BaseModel):
     rejected_by: uuid.UUID | None
     rejection_reason: str | None
     created_at: datetime
-
-    model_config = {"from_attributes": True}
 
 
 class PaymentProofOut(BaseModel):

@@ -716,3 +716,43 @@ async def test_waive_penalty_is_admin_only(client: AsyncClient, db_session: Asyn
     headers = auth_headers(resident.id, society_id, Role.RESIDENT, [Role.RESIDENT])
     resp = await client.post(f"/api/v1/payments/maintenance-dues/{due.id}/waive-penalty", headers=headers)
     assert resp.status_code == 403
+
+
+async def test_pending_approval_includes_resident_name_and_property(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    """PaymentOut previously only carried raw resident_id/property_id UUIDs
+    — an Admin or Sub-admin looking at GET /payments/pending had no way to
+    tell whose payment it was without cross-referencing elsewhere (the bug
+    this fixes: the "Pending approval" table showed Amount/Method/Reference
+    only)."""
+    society_id = two_societies_with_admins["a"]["society_id"]
+    admin_id = two_societies_with_admins["a"]["admin_id"]
+    prop, resident = await _seed_resident_with_property(db_session, society_id)
+    due = await _seed_due(db_session, society_id, prop.id)
+
+    resident_headers = auth_headers(resident.id, society_id, Role.RESIDENT, [Role.RESIDENT])
+    resp = await client.post(
+        "/api/v1/payments",
+        json={
+            "maintenance_due_id": str(due.id), "payment_method": "MANUAL_UPI",
+            "idempotency_key": str(uuid.uuid4()), "proof_type": "UPI_SCREENSHOT",
+            "proof_file_url": "https://example.com/proof.png",
+        },
+        headers=resident_headers,
+    )
+    assert resp.status_code == 200
+    assert resp.json()["resident_name"] == "Resident"
+    assert resp.json()["property_house_number"] == "201"
+
+    admin_headers = auth_headers(admin_id, society_id, Role.ADMIN, [Role.ADMIN])
+    resp = await client.get("/api/v1/payments/pending", headers=admin_headers)
+    assert resp.status_code == 200
+    assert len(resp.json()) == 1
+    assert resp.json()[0]["resident_name"] == "Resident"
+    assert resp.json()[0]["property_house_number"] == "201"
+
+    resp = await client.get("/api/v1/payments", headers=admin_headers)
+    assert resp.status_code == 200
+    assert resp.json()["items"][0]["resident_name"] == "Resident"
+    assert resp.json()["items"][0]["property_house_number"] == "201"

@@ -110,7 +110,7 @@ async def submit_payment(
     """Section 14 — Resident submits payment (mock online -> auto PAID;
     manual -> proof required -> PENDING_APPROVAL)."""
     payment = await payment_service.submit_payment(db, current.society_id, current.user_id, body)
-    return PaymentOut.model_validate(payment)
+    return await payment_service.payment_out(db, payment)
 
 
 @router.get("", response_model=Page[PaymentOut])
@@ -139,7 +139,7 @@ async def list_payments(
             db, current.society_id, pagination.skip, pagination.limit
         )
     return Page(
-        items=[PaymentOut.model_validate(p) for p in payments],
+        items=await payment_service.payment_out_list(db, payments),
         total=total, skip=pagination.skip, limit=pagination.limit,
     )
 
@@ -155,7 +155,7 @@ async def list_pending(
             p for p in payments
             if await subadmin_has_scope_over_property(db, current.user_id, p.property_id, current.society_id)
         ]
-    return [PaymentOut.model_validate(p) for p in payments]
+    return await payment_service.payment_out_list(db, payments)
 
 
 @router.post("/{payment_id}/approve", response_model=PaymentOut)
@@ -167,7 +167,7 @@ async def approve(
     """Sub-admin: own scope only (checked inside the service against current
     sub_admin_scopes — Section 27). Admin: any scope."""
     payment = await payment_service.approve_payment(db, current.society_id, current, payment_id)
-    return PaymentOut.model_validate(payment)
+    return await payment_service.payment_out(db, payment)
 
 
 @router.post("/{payment_id}/reject", response_model=PaymentOut)
@@ -180,7 +180,7 @@ async def reject(
     payment = await payment_service.reject_payment(
         db, current.society_id, current, payment_id, body.rejection_reason
     )
-    return PaymentOut.model_validate(payment)
+    return await payment_service.payment_out(db, payment)
 
 
 @router.post("/{payment_id}/correct")
