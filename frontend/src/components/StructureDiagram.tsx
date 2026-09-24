@@ -56,12 +56,16 @@ function boxWidthFor(labels: string[], base: number): number {
 
 /** How many columns to wrap a set of `count` same-size boxes into, so the
  * block reads as a compact, roughly-square grid instead of one long row —
- * picks the column count that makes the grid's width and height come out
- * closest to equal, capped so it never exceeds MAX_GRID_WIDTH. */
-function gridColumns(count: number, boxW: number, boxH: number): number {
+ * e.g. 4 flats on a floor become a 2x2 block, not a 4-tall strip. Column
+ * count is based on `count` alone (a plain ceil(sqrt(count)) grid), capped
+ * so a row never exceeds MAX_GRID_WIDTH. It deliberately ignores box
+ * width/height: weighing by box size used to shrink wide boxes (long,
+ * auto-prefixed house numbers like "A1-101") down to a single column even
+ * for a small, even count like 4 — the opposite of "compact and square". */
+function gridColumns(count: number, boxW: number): number {
   if (count <= 1) return 1;
   const maxCols = Math.max(1, Math.floor((MAX_GRID_WIDTH + GAP_X) / (boxW + GAP_X)));
-  const idealCols = Math.max(1, Math.round(Math.sqrt((count * boxH) / boxW)));
+  const idealCols = Math.ceil(Math.sqrt(count));
   return Math.min(count, maxCols, idealCols);
 }
 
@@ -163,7 +167,7 @@ function BuildingCard({
 
   const winW = boxWidthFor(properties.map((p) => p.house_number), WIN_W);
   const maxFlats = Math.max(...floors.map((f) => f.flats.length), 1);
-  const cols = gridColumns(maxFlats, winW, WIN_H);
+  const cols = gridColumns(maxFlats, winW);
   const width = SIDE_PAD * 2 + cols * winW + (cols - 1) * GAP_X;
 
   const floorLayouts = floors.map((floor) => floorGrid(floor.flats, cols));
@@ -253,7 +257,7 @@ export function WingPreview({
   const flatsPerFloor = sortedFloors.map((f) => properties.filter((p) => p.floor_number === f).sort(byHouseNumber));
   const winW = boxWidthFor(properties.map((p) => p.house_number), WIN_W);
   const maxFlats = Math.max(...flatsPerFloor.map((f) => f.length), 1);
-  const cols = gridColumns(maxFlats, winW, WIN_H);
+  const cols = gridColumns(maxFlats, winW);
   const width = SIDE_PAD * 2 + cols * winW + (cols - 1) * GAP_X;
 
   const floorLayouts = flatsPerFloor.map((flats) => floorGrid(flats, cols));
@@ -334,7 +338,7 @@ export function RowCard({
 
   const houses = [...properties].sort(byHouseNumber);
   const houseW = boxWidthFor(houses.map((p) => p.house_number), HOUSE_W);
-  const cols = gridColumns(houses.length, houseW, HOUSE_H);
+  const cols = gridColumns(houses.length, houseW);
   const rows = Math.ceil(houses.length / cols);
   const width = cols * houseW + (cols - 1) * GAP_X;
   const height = rows * HOUSE_H + (rows - 1) * GAP_Y;
