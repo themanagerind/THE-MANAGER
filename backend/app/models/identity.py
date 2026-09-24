@@ -261,6 +261,13 @@ class PropertyResident(Base, UUIDPKMixin):
     is_active: Mapped[bool] = mapped_column(nullable=False, default=True)
     start_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     end_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    # Free-text reference only, not a real account/login — a Tenant can now
+    # sign up with no Owner account in the system at all (Section 12
+    # invariant not enforced on self-service paths), so there's otherwise
+    # nowhere to see who the Owner is. Self-filled by the Tenant from their
+    # own Profile page (resident_service.update_owner_contact).
+    owner_contact_name: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    owner_contact_mobile: Mapped[str | None] = mapped_column(String(15), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False
     )

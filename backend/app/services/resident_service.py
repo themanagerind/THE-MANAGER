@@ -26,6 +26,7 @@ from app.models.enums import RelationshipType, Role, RoleRequestStatus, SocietyS
 from app.models.identity import Property, PropertyLinkRequest, PropertyResident, Society, User, UserRole
 from app.schemas.resident import (
     AdminSelfResidentLinkIn,
+    OwnerContactUpdateIn,
     PropertyLinkRequestIn,
     PropertyResidentLinkIn,
     ResidentSignupIn,
@@ -370,6 +371,37 @@ async def list_resident_properties(
             )
         )
     ).scalars().all()
+
+
+async def update_owner_contact(
+    db: AsyncSession, society_id: uuid.UUID, resident_id: uuid.UUID, link_id: uuid.UUID, body: OwnerContactUpdateIn
+) -> PropertyResident:
+    """A Tenant self-recording the Owner's contact details on their own
+    active link — free text, not a real account (there may be no Owner
+    account in the system at all to look this up from, since a Tenant can
+    now sign up without one). Only the Tenant themselves can edit their
+    own link; Owner links don't need this (they ARE the Owner)."""
+    link = (
+        await db.execute(
+            select(PropertyResident).where(
+                PropertyResident.id == link_id,
+                PropertyResident.society_id == society_id,
+                PropertyResident.resident_id == resident_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if link is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Property link not found")
+    if link.relationship_type != RelationshipType.TENANT:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Owner contact details only apply to a Tenant's own link")
+    if not link.is_active:
+        raise HTTPException(status.HTTP_409_CONFLICT, "This link is no longer active")
+
+    link.owner_contact_name = body.owner_contact_name.strip() if body.owner_contact_name else None
+    link.owner_contact_mobile = body.owner_contact_mobile.strip() if body.owner_contact_mobile else None
+    await db.commit()
+    await db.refresh(link)
+    return link
 
 
 async def submit_property_link_request(

@@ -19,6 +19,8 @@ export interface PropertyResidentOut {
   is_active: boolean;
   start_date: string | null;
   end_date: string | null;
+  owner_contact_name: string | null;
+  owner_contact_mobile: string | null;
 }
 
 export interface SubAdminScopeOut {
@@ -89,6 +91,14 @@ export const residentsApi = {
       property_id: propertyId, relationship_type: relationshipType,
     }),
   byProperty: (propertyId: string) => apiClient.get<PropertyResidentOut[]>(`/residents/by-property/${propertyId}`),
+  /** Tenant-only, on their own active link — self-recording the Owner's
+   * contact details (free text, not a real account) since a Tenant can
+   * now sign up with no Owner account in the system to look this up
+   * from. Pass null/omit to clear a field. */
+  updateOwnerContact: (linkId: string, ownerContactName?: string | null, ownerContactMobile?: string | null) =>
+    apiClient.patch<PropertyResidentOut>(`/residents/property-links/${linkId}/owner-contact`, {
+      owner_contact_name: ownerContactName, owner_contact_mobile: ownerContactMobile,
+    }),
   /** Resident-only — from their own Profile page, requesting to link
    * themselves to an additional property. Unlike linkSelf/signup, this
    * stays PENDING until the Admin approves it (see decidePropertyLinkRequest

@@ -9,6 +9,12 @@ export interface PropertyResidentLink {
   is_active: boolean;
   start_date: string | null;
   end_date: string | null;
+  /** Free-text, self-filled by a Tenant (see residentsApi.updateOwnerContact)
+   * — there may be no Owner account in the system at all to look this up
+   * from, since a Tenant can now sign up without one. Always null on an
+   * Owner's own link. */
+  owner_contact_name: string | null;
+  owner_contact_mobile: string | null;
 }
 
 export interface PropertyOut {

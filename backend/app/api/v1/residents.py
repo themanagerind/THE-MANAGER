@@ -10,6 +10,7 @@ from app.core.security import CurrentUser, require_role
 from app.models.enums import Role, UserStatus
 from app.schemas.resident import (
     AdminSelfResidentLinkIn,
+    OwnerContactUpdateIn,
     PropertyLinkRequestDecisionIn,
     PropertyLinkRequestIn,
     PropertyLinkRequestOut,
@@ -101,6 +102,21 @@ async def unlink_property(
     current: Annotated[CurrentUser, Depends(require_role(Role.ADMIN))],
 ) -> PropertyResidentOut:
     link = await resident_service.unlink_resident_from_property(db, current.society_id, link_id)
+    return PropertyResidentOut.model_validate(link)
+
+
+@router.patch("/property-links/{link_id}/owner-contact", response_model=PropertyResidentOut)
+async def update_owner_contact(
+    link_id: uuid.UUID,
+    body: OwnerContactUpdateIn,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current: Annotated[CurrentUser, Depends(require_role(Role.RESIDENT))],
+) -> PropertyResidentOut:
+    """A Tenant self-recording the Owner's contact details on their own
+    Profile page — see resident_service.update_owner_contact's docstring
+    for why this exists (a Tenant can sign up with no Owner account in
+    the system at all)."""
+    link = await resident_service.update_owner_contact(db, current.society_id, current.user_id, link_id, body)
     return PropertyResidentOut.model_validate(link)
 
 

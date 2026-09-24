@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { usersApi } from "@/api/users";
 import { residentsApi } from "@/api/residents";
-import { propertiesApi, type PropertyOut } from "@/api/properties";
+import { propertiesApi, type PropertyOut, type PropertyResidentLink } from "@/api/properties";
 import { Loader, ErrorState, apiErrorMessage } from "@/components/States";
 import { Badge } from "@/components/Badge";
 import { Button } from "@/components/Button";
@@ -158,14 +158,14 @@ function MyPropertiesSection({ residentId }: { residentId: string }) {
         <p className="text-sm text-navy-muted">No properties linked yet.</p>
       )}
       {activeLinks.length > 0 && (
-        <ul className="space-y-1">
+        <ul className="space-y-2">
           {activeLinks.map((l) => (
-            <li
-              key={l.id}
-              className="flex items-center justify-between text-sm text-ink border border-line rounded px-3 py-1.5 bg-white"
-            >
-              <span>{propertyById.get(l.property_id)?.house_number ?? "—"}</span>
-              <span className="text-xs text-navy-muted">{l.relationship_type === "OWNER" ? "Owner" : "Tenant"}</span>
+            <li key={l.id} className="border border-line rounded px-3 py-2 bg-white space-y-1.5">
+              <div className="flex items-center justify-between text-sm text-ink">
+                <span>{propertyById.get(l.property_id)?.house_number ?? "—"}</span>
+                <span className="text-xs text-navy-muted">{l.relationship_type === "OWNER" ? "Owner" : "Tenant"}</span>
+              </div>
+              {l.relationship_type === "TENANT" && <OwnerContactRow link={l} residentId={residentId} />}
             </li>
           ))}
         </ul>
@@ -220,6 +220,76 @@ function MyPropertiesSection({ residentId }: { residentId: string }) {
           }}
         />
       )}
+    </div>
+  );
+}
+
+/**
+ * Owner contact details for a Tenant's own link — a Tenant can now sign
+ * up (or request a link) with no Owner account in the system at all, so
+ * there's otherwise no record of who the Owner actually is. Self-filled,
+ * free text, not a real account/login.
+ */
+function OwnerContactRow({ link, residentId }: { link: PropertyResidentLink; residentId: string }) {
+  const queryClient = useQueryClient();
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(link.owner_contact_name ?? "");
+  const [mobile, setMobile] = useState(link.owner_contact_mobile ?? "");
+
+  const save = useMutation({
+    mutationFn: () => residentsApi.updateOwnerContact(link.id, name.trim() || null, mobile.trim() || null),
+    onSuccess: () => {
+      setEditing(false);
+      void queryClient.invalidateQueries({ queryKey: ["profile", "my-properties", residentId] });
+    },
+  });
+
+  if (!editing) {
+    return (
+      <div className="flex items-center justify-between text-xs text-navy-muted pt-1 border-t border-line">
+        {link.owner_contact_name || link.owner_contact_mobile ? (
+          <span>
+            Owner: {link.owner_contact_name || "—"}
+            {link.owner_contact_mobile && ` · ${link.owner_contact_mobile}`}
+          </span>
+        ) : (
+          <span>Owner details not added</span>
+        )}
+        <button className="underline shrink-0 ml-2" onClick={() => setEditing(true)}>
+          {link.owner_contact_name || link.owner_contact_mobile ? "Edit" : "+ Add owner details"}
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2 pt-1 border-t border-line">
+      <Input label="Owner's name" value={name} onChange={(e) => setName(e.target.value)} />
+      <Input
+        label="Owner's mobile (optional)"
+        type="tel"
+        inputMode="numeric"
+        value={mobile}
+        onChange={(e) => setMobile(e.target.value.replace(/\D/g, "").slice(0, 10))}
+      />
+      {save.isError && (
+        <p className="text-xs text-danger">{apiErrorMessage(save.error, "Couldn't save owner details.")}</p>
+      )}
+      <div className="flex justify-end gap-2">
+        <button
+          className="text-xs text-navy-muted underline"
+          onClick={() => {
+            setEditing(false);
+            setName(link.owner_contact_name ?? "");
+            setMobile(link.owner_contact_mobile ?? "");
+          }}
+        >
+          Cancel
+        </button>
+        <Button variant="secondary" loading={save.isPending} onClick={() => save.mutate()}>
+          Save
+        </Button>
+      </div>
     </div>
   );
 }

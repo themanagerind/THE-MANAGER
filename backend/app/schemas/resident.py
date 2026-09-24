@@ -76,8 +76,23 @@ class PropertyResidentOut(BaseModel):
     is_active: bool
     start_date: date | None
     end_date: date | None
+    owner_contact_name: str | None
+    owner_contact_mobile: str | None
 
     model_config = {"from_attributes": True}
+
+
+class OwnerContactUpdateIn(BaseModel):
+    """A Tenant recording the Owner's contact details themselves, from
+    their own Profile page (resident_service.update_owner_contact) — free
+    text, not a real account. There may be no Owner account in the system
+    at all to look this up from (Section 12 invariant not enforced on
+    self-service signup/request paths), so this is the only record of who
+    the Owner actually is. Both fields optional — either can be cleared by
+    passing an empty string/null."""
+
+    owner_contact_name: str | None = None
+    owner_contact_mobile: str | None = None
 
 
 class PropertyLinkRequestIn(BaseModel):
