@@ -195,23 +195,38 @@ function ProofModal({ payment, onClose }: { payment: PaymentOut; onClose: () => 
 function GenerateBillsModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
   const today = new Date();
   const defaultMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-01`;
-  const [amount, setAmount] = useState("");
+  const [occupiedAmount, setOccupiedAmount] = useState("");
+  const [vacantAmount, setVacantAmount] = useState("");
   const [billingMonth, setBillingMonth] = useState(defaultMonth);
   const [error, setError] = useState<string | null>(null);
 
   const generate = useMutation({
-    mutationFn: () => paymentsApi.generateBills(Number(amount), billingMonth),
+    mutationFn: () => paymentsApi.generateBills(Number(occupiedAmount), Number(vacantAmount), billingMonth),
     onSuccess,
     onError: (e) => setError(apiErrorMessage(e, "Could not generate bills.")),
   });
+
+  const canSubmit = !!occupiedAmount && Number(occupiedAmount) >= 0 && !!vacantAmount && Number(vacantAmount) >= 0;
 
   return (
     <Modal open onClose={onClose} title="Generate monthly bills">
       <div className="space-y-4">
         <p className="text-xs text-navy-muted">
-          Section 13.2: creates one bill per active property, society-wide, for the given month.
+          Section 13.2: creates one bill per active property, society-wide, for the given month — occupied flats/
+          houses get one amount, vacant ones another.
         </p>
-        <Input label="Amount per property (₹)" type="number" value={amount} onChange={(e) => setAmount(e.target.value)} />
+        <Input
+          label="Occupied flats/houses — amount (₹)"
+          type="number"
+          value={occupiedAmount}
+          onChange={(e) => setOccupiedAmount(e.target.value)}
+        />
+        <Input
+          label="Vacant flats/houses — amount (₹)"
+          type="number"
+          value={vacantAmount}
+          onChange={(e) => setVacantAmount(e.target.value)}
+        />
         <Input
           label="Billing month"
           type="date"
@@ -221,7 +236,7 @@ function GenerateBillsModal({ onClose, onSuccess }: { onClose: () => void; onSuc
         {error && <p className="text-sm text-danger">{error}</p>}
         <div className="flex gap-2 justify-end pt-2">
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button loading={generate.isPending} disabled={!amount || Number(amount) <= 0} onClick={() => generate.mutate()}>
+          <Button loading={generate.isPending} disabled={!canSubmit} onClick={() => generate.mutate()}>
             Generate
           </Button>
         </div>

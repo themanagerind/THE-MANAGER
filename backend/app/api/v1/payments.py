@@ -35,7 +35,7 @@ async def generate_bills(
 ) -> list[MaintenanceDueOut]:
     """Section 13.2 — Admin one-click monthly generation."""
     dues = await maintenance_service.generate_monthly_bills(
-        db, current.society_id, body.amount, body.billing_month
+        db, current.society_id, body.occupied_amount, body.vacant_amount, body.billing_month
     )
     return [MaintenanceDueOut.model_validate(d) for d in dues]
 

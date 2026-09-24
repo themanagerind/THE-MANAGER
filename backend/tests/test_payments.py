@@ -265,10 +265,80 @@ async def test_manager_can_view_property_dues_but_not_generate_or_correct(
 
     resp = await client.post(
         "/api/v1/payments/maintenance-dues/generate",
-        json={"amount": 1000.0, "billing_month": date.today().replace(day=1).isoformat()},
+        json={"occupied_amount": 1000.0, "vacant_amount": 500.0, "billing_month": date.today().replace(day=1).isoformat()},
         headers=headers,
     )
     assert resp.status_code == 403
+
+
+async def test_generate_bills_charges_occupied_and_vacant_amounts_separately(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    """Section 13.2 extension: a society always has some empty flats/
+    houses alongside occupied ones — generation takes two amounts, and
+    each property's bill picks the one matching whether it currently has
+    an active Owner/Tenant link."""
+    society_id = two_societies_with_admins["a"]["society_id"]
+    admin_id = two_societies_with_admins["a"]["admin_id"]
+
+    occupied_prop, _resident = await _seed_resident_with_property(db_session, society_id)
+
+    loc = SocietyLocation(society_id=society_id, name="Wing B", location_type=LocationType.WING)
+    db_session.add(loc)
+    await db_session.flush()
+    vacant_prop = Property(
+        society_id=society_id, location_id=loc.id, house_number="301",
+        house_type=HouseType.FLAT, floor_number=3, status="ACTIVE",
+    )
+    db_session.add(vacant_prop)
+    await db_session.commit()
+    await db_session.refresh(vacant_prop)
+
+    headers = auth_headers(admin_id, society_id, Role.ADMIN, [Role.ADMIN])
+    resp = await client.post(
+        "/api/v1/payments/maintenance-dues/generate",
+        json={
+            "occupied_amount": 2000.0, "vacant_amount": 500.0,
+            "billing_month": date.today().replace(day=1).isoformat(),
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    by_property = {d["property_id"]: d["amount"] for d in resp.json()}
+    assert by_property[str(occupied_prop.id)] == 2000.0
+    assert by_property[str(vacant_prop.id)] == 500.0
+
+
+async def test_generate_bills_treats_a_property_with_only_an_inactive_link_as_vacant(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    """A property whose only PropertyResident row has is_active=False (a
+    past Owner/Tenant who moved out, unlink not yet followed by a new
+    link) must still be billed at the vacant rate, not the occupied one."""
+    society_id = two_societies_with_admins["a"]["society_id"]
+    admin_id = two_societies_with_admins["a"]["admin_id"]
+
+    prop, resident = await _seed_resident_with_property(db_session, society_id)
+    link = (
+        await db_session.execute(
+            select(PropertyResident).where(PropertyResident.property_id == prop.id)
+        )
+    ).scalar_one()
+    link.is_active = False
+    await db_session.commit()
+
+    headers = auth_headers(admin_id, society_id, Role.ADMIN, [Role.ADMIN])
+    resp = await client.post(
+        "/api/v1/payments/maintenance-dues/generate",
+        json={
+            "occupied_amount": 2000.0, "vacant_amount": 500.0,
+            "billing_month": date.today().replace(day=1).isoformat(),
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    by_property = {d["property_id"]: d["amount"] for d in resp.json()}
+    assert by_property[str(prop.id)] == 500.0
 
 
 async def test_paid_due_cannot_be_paid_again(

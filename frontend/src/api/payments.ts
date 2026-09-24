@@ -95,9 +95,12 @@ export const paymentsApi = {
   proofs: (paymentId: string) => apiClient.get<PaymentProofOut[]>(`/payments/${paymentId}/proofs`),
 
   // --- Admin/Sub-admin (Section 13.2, 13.3, 27) ---
-  generateBills: (amount: number, billingMonth: string) =>
+  /** occupiedAmount applies to a property with at least one active Owner/
+   * Tenant link at generation time; vacantAmount to every other one — a
+   * society always has some empty flats/houses alongside occupied ones. */
+  generateBills: (occupiedAmount: number, vacantAmount: number, billingMonth: string) =>
     apiClient.post<MaintenanceDueOut[]>("/payments/maintenance-dues/generate", {
-      amount, billing_month: billingMonth,
+      occupied_amount: occupiedAmount, vacant_amount: vacantAmount, billing_month: billingMonth,
     }),
   allDues: () => apiClient.get<MaintenanceDueOut[]>("/payments/maintenance-dues"),
   list: (skip: number, limit: number) =>

@@ -7,7 +7,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.enums import MaintenanceDueStatus
-from app.models.identity import Property
+from app.models.identity import Property, PropertyResident
 from app.models.payments import MaintenanceDue
 
 
@@ -16,11 +16,14 @@ def _first_of_month(d: date) -> date:
 
 
 async def generate_monthly_bills(
-    db: AsyncSession, society_id: uuid.UUID, amount: float, billing_month: date
+    db: AsyncSession, society_id: uuid.UUID, occupied_amount: float, vacant_amount: float, billing_month: date
 ) -> list[MaintenanceDue]:
-    """Admin enters ONE amount + month -> system creates ONE bill per
+    """Admin enters TWO amounts + month -> system creates ONE bill per
     property, society-wide (Section 13.2, resolved: 1 bill per property,
-    not per resident-relationship).
+    not per resident-relationship) — occupied_amount for a property with
+    at least one active Owner/Tenant link, vacant_amount for everything
+    else (a society routinely has some empty flats/houses, which
+    typically carry a lower or zero maintenance rate).
 
     Concurrency fix (audit round-8 item 9): uses a single `INSERT ... ON
     CONFLICT (society_id, property_id, billing_month) DO NOTHING` statement
@@ -38,13 +41,23 @@ async def generate_monthly_bills(
     if not properties:
         return []
 
+    occupied_property_ids = set(
+        (
+            await db.execute(
+                select(PropertyResident.property_id).where(
+                    PropertyResident.society_id == society_id, PropertyResident.is_active.is_(True)
+                ).distinct()
+            )
+        ).scalars().all()
+    )
+
     now = datetime.now(timezone.utc)
     rows = [
         {
             "id": uuid.uuid4(),
             "society_id": society_id,
             "property_id": prop.id,
-            "amount": amount,
+            "amount": occupied_amount if prop.id in occupied_property_ids else vacant_amount,
             "due_date": month,
             "status": MaintenanceDueStatus.PENDING.value,
             "billing_month": month,

@@ -13,10 +13,15 @@ from app.models.enums import (
 
 
 class GenerateMonthlyBillsIn(BaseModel):
-    """Section 13.2 — Admin one-click monthly bill generation:
-    single amount + month -> one bill per property, society-wide."""
+    """Section 13.2 — Admin one-click monthly bill generation: two
+    amounts (a society always has some vacant flats/houses alongside
+    occupied ones) + month -> one bill per property, society-wide.
+    "Occupied" means the property has at least one active Owner/Tenant
+    link (property_residents.is_active) at generation time; everything
+    else gets the vacant amount."""
 
-    amount: float
+    occupied_amount: float
+    vacant_amount: float
     billing_month: date  # any date within the month; normalized to 1st
 
 
