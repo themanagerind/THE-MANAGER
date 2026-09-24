@@ -23,4 +23,16 @@
       transition-duration: 0.01ms !important;
     }
   }
+  /* Every dashboard (AppShell.tsx's root) renders fully upper-case — but
+     text-transform, though inherited by ordinary elements, is reset by
+     the browser's own UA stylesheet on form controls (button/input/
+     select/textarea/option don't inherit it from an ancestor the way a
+     div or span does), so those need it re-asserted explicitly here. */
+  .dashboard-uppercase button,
+  .dashboard-uppercase input,
+  .dashboard-uppercase select,
+  .dashboard-uppercase textarea,
+  .dashboard-uppercase option {
+    text-transform: uppercase;
+  }
 }

@@ -55,7 +55,19 @@ export function AppShell() {
   const { label: headerLabel, hasAvatar } = useHeaderIdentity(activeRole);
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row bg-paper">
+    // `uppercase` here, not scattered across every page — text-transform is
+    // an inherited CSS property, so one class on the dashboard's own root
+    // (this wrapper — Login/Signup live outside AppShell, App.tsx routes,
+    // and are deliberately unaffected) capitalizes every letter rendered
+    // anywhere inside every role's dashboard, including modals (Modal.tsx
+    // renders inline, not through a portal, so it's still inside this DOM
+    // subtree) — without touching the underlying data or hardcoding
+    // shouting-case strings into every component. Tailwind's `uppercase`
+    // utility handles ordinary elements via inheritance; `dashboard-uppercase`
+    // (index.css) re-asserts it on form controls (button/input/select/
+    // textarea/option), which the browser's own UA stylesheet otherwise
+    // exempts from inheriting text-transform.
+    <div className="min-h-screen flex flex-col md:flex-row bg-paper uppercase dashboard-uppercase">
       {/* Desktop sidebar */}
       <aside className="hidden md:flex md:w-64 md:flex-col bg-navy text-white">
         <div className="px-6 py-5 border-b border-white/10 flex items-center gap-3">
