@@ -14,6 +14,7 @@ from app.schemas.pagination import Page, Pagination, pagination_params
 from app.schemas.payment import (
     CorrectPaymentIn,
     GenerateMonthlyBillsIn,
+    MaintenanceDueByLocationOut,
     MaintenanceDueOut,
     PaymentOut,
     PaymentProofOut,
@@ -85,6 +86,19 @@ async def list_dues_for_property(
         )
     dues = await maintenance_service.list_dues_for_property(db, current.society_id, property_id)
     return [maintenance_service.due_out(d) for d in dues]
+
+
+@router.get("/maintenance-dues/by-location/{location_id}", response_model=list[MaintenanceDueByLocationOut])
+async def list_outstanding_dues_by_location(
+    location_id: uuid.UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current: Annotated[CurrentUser, Depends(require_role(Role.ADMIN, Role.MANAGER))],
+) -> list[MaintenanceDueByLocationOut]:
+    """Manager's Wing/Row outstanding-dues view — every PENDING due across
+    a Wing/Row's properties in one call, instead of opening each property
+    one at a time via by-property above. Admin included for consistency,
+    though Admin already sees everything via the unscoped list above."""
+    return await maintenance_service.list_outstanding_dues_by_location(db, current.society_id, location_id)
 
 
 @router.post("/maintenance-dues/{due_id}/waive-penalty", response_model=MaintenanceDueOut)

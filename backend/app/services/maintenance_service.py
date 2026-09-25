@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.enums import MaintenanceDueStatus
 from app.models.identity import Property, PropertyResident
 from app.models.payments import MaintenanceDue
-from app.schemas.payment import MaintenanceDueOut
+from app.schemas.payment import MaintenanceDueByLocationOut, MaintenanceDueOut
 
 
 def _first_of_month(d: date) -> date:
@@ -118,6 +118,39 @@ async def list_dues_for_society(db: AsyncSession, society_id: uuid.UUID) -> list
     return (
         await db.execute(select(MaintenanceDue).where(MaintenanceDue.society_id == society_id))
     ).scalars().all()
+
+
+async def list_outstanding_dues_by_location(
+    db: AsyncSession, society_id: uuid.UUID, location_id: uuid.UUID
+) -> list[MaintenanceDueByLocationOut]:
+    """Every still-PENDING due for a Wing/Row's properties, one query
+    instead of a Manager opening each property one at a time — the
+    house_number is joined in since a Manager only sees property_id
+    otherwise, and there's no per-property picker here to already know
+    which flat a bare UUID belongs to."""
+    rows = (
+        await db.execute(
+            select(MaintenanceDue, Property.house_number)
+            .join(Property, Property.id == MaintenanceDue.property_id)
+            .where(
+                Property.society_id == society_id,
+                Property.location_id == location_id,
+                MaintenanceDue.status == MaintenanceDueStatus.PENDING,
+            )
+            .order_by(MaintenanceDue.due_date)
+        )
+    ).all()
+    result = []
+    for due, house_number in rows:
+        penalty = compute_penalty(due)
+        result.append(
+            MaintenanceDueByLocationOut(
+                id=due.id, property_id=due.property_id, property_house_number=house_number,
+                billing_month=due.billing_month, amount=float(due.amount), due_date=due.due_date,
+                status=due.status, penalty_amount=penalty, total_amount=float(due.amount) + penalty,
+            )
+        )
+    return result
 
 
 async def _get_due_or_404(db: AsyncSession, society_id: uuid.UUID, due_id: uuid.UUID) -> MaintenanceDue:

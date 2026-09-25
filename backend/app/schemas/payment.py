@@ -64,6 +64,28 @@ class MaintenanceDueOut(BaseModel):
     total_amount: float
 
 
+class MaintenanceDueByLocationOut(BaseModel):
+    """Manager's Wing/Row outstanding-dues view (Section 13.2 read scope):
+    one row per PENDING due for every property in a Wing/Row, so a Manager
+    doesn't have to open each property one at a time to find who's
+    outstanding. property_house_number is included so a bare property_id
+    UUID isn't the only way to tell which flat a row is — same "not
+    built via model_validate" shape as MaintenanceDueOut, joined in from
+    Property rather than a column on MaintenanceDue. Deliberately carries
+    no resident_id/name: Manager's finance visibility is property-level
+    only (finalized requirement, same as MaintenanceDueOut/by-property)."""
+
+    id: uuid.UUID
+    property_id: uuid.UUID
+    property_house_number: str
+    billing_month: date
+    amount: float
+    due_date: date
+    status: MaintenanceDueStatus
+    penalty_amount: float
+    total_amount: float
+
+
 class SubmitPaymentIn(BaseModel):
     maintenance_due_id: uuid.UUID
     payment_method: PaymentMethod

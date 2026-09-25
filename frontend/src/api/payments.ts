@@ -25,6 +25,23 @@ export interface MaintenanceDueOut {
   total_amount: number;
 }
 
+/** Manager's Wing/Row outstanding-dues view — one row per still-PENDING
+ * due across every property in a Wing/Row. No resident_id/name (Manager's
+ * finance visibility is property-level only), but does carry
+ * property_house_number since there's no per-property picker here to
+ * already know which flat a bare property_id belongs to. */
+export interface MaintenanceDueByLocationOut {
+  id: string;
+  property_id: string;
+  property_house_number: string;
+  billing_month: string;
+  amount: number;
+  due_date: string;
+  status: MaintenanceDueStatus;
+  penalty_amount: number;
+  total_amount: number;
+}
+
 export interface PaymentOut {
   id: string;
   society_id: string;
@@ -75,6 +92,10 @@ export interface PaymentProofOut {
 export const paymentsApi = {
   duesForProperty: (propertyId: string) =>
     apiClient.get<MaintenanceDueOut[]>(`/payments/maintenance-dues/by-property/${propertyId}`),
+  /** Manager's Wing/Row outstanding view — every PENDING due across a
+   * Wing/Row's properties in one call. */
+  outstandingDuesByLocation: (locationId: string) =>
+    apiClient.get<MaintenanceDueByLocationOut[]>(`/payments/maintenance-dues/by-location/${locationId}`),
 
   /** Section 37: if the request fails because we're offline, the write is
    * queued (src/api/offlineQueue.ts) instead of surfacing an error — the

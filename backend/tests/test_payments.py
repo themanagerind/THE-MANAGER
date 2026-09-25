@@ -315,6 +315,59 @@ async def test_manager_can_view_property_dues_but_not_generate_or_correct(
     assert resp.status_code == 403
 
 
+async def test_manager_can_view_outstanding_dues_by_wing(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    """Manager's Wing-wise outstanding view: one PENDING due per property
+    across the whole Wing, in one call — a different Wing's due and an
+    already-PAID due in the same Wing must both be excluded."""
+    society_id = two_societies_with_admins["a"]["society_id"]
+
+    prop_a1, _ = await _seed_resident_with_property(db_session, society_id)
+    wing_a_id = prop_a1.location_id
+    due_a1 = await _seed_due(db_session, society_id, prop_a1.id, amount=1200.0)
+
+    prop_a2 = Property(
+        society_id=society_id, location_id=wing_a_id, house_number="202",
+        house_type=HouseType.FLAT, floor_number=2, status="ACTIVE",
+    )
+    db_session.add(prop_a2)
+    await db_session.flush()
+    await db_session.commit()
+    await db_session.refresh(prop_a2)
+    due_a2_paid = await _seed_due(db_session, society_id, prop_a2.id, amount=1200.0)
+    due_a2_paid.status = MaintenanceDueStatus.PAID
+    await db_session.commit()
+
+    wing_b = SocietyLocation(society_id=society_id, name="Wing B", location_type=LocationType.WING)
+    db_session.add(wing_b)
+    await db_session.flush()
+    prop_b = Property(
+        society_id=society_id, location_id=wing_b.id, house_number="301",
+        house_type=HouseType.FLAT, floor_number=3, status="ACTIVE",
+    )
+    db_session.add(prop_b)
+    await db_session.flush()
+    await db_session.commit()
+    await db_session.refresh(prop_b)
+    await _seed_due(db_session, society_id, prop_b.id, amount=1500.0)
+
+    manager = User(society_id=society_id, full_name="Wing Manager", mobile="9400000002", status=UserStatus.ACTIVE)
+    db_session.add(manager)
+    await db_session.flush()
+    db_session.add(UserRole(user_id=manager.id, role=Role.MANAGER, assigned_at=datetime.now(timezone.utc)))
+    await db_session.commit()
+    headers = auth_headers(manager.id, society_id, Role.MANAGER, [Role.MANAGER])
+
+    resp = await client.get(f"/api/v1/payments/maintenance-dues/by-location/{wing_a_id}", headers=headers)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert len(body) == 1
+    assert body[0]["id"] == str(due_a1.id)
+    assert body[0]["property_house_number"] == "201"
+    assert body[0]["status"] == "PENDING"
+
+
 async def test_generate_bills_charges_occupied_and_vacant_amounts_separately(
     client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
 ):
