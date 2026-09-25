@@ -209,6 +209,42 @@ async def test_payment_correction_creates_adjustment_not_new_payment(
     assert float(wallet.balance) == 4500.0
 
 
+async def test_correction_rejects_non_positive_new_amount(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    """Audit fix: new_amount was previously unvalidated at the schema level
+    — a non-positive value only failed at commit via the DB's
+    ck_payments_amount_positive constraint (transaction rolled back
+    correctly either way, but as an unhandled 500 instead of a clean 400)."""
+    society_id = two_societies_with_admins["a"]["society_id"]
+    admin_id = two_societies_with_admins["a"]["admin_id"]
+    prop, resident = await _seed_resident_with_property(db_session, society_id)
+    due = await _seed_due(db_session, society_id, prop.id, amount=5000.0)
+
+    resident_headers = auth_headers(resident.id, society_id, Role.RESIDENT, [Role.RESIDENT])
+    resp = await client.post(
+        "/api/v1/payments",
+        json={"maintenance_due_id": str(due.id), "payment_method": "MOCK_ONLINE", "idempotency_key": str(uuid.uuid4())},
+        headers=resident_headers,
+    )
+    payment_id = resp.json()["id"]
+
+    admin_headers = auth_headers(admin_id, society_id, Role.ADMIN, [Role.ADMIN])
+    resp = await client.post(
+        f"/api/v1/payments/{payment_id}/correct",
+        json={"new_amount": 0, "reason": "Should be rejected"},
+        headers=admin_headers,
+    )
+    assert resp.status_code == 422
+
+    resp = await client.post(
+        f"/api/v1/payments/{payment_id}/correct",
+        json={"new_amount": -100, "reason": "Should be rejected"},
+        headers=admin_headers,
+    )
+    assert resp.status_code == 422
+
+
 async def test_resident_cannot_view_other_propertys_dues(
     client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
 ):

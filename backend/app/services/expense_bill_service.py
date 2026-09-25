@@ -93,6 +93,24 @@ async def finalize_draft(
     return bill
 
 
+async def has_pending_bills(db: AsyncSession, society_id: uuid.UUID) -> bool:
+    """True if any expense bill in this society is still PENDING_APPROVAL —
+    used by subadmin_service to block the last active Sub-admin from being
+    removed (demote or resignation-approval). Every decision on a bill
+    requires an active Sub-admin caller (Section 23), so dropping the
+    active count to 0 while one is pending would leave it permanently
+    stuck: unable to be approved (0 active means the 100% threshold can
+    never be met) or rejected (no one left who's allowed to)."""
+    result = (
+        await db.execute(
+            select(ExpenseBill.id)
+            .where(ExpenseBill.society_id == society_id, ExpenseBill.status == ExpenseBillStatus.PENDING_APPROVAL)
+            .limit(1)
+        )
+    ).first()
+    return result is not None
+
+
 async def get_bill(db: AsyncSession, society_id: uuid.UUID, bill_id: uuid.UUID) -> ExpenseBill:
     bill = (
         await db.execute(

@@ -111,6 +111,19 @@ async def list_bookings(db: AsyncSession, society_id: uuid.UUID, skip: int = 0, 
     return rows, total
 
 
+async def list_all_bookings_for_society(db: AsyncSession, society_id: uuid.UUID) -> list[AmenityBooking]:
+    """Unpaginated — used when the caller (Sub-admin) needs to filter by
+    scope before paginating, since filtering after an offset/limit slice
+    would silently return short pages and a wrong total (same pattern as
+    payment_service.list_all_payments_for_society)."""
+    return (
+        await db.execute(
+            select(AmenityBooking).where(AmenityBooking.society_id == society_id)
+            .order_by(AmenityBooking.booking_date.desc())
+        )
+    ).scalars().all()
+
+
 async def list_my_bookings(db: AsyncSession, society_id: uuid.UUID, resident_id: uuid.UUID, skip: int = 0, limit: int = 20) -> tuple[list[AmenityBooking], int]:
     from sqlalchemy import func
     total = (
@@ -147,6 +160,21 @@ async def decide_booking(
         db, decider_id, booking.property_id, society_id
     ):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Booking's property is outside your assigned scope")
+
+    # Row lock (audit fix — TOCTOU gap in the overlap re-check below): locks
+    # every PENDING/APPROVED booking for this amenity+date before checking
+    # for a conflict, so two decide_booking calls approving two different,
+    # time-overlapping PENDING bookings at the same instant serialize
+    # instead of both passing the "any other APPROVED overlap?" check
+    # before either has committed (same pattern as proposal_service.
+    # cast_vote's row lock).
+    await db.execute(
+        select(AmenityBooking.id).where(
+            AmenityBooking.amenity_id == booking.amenity_id,
+            AmenityBooking.booking_date == booking.booking_date,
+            AmenityBooking.status.in_(_BLOCKING_STATUSES),
+        ).with_for_update()
+    )
 
     # create_booking already blocks a new request from overlapping an
     # existing PENDING/APPROVED one, but two PENDING requests for the same

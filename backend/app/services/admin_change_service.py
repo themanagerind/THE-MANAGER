@@ -393,7 +393,20 @@ async def decide_admin_change_approval(
     if approval is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "No such approval assigned to you")
 
-    req = (await db.execute(select(AdminChangeRequest).where(AdminChangeRequest.id == request_id))).scalar_one_or_none()
+    # Row lock (same pattern as proposal_service.cast_vote/expense_bill_
+    # service's approval flows): without it, two Sub-admins' concurrent
+    # decisions each read _progress() before the other's decision commits,
+    # so under READ COMMITTED both see `done` one short of `total` and
+    # neither finalizes — the request is then stuck PENDING forever with
+    # every approval actually done (and _reject_if_pending_request_exists
+    # blocks any new request for the society until it's fixed by hand).
+    # Locking the request row serializes concurrent decisions on it, so
+    # the second one always sees the first's already-committed approval.
+    req = (
+        await db.execute(
+            select(AdminChangeRequest).where(AdminChangeRequest.id == request_id).with_for_update()
+        )
+    ).scalar_one_or_none()
     if req is None or req.society_id != society_id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Request not found in this society")
     if req.status != RoleRequestStatus.PENDING:

@@ -2,7 +2,7 @@
 import uuid
 from datetime import date, datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.models.enums import (
     MaintenanceDueStatus,
@@ -124,7 +124,12 @@ class RejectPaymentIn(BaseModel):
 
 
 class CorrectPaymentIn(BaseModel):
-    new_amount: float
+    # Audit fix: previously unvalidated, so a non-positive new_amount only
+    # failed at commit via the DB's ck_payments_amount_positive constraint
+    # — the whole transaction (wallet txn, ledger entry, correction row)
+    # rolled back atomically either way, but as an unhandled 500 instead of
+    # a clean 400.
+    new_amount: float = Field(gt=0)
     reason: str
 
 

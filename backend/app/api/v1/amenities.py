@@ -19,6 +19,7 @@ from app.schemas.amenity import (
 )
 from app.schemas.pagination import Page, Pagination, pagination_params
 from app.services import amenity_service
+from app.services.scope_service import subadmin_has_scope_over_property
 
 router = APIRouter(prefix="/amenities", tags=["amenities"])
 
@@ -84,6 +85,22 @@ async def list_bookings(
         bookings, total = await amenity_service.list_my_bookings(
             db, current.society_id, current.user_id, pagination.skip, pagination.limit
         )
+    elif current.active_role == Role.SUB_ADMIN:
+        # Audit fix: this previously fell through to the unfiltered Admin
+        # branch below, so a Sub-admin scoped to one Wing/Row could read
+        # every booking (and its resident_id/property_id) society-wide —
+        # decide_booking is correctly scope-checked, but this read wasn't.
+        # Scope filtering has to happen BEFORE pagination — doing it after
+        # the SQL offset/limit slice would silently return short pages and
+        # a `total` that counts the whole society, not the Sub-admin's
+        # scope (same pattern as payments.list_payments).
+        all_bookings = await amenity_service.list_all_bookings_for_society(db, current.society_id)
+        scoped = [
+            b for b in all_bookings
+            if await subadmin_has_scope_over_property(db, current.user_id, b.property_id, current.society_id)
+        ]
+        total = len(scoped)
+        bookings = scoped[pagination.skip : pagination.skip + pagination.limit]
     else:
         bookings, total = await amenity_service.list_bookings(db, current.society_id, pagination.skip, pagination.limit)
     return Page(items=[AmenityBookingOut.model_validate(b) for b in bookings], total=total, skip=pagination.skip, limit=pagination.limit)

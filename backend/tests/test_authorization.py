@@ -296,3 +296,48 @@ async def test_subadmin_only_sees_residents_property_links_within_scope(
     assert resp.status_code == 200
     linked_property_ids = {link["property_id"] for link in resp.json()}
     assert linked_property_ids == {str(prop_in_a.id)}
+
+
+async def test_subadmin_cannot_see_amenity_bookings_outside_scope(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    """Audit fix: GET /amenities/bookings only branched on RESIDENT vs.
+    everyone-else, so a Sub-admin fell into the same unfiltered branch as
+    Admin and could read every booking (and its resident_id/property_id)
+    society-wide — decide_booking's write path was already scope-checked,
+    but this read wasn't (same bug class as the payments one above,
+    test_subadmin_cannot_see_payments_and_dues_outside_scope)."""
+    from datetime import date, time
+    from app.models.operations import Amenity, AmenityBooking
+
+    society_id = two_societies_with_admins["a"]["society_id"]
+    subadmin, prop_in_a, prop_in_b = await _seed_subadmin_scoped_to_wing_a(db_session, society_id)
+
+    resident = User(society_id=society_id, full_name="Resident", mobile="9100000012", status=UserStatus.ACTIVE)
+    db_session.add(resident)
+    await db_session.flush()
+    db_session.add(UserRole(user_id=resident.id, role=Role.RESIDENT, assigned_at=datetime.now(timezone.utc)))
+
+    amenity = Amenity(society_id=society_id, name="Clubhouse", is_active=True)
+    db_session.add(amenity)
+    await db_session.flush()
+
+    booking_a = AmenityBooking(
+        society_id=society_id, amenity_id=amenity.id, property_id=prop_in_a.id, resident_id=resident.id,
+        booking_date=date.today(), start_time=time(10, 0), end_time=time(11, 0), status="PENDING",
+    )
+    booking_b = AmenityBooking(
+        society_id=society_id, amenity_id=amenity.id, property_id=prop_in_b.id, resident_id=resident.id,
+        booking_date=date.today(), start_time=time(12, 0), end_time=time(13, 0), status="PENDING",
+    )
+    db_session.add_all([booking_a, booking_b])
+    await db_session.commit()
+
+    headers = auth_headers(subadmin.id, society_id, Role.SUB_ADMIN, [Role.SUB_ADMIN])
+    resp = await client.get("/api/v1/amenities/bookings", headers=headers)
+    assert resp.status_code == 200
+    body = resp.json()
+    booking_property_ids = {b["property_id"] for b in body["items"]}
+    assert str(prop_in_a.id) in booking_property_ids
+    assert str(prop_in_b.id) not in booking_property_ids
+    assert body["total"] == 1  # scoped total, not the whole society's 2

@@ -12,7 +12,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.enums import Role, RoleRequestStatus, RoleRequestType, UserStatus
 from app.models.identity import RoleRequest, SocietyLocation, SubAdminScope, User, UserRole
-from app.services.scope_service import user_has_active_role
+from app.services import expense_bill_service
+from app.services.scope_service import active_subadmin_ids, user_has_active_role
 
 
 async def _reject_if_locations_already_scoped(
@@ -147,6 +148,19 @@ async def demote_subadmin(db: AsyncSession, society_id: uuid.UUID, sub_admin_id:
     if not await user_has_active_role(db, sub_admin_id, society_id, Role.SUB_ADMIN):
         raise HTTPException(
             status.HTTP_404_NOT_FOUND, "This person doesn't currently hold an active Sub-admin role in this society"
+        )
+
+    # Audit fix: demoting the LAST active Sub-admin while an expense bill is
+    # PENDING_APPROVAL would leave it permanently stuck — 0 active means the
+    # 100% threshold can never be met, and decide_approval requires an
+    # active Sub-admin caller, so no one would be left who's even allowed
+    # to reject it either.
+    active_ids = await active_subadmin_ids(db, society_id)
+    if active_ids == {sub_admin_id} and await expense_bill_service.has_pending_bills(db, society_id):
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "Cannot remove the only active Sub-admin while an expense bill is pending approval — "
+            "have it approved/rejected, or promote another Sub-admin, first",
         )
 
     role = (
@@ -346,6 +360,18 @@ async def decide_resignation(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Resignation request not found in this society")
     if req.status != RoleRequestStatus.PENDING:
         raise HTTPException(status.HTTP_409_CONFLICT, f"Request is already {req.status.value}")
+
+    # Audit fix: same guard as demote_subadmin — approving the resignation
+    # of the LAST active Sub-admin while an expense bill is pending would
+    # leave it permanently stuck.
+    if approve:
+        active_ids = await active_subadmin_ids(db, society_id)
+        if active_ids == {req.user_id} and await expense_bill_service.has_pending_bills(db, society_id):
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                "Cannot approve this resignation while it's the only active Sub-admin and an expense bill is "
+                "pending approval — have it approved/rejected, or promote another Sub-admin, first",
+            )
 
     now = datetime.now(timezone.utc)
     req.status = RoleRequestStatus.APPROVED if approve else RoleRequestStatus.REJECTED

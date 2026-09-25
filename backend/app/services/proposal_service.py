@@ -263,7 +263,20 @@ async def cast_vote(
 async def withdraw_proposal(
     db: AsyncSession, society_id: uuid.UUID, proposal_id: uuid.UUID, withdrawn_by: uuid.UUID
 ) -> Proposal:
-    proposal = await get_proposal(db, society_id, proposal_id)
+    # Row lock (audit fix — lost-update race with cast_vote): get_proposal's
+    # plain SELECT doesn't wait for cast_vote's row lock, so a withdraw
+    # arriving while the deciding vote's transaction is in flight could read
+    # OPEN, then — once that vote commits APPROVED — blindly overwrite it
+    # back to WITHDRAWN on its own commit (SQLAlchemy's UPDATE has no WHERE
+    # on the old status). Locking here forces this read to see the current,
+    # post-vote status, so the OPEN check below is no longer stale.
+    proposal = (
+        await db.execute(
+            select(Proposal).where(Proposal.id == proposal_id, Proposal.society_id == society_id).with_for_update()
+        )
+    ).scalar_one_or_none()
+    if proposal is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Proposal not found in this society")
     if proposal.status != ProposalStatus.OPEN:
         raise HTTPException(status.HTTP_409_CONFLICT, f"Proposal is already {proposal.status.value}")
     proposal.status = ProposalStatus.WITHDRAWN
