@@ -13,6 +13,8 @@ from app.schemas.complaint import (
     ComplaintAssignmentOut,
     ComplaintCreateIn,
     ComplaintOut,
+    ComplaintRatingIn,
+    ComplaintRatingOut,
     ComplaintStatusUpdateIn,
 )
 from app.services import complaint_service
@@ -77,3 +79,18 @@ async def assign(
         db, current.society_id, current.user_id, current.active_role, complaint_id, body.assigned_to
     )
     return ComplaintAssignmentOut.model_validate(assignment)
+
+
+@router.post("/{complaint_id}/rating", response_model=ComplaintRatingOut)
+async def rate(
+    complaint_id: uuid.UUID,
+    body: ComplaintRatingIn,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current: Annotated[CurrentUser, Depends(require_role(Role.RESIDENT))],
+) -> ComplaintRatingOut:
+    """Only the Resident who raised this complaint can rate the Manager
+    who resolved it, once, after it's actually RESOLVED/CLOSED."""
+    rating = await complaint_service.rate_complaint(
+        db, current.society_id, current.user_id, complaint_id, body.rating
+    )
+    return ComplaintRatingOut.model_validate(rating)

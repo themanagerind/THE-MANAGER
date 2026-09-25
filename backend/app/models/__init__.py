@@ -37,6 +37,7 @@ from app.models.operations import (  # noqa: F401
     AmenityBooking,
     Complaint,
     ComplaintAssignment,
+    ComplaintRating,
     ManagerDailyTask,
     ManagerTodo,
     Notice,

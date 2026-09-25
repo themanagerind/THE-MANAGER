@@ -17,6 +17,7 @@ from app.api.v1.notices import router as notices_router
 from app.api.v1.payments import router as payments_router
 from app.api.v1.properties import router as properties_router
 from app.api.v1.proposals import router as proposals_router
+from app.api.v1.reports import router as reports_router
 from app.api.v1.residents import router as residents_router
 from app.api.v1.societies import router as societies_router
 from app.api.v1.staff import router as staff_router
@@ -50,6 +51,7 @@ app.include_router(notices_router, prefix="/api/v1")
 app.include_router(amenities_router, prefix="/api/v1")
 app.include_router(account_entries_router, prefix="/api/v1")
 app.include_router(users_router, prefix="/api/v1")
+app.include_router(reports_router, prefix="/api/v1")
 
 # Audit fix: uploaded payment-proof files used to be served by a public
 # StaticFiles mount here with no authentication at all. Files are now only

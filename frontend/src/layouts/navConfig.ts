@@ -30,6 +30,7 @@ export const navByRole: Record<Role, NavItem[]> = {
     { label: "Proposals", path: "/admin/proposals", icon: "proposal" },
     { label: "Expenses", path: "/admin/expense-bills", icon: "expense" },
     { label: "Accounts", path: "/admin/accounts", icon: "wallet" },
+    { label: "Reports", path: "/admin/reports", icon: "report" },
   ],
   SUB_ADMIN: [
     { label: "Overview", path: "/subadmin", icon: "home" },
@@ -37,6 +38,7 @@ export const navByRole: Record<Role, NavItem[]> = {
     { label: "Complaints", path: "/subadmin/complaints", icon: "complaint" },
     { label: "Proposals", path: "/subadmin/proposals", icon: "proposal" },
     { label: "Expenses", path: "/subadmin/expense-bills", icon: "expense" },
+    { label: "Reports", path: "/subadmin/reports", icon: "report" },
   ],
   MANAGER: [
     { label: "Overview", path: "/manager", icon: "home" },
@@ -53,6 +55,7 @@ export const navByRole: Record<Role, NavItem[]> = {
     { label: "Notices", path: "/resident/notices", icon: "notice" },
     { label: "Amenities", path: "/resident/amenities", icon: "amenity" },
     { label: "Proposals", path: "/resident/proposals", icon: "proposal" },
+    { label: "Reports", path: "/resident/reports", icon: "report" },
   ],
   SECURITY_GUARD: [
     { label: "Visitors", path: "/guard", icon: "visitor" },

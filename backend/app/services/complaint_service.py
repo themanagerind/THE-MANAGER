@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.enums import ComplaintStatus, Role
 from app.models.identity import UserRole
-from app.models.operations import Complaint, ComplaintAssignment
+from app.models.operations import Complaint, ComplaintAssignment, ComplaintRating
 from app.services.scope_service import resident_owns_or_rents_property, subadmin_has_scope_over_property, user_has_active_role
 
 
@@ -114,6 +114,50 @@ async def assign_complaint(
     await db.commit()
     await db.refresh(assignment)
     return assignment
+
+
+async def rate_complaint(
+    db: AsyncSession, society_id: uuid.UUID, resident_id: uuid.UUID, complaint_id: uuid.UUID, rating: int,
+) -> ComplaintRating:
+    """One-time, immutable rating of the Manager who resolved this
+    complaint — only the Resident who raised it can give it, only once
+    the complaint is actually RESOLVED/CLOSED, and only once per
+    complaint (Reports feature). manager_id is captured from the
+    complaint's CURRENT assignment (the same one that was in force when
+    it got resolved — assign_complaint always closes out the prior
+    assignment on reassignment, so "current" and "who resolved it" are
+    the same row) rather than resolved again later, so a subsequent
+    reassignment can't retroactively change who a past rating counts
+    for."""
+    complaint = await get_complaint(db, society_id, complaint_id)
+    if complaint.resident_id != resident_id:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "You can only rate a complaint you raised yourself")
+    if complaint.status not in (ComplaintStatus.RESOLVED, ComplaintStatus.CLOSED):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "This complaint isn't resolved yet")
+
+    existing = (
+        await db.execute(select(ComplaintRating).where(ComplaintRating.complaint_id == complaint_id))
+    ).scalar_one_or_none()
+    if existing is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "You've already rated this complaint")
+
+    assignment = (
+        await db.execute(
+            select(ComplaintAssignment)
+            .where(ComplaintAssignment.complaint_id == complaint_id, ComplaintAssignment.completed_at.is_(None))
+        )
+    ).scalar_one_or_none()
+    if assignment is None:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "This complaint was never assigned to a Manager")
+
+    complaint_rating = ComplaintRating(
+        society_id=society_id, complaint_id=complaint_id, resident_id=resident_id,
+        manager_id=assignment.assigned_to, rating=rating,
+    )
+    db.add(complaint_rating)
+    await db.commit()
+    await db.refresh(complaint_rating)
+    return complaint_rating
 
 
 async def filter_by_subadmin_scope(

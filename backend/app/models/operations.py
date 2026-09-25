@@ -173,6 +173,42 @@ class ComplaintAssignment(Base, UUIDPKMixin):
     )
 
 
+class ComplaintRating(Base, UUIDPKMixin, CreatedAtOnlyMixin):
+    """Resident's one-time rating of the Manager who resolved their
+    complaint (Reports feature, v1.5) — feeds the Manager Performance
+    report Admin/Sub-admin/Resident see, and (per the Admin's stated
+    intent) is meant to inform Manager promotion decisions down the
+    line. Immutable once given (append-only, same as ManagerTodo's
+    completed_at) — no edit endpoint exists, and manager_id is captured
+    at rating time from the complaint's current assignment rather than
+    looked up live, so a later reassignment can't retroactively change
+    who a past rating counts for."""
+
+    __tablename__ = "complaint_ratings"
+
+    society_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("societies.id"), nullable=False
+    )
+    complaint_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("complaints.id"), nullable=False, unique=True
+    )
+    resident_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    manager_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    rating: Mapped[int] = mapped_column(nullable=False)
+
+    __table_args__ = (
+        CheckConstraint("rating BETWEEN 1 AND 5", name="ck_complaint_ratings_rating_range"),
+        ForeignKeyConstraint(
+            ["society_id", "resident_id"], ["users.society_id", "users.id"],
+            name="fk_complaint_ratings_society_resident",
+        ),
+        ForeignKeyConstraint(
+            ["society_id", "manager_id"], ["users.society_id", "users.id"],
+            name="fk_complaint_ratings_society_manager",
+        ),
+    )
+
+
 class Visitor(Base, UUIDPKMixin, CreatedAtOnlyMixin):
     __tablename__ = "visitors"
 

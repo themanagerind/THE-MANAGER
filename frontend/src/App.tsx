@@ -17,6 +17,7 @@ import { ResidentVisitors } from "@/pages/resident/Visitors";
 import { ResidentNotices } from "@/pages/resident/Notices";
 import { ResidentAmenities } from "@/pages/resident/Amenities";
 import { ResidentProposals } from "@/pages/resident/Proposals";
+import { ResidentReports } from "@/pages/resident/Reports";
 import { AdminOverview } from "@/pages/admin/Overview";
 import { AdminResidents } from "@/pages/admin/Residents";
 import { AdminResign } from "@/pages/admin/Resign";
@@ -31,6 +32,7 @@ import { AdminAmenities } from "@/pages/admin/Amenities";
 import { AdminProposals } from "@/pages/admin/Proposals";
 import { AdminExpenseBills } from "@/pages/admin/ExpenseBills";
 import { AdminAccounts } from "@/pages/admin/Accounts";
+import { AdminReports } from "@/pages/admin/Reports";
 import { ManagerOverview } from "@/pages/manager/Overview";
 import { ManagerTodos } from "@/pages/manager/Todos";
 import { ManagerComplaints } from "@/pages/manager/Complaints";
@@ -38,6 +40,7 @@ import { ManagerDues } from "@/pages/manager/Dues";
 import { SubAdminOverview } from "@/pages/subadmin/Overview";
 import { SubAdminDues } from "@/pages/subadmin/Dues";
 import { SubAdminExpenseBills } from "@/pages/subadmin/ExpenseBills";
+import { SubAdminReports } from "@/pages/subadmin/Reports";
 import { GuardVisitors } from "@/pages/guard/Visitors";
 import { Profile } from "@/pages/Profile";
 
@@ -87,6 +90,7 @@ export function App() {
             <Route path="/admin/proposals" element={<AdminProposals />} />
             <Route path="/admin/expense-bills" element={<AdminExpenseBills />} />
             <Route path="/admin/accounts" element={<AdminAccounts />} />
+            <Route path="/admin/reports" element={<AdminReports />} />
           </Route>
 
           <Route element={<ProtectedRoute allow={["SUB_ADMIN"]} />}>
@@ -101,6 +105,7 @@ export function App() {
                 rendered here either way. */}
             <Route path="/subadmin/proposals" element={<ResidentProposals />} />
             <Route path="/subadmin/expense-bills" element={<SubAdminExpenseBills />} />
+            <Route path="/subadmin/reports" element={<SubAdminReports />} />
           </Route>
 
           <Route element={<ProtectedRoute allow={["MANAGER"]} />}>
@@ -119,6 +124,7 @@ export function App() {
             <Route path="/resident/notices" element={<ResidentNotices />} />
             <Route path="/resident/amenities" element={<ResidentAmenities />} />
             <Route path="/resident/proposals" element={<ResidentProposals />} />
+            <Route path="/resident/reports" element={<ResidentReports />} />
           </Route>
 
           <Route element={<ProtectedRoute allow={["SECURITY_GUARD"]} />}>
