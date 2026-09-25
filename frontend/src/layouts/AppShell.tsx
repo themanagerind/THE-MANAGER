@@ -9,6 +9,7 @@ import { Icon } from "@/components/Icon";
 import { RoleSwitcher } from "@/components/RoleSwitcher";
 import { OfflineQueueBanner } from "@/components/OfflineQueueBanner";
 import { AuthenticatedImage } from "@/components/AuthenticatedImage";
+import { NotificationBell } from "@/components/NotificationBell";
 
 const roleLabels: Record<string, string> = {
   PLATFORM_OWNER: "Platform Owner",
@@ -134,6 +135,7 @@ export function AppShell() {
         </div>
         <div className="flex items-center gap-2">
           {activeRole && <span className="text-xs text-white/70">{roleLabels[activeRole]}</span>}
+          {activeRole === "RESIDENT" && <NotificationBell />}
           <button
             onClick={() => setMenuOpen((v) => !v)}
             aria-label="Account menu"
@@ -155,7 +157,8 @@ export function AppShell() {
         </div>
       )}
 
-      <div className="hidden md:flex md:absolute md:top-5 md:right-6">
+      <div className="hidden md:flex md:absolute md:top-5 md:right-6 md:items-center md:gap-2">
+        {activeRole === "RESIDENT" && <NotificationBell />}
         <RoleSwitcher />
       </div>
 

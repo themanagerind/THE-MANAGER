@@ -52,4 +52,4 @@ from app.models.governance import (  # noqa: F401
     ProposalVote,
     ProposalVoteHistory,
 )
-from app.models.notifications import PushSubscription  # noqa: F401
+from app.models.notifications import PushSubscription, ResidentNotification  # noqa: F401

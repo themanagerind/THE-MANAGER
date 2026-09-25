@@ -171,3 +171,7 @@ class SubscriptionPlatform(str, enum.Enum):
     WEB = "WEB"
     ANDROID = "ANDROID"
     IOS = "IOS"
+
+
+class NotificationType(str, enum.Enum):
+    MAINTENANCE_OVERDUE = "MAINTENANCE_OVERDUE"
