@@ -6,10 +6,14 @@ duplicate-signup error), plus the approval flow, which — unlike Resident
 approval (scoped to the approving Admin's own society) — is scoped
 globally to the Platform Owner across every society.
 
-Every Admin signup is also a dual-role ADMIN+RESIDENT link (Section 4) —
-existing_property_id/existing_property_relationship are mandatory; see
-test_signup_property_link.py for the property-link-specific cases
-(Tenant-needs-an-Owner, missing relationship, etc).
+Every Admin signup CAN also be a dual-role ADMIN+RESIDENT link (Section
+4) if a property is picked — existing_property_id/
+existing_property_relationship are optional (user-requested: an Admin
+no longer has to prove/pick a unit at signup), but must be given
+together, not just one of the two; see test_signup_property_link.py for
+the property-link-specific cases (Tenant-needs-an-Owner, etc) and
+test_admin_self_resident_link.py for linking one later from the Admin
+Properties page.
 """
 import uuid
 from datetime import datetime, timezone
@@ -82,15 +86,27 @@ async def test_admin_signup_rejects_non_active_society(client: AsyncClient, db_s
     assert resp.status_code == 409
 
 
-async def test_admin_signup_requires_property(client: AsyncClient, db_session: AsyncSession):
-    """existing_property_id/existing_property_relationship are mandatory —
-    omitting either is a 422 before the request ever reaches the DB."""
+async def test_admin_signup_without_property_succeeds_admin_only(client: AsyncClient, db_session: AsyncSession):
+    """Property selection is optional (user-requested) — signup with
+    neither field succeeds, and the Admin gets ADMIN only, no RESIDENT
+    role/PropertyResident link, until they self-link one later."""
     society, _ = await _seed_active_society_with_property(db_session)
     resp = await client.post(
         "/api/v1/admins/signup",
         json={"full_name": "New Admin", "mobile": "9810000003", "society_id": str(society.id)},
     )
-    assert resp.status_code == 422
+    assert resp.status_code == 200
+    admin_id = uuid.UUID(resp.json()["id"])
+
+    roles = (
+        await db_session.execute(select(UserRole.role).where(UserRole.user_id == admin_id, UserRole.revoked_at.is_(None)))
+    ).scalars().all()
+    assert set(roles) == {Role.ADMIN}
+
+    link = (
+        await db_session.execute(select(PropertyResident).where(PropertyResident.resident_id == admin_id))
+    ).scalar_one_or_none()
+    assert link is None
 
 
 async def test_admin_signup_succeeds_for_active_society(client: AsyncClient, db_session: AsyncSession):
@@ -195,10 +211,10 @@ async def test_non_platform_owner_cannot_approve_admin_signup(
 
 
 async def test_admin_signup_creates_unit_link_and_resident_role(client: AsyncClient, db_session: AsyncSession):
-    """Section 4 dual-role — every Admin signup also creates the
-    PropertyResident link + RESIDENT role right away (mandatory, not
-    optional), but stays inert until Platform Owner approval activates
-    the account, exactly like the ADMIN role itself."""
+    """Section 4 dual-role — signing up WITH a property still creates the
+    PropertyResident link + RESIDENT role right away, same as before this
+    became optional, but stays inert until Platform Owner approval
+    activates the account, exactly like the ADMIN role itself."""
     society, prop = await _seed_active_society_with_property(db_session)
     resp = await client.post(
         "/api/v1/admins/signup",

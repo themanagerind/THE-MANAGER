@@ -1,11 +1,13 @@
 """Self-service property linking at signup (Admin AND Resident) — property
-link now happens at signup time, done by the person signing up, instead of
+link can happen at signup time, done by the person signing up, instead of
 an Admin manually linking it afterward from the "Link property" modal.
 Covers: the public property-picker endpoint, Resident signup's required
-property_id/relationship_type, and Admin signup's equally mandatory
+property_id/relationship_type, and Admin signup's OPTIONAL
 existing_property_id/existing_property_relationship (Section 4 — every
-Admin is ADMIN+RESIDENT; see test_admins.py for the rest of the Admin
-signup/approval coverage)."""
+Admin CAN be ADMIN+RESIDENT if they pick a property, but no longer has
+to at signup — user-requested; see test_admins.py for the
+now-optional/ADMIN-only case and the rest of the Admin signup/approval
+coverage, and test_admin_self_resident_link.py for linking one later)."""
 import uuid
 from datetime import date, datetime, timezone
 

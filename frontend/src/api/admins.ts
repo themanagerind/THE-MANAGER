@@ -16,14 +16,15 @@ export interface AdminSignupInput {
   mobile: string;
   email?: string;
   society_id: string;
-  /** Section 4 dual-role (ADMIN+RESIDENT) — mandatory: every Admin also
-   * links to a real unit already on record (Owner or Tenant), same
+  /** Section 4 dual-role (ADMIN+RESIDENT) — OPTIONAL (user-requested: an
+   * Admin no longer has to pick a unit, or be asked whether they have
+   * one, at signup). If given, both fields must be given together, same
    * picker Resident signup uses (societiesApi.publicProperties/
-   * publicLocations). There's no "describe a brand-new unit" option —
-   * the Platform Owner is expected to have mapped the society's
-   * structure before an Admin signs up against it. */
-  existing_property_id: string;
-  existing_property_relationship: RelationshipType;
+   * publicLocations). If omitted, the Admin can link one later from the
+   * Properties page ("Link as Resident" — POST /residents/self-link),
+   * which grants the RESIDENT role automatically at that point. */
+  existing_property_id?: string;
+  existing_property_relationship?: RelationshipType;
 }
 
 export const adminsApi = {

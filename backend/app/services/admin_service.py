@@ -61,22 +61,24 @@ async def signup_admin(db: AsyncSession, body: AdminSignupIn) -> User:
             "This society already has an Admin — ask the Platform Owner to change the Admin instead.",
         )
 
-    # Mandatory dual-role link (Section 4: every Admin is ADMIN+RESIDENT)
-    # — same picker resident_service.signup_resident uses, for a unit the
-    # Platform Owner has already mapped. Checked before creating the User
-    # row so a doomed signup never gets that far. No active-Owner check
-    # for a TENANT here — same as Resident signup, the account stays
-    # PENDING until Platform Owner review, so the system doesn't need to
-    # guess upfront.
-    prop = (
-        await db.execute(
-            select(Property).where(
-                Property.id == body.existing_property_id, Property.society_id == body.society_id
+    # Optional dual-role link (Section 4: every Admin CAN be ADMIN+RESIDENT
+    # — user-requested change, no longer forced at signup). Same picker
+    # resident_service.signup_resident uses, for a unit the Platform Owner
+    # has already mapped. Checked before creating the User row so a doomed
+    # signup never gets that far. No active-Owner check for a TENANT here
+    # — same as Resident signup, the account stays PENDING until Platform
+    # Owner review, so the system doesn't need to guess upfront.
+    prop = None
+    if body.existing_property_id is not None:
+        prop = (
+            await db.execute(
+                select(Property).where(
+                    Property.id == body.existing_property_id, Property.society_id == body.society_id
+                )
             )
-        )
-    ).scalar_one_or_none()
-    if prop is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Property not found in this society")
+        ).scalar_one_or_none()
+        if prop is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Property not found in this society")
 
     admin = User(
         society_id=body.society_id,
@@ -103,24 +105,28 @@ async def signup_admin(db: AsyncSession, body: AdminSignupIn) -> User:
         )
     )
 
-    # Mandatory dual-role link (Section 4: ADMIN+RESIDENT) — stays
-    # uncommitted (db.add only) until the single db.commit() below,
-    # alongside the admin User/ADMIN role added above, so nothing is
-    # reachable either way until Platform Owner approval activates the
-    # account (decide_admin_approval below).
-    db.add(
-        UserRole(
-            user_id=admin.id, role=Role.RESIDENT, assigned_by=None,
-            assigned_at=datetime.now(timezone.utc),
+    # Optional dual-role link (Section 4: ADMIN+RESIDENT) — only when a
+    # property was actually picked. Stays uncommitted (db.add only) until
+    # the single db.commit() below, alongside the admin User/ADMIN role
+    # added above, so nothing is reachable either way until Platform Owner
+    # approval activates the account (decide_admin_approval below). If no
+    # property was picked, the Admin gets ADMIN only for now — they can
+    # link one later (and pick up RESIDENT automatically) via POST
+    # /residents/self-link, same as an Admin adding an extra property.
+    if prop is not None:
+        db.add(
+            UserRole(
+                user_id=admin.id, role=Role.RESIDENT, assigned_by=None,
+                assigned_at=datetime.now(timezone.utc),
+            )
         )
-    )
-    db.add(
-        PropertyResident(
-            society_id=body.society_id, property_id=prop.id, resident_id=admin.id,
-            relationship_type=body.existing_property_relationship, is_active=True,
-            start_date=date.today(), created_at=datetime.now(timezone.utc),
+        db.add(
+            PropertyResident(
+                society_id=body.society_id, property_id=prop.id, resident_id=admin.id,
+                relationship_type=body.existing_property_relationship, is_active=True,
+                start_date=date.today(), created_at=datetime.now(timezone.utc),
+            )
         )
-    )
 
     await db.commit()
     await db.refresh(admin)

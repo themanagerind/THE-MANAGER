@@ -18,10 +18,11 @@ function propertyLabel(p: PropertyOut): string {
   return `${p.house_number} (${kind}${floor})${p.is_occupied ? " — occupied" : ""}`;
 }
 
-/** Admin signup's unit link (Section 4 dual-role, mandatory — every Admin
- * is ADMIN+RESIDENT): a real address-like Wing/Row -> Floor -> Flat
- * cascade instead of one long "house_number (Flat, Floor N)" list, since
- * an Admin picks their own unit before there's any occupancy history to
+/** Admin signup's unit link (Section 4 dual-role — every Admin CAN be
+ * ADMIN+RESIDENT, but picking a unit is optional, not asked as a yes/no
+ * question): a real address-like Wing/Row -> Floor -> Flat cascade
+ * instead of one long "house_number (Flat, Floor N)" list, since an
+ * Admin picks their own unit before there's any occupancy history to
  * make that list meaningful. A Row (Bungalow) has no floor step — its
  * houses aren't floor-grouped (see StructureDiagram's RowCard). */
 function UnitPicker({
@@ -180,9 +181,11 @@ export function Signup() {
   const [propertyId, setPropertyId] = useState("");
   const [relationshipType, setRelationshipType] = useState<RelationshipType>("OWNER");
 
-  // Admin: mandatory (Section 4 dual-role — every Admin is ADMIN+RESIDENT)
-  // — picks a real unit already on record, same as Resident above, via the
-  // Wing/Row -> Floor -> Flat cascade (UnitPicker).
+  // Admin: optional (Section 4 dual-role — every Admin CAN be ADMIN+
+  // RESIDENT, user-requested change from mandatory) — picks a real unit
+  // already on record, same as Resident above, via the Wing/Row -> Floor
+  // -> Flat cascade (UnitPicker), or skips it and links one later from
+  // the Properties page instead.
   const [existingPropertyId, setExistingPropertyId] = useState("");
   const [existingRelationshipType, setExistingRelationshipType] = useState<RelationshipType>("OWNER");
 
@@ -269,8 +272,11 @@ export function Signup() {
       } else {
         await adminsApi.signup({
           ...body,
-          existing_property_id: existingPropertyId,
-          existing_property_relationship: existingRelationshipType,
+          // Optional — only sent when the Admin actually picked a unit;
+          // they can link one later from the Properties page instead.
+          ...(existingPropertyId
+            ? { existing_property_id: existingPropertyId, existing_property_relationship: existingRelationshipType }
+            : {}),
         });
       }
       setStep("done");
@@ -281,10 +287,12 @@ export function Signup() {
     }
   }
 
+  // Resident still must pick their house; Admin's unit link is optional
+  // (user-requested) — nothing about property gates their submit.
   const canSubmit =
     fullName.trim().length > 0 &&
     MOBILE_RE.test(mobile) &&
-    (role === "RESIDENT" ? propertyId.length > 0 : existingPropertyId.length > 0);
+    (role === "RESIDENT" ? propertyId.length > 0 : true);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-paper px-4">
@@ -421,14 +429,17 @@ export function Signup() {
 
             {role === "ADMIN" && (
               <div className="border border-line rounded p-3 space-y-3">
-                <label className="block text-sm text-navy-muted">Which unit is yours?</label>
+                <label className="block text-sm text-navy-muted">Link your unit (optional)</label>
+                <p className="text-xs text-navy-muted">
+                  You can skip this and link a unit anytime later from your Admin dashboard's
+                  Properties page instead.
+                </p>
                 {propertiesLoading && <p className="text-sm text-navy-muted">Loading properties…</p>}
                 {propertiesError && <p className="text-sm text-danger">{propertiesError}</p>}
                 {!propertiesLoading && !propertiesError && (locations.length === 0 || properties.length === 0) && (
                   <p className="text-xs text-navy-muted">
-                    This society's Wings/Rows and flats/houses haven't been mapped yet — ask the
-                    Platform Owner to map the structure first (every Admin account is linked to a
-                    unit here).
+                    This society's Wings/Rows and flats/houses haven't been mapped yet — nothing to
+                    pick from right now, that's fine, skip ahead.
                   </p>
                 )}
                 {locations.length > 0 && properties.length > 0 && (
