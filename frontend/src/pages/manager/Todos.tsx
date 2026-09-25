@@ -80,6 +80,18 @@ export function ManagerTodos() {
               { header: "Date", render: (t) => new Date(t.task_date).toLocaleDateString("en-IN") },
               { header: "Status", render: (t) => <Badge status={t.status}>{t.status.replace("_", " ")}</Badge> },
               {
+                // Set once, server-side, the moment status moves to DONE
+                // (backend: manager_todo_service.update_todo_status) — DONE
+                // is terminal, so this can never change after the fact.
+                header: "Completed at",
+                render: (t) =>
+                  t.completed_at
+                    ? new Date(t.completed_at).toLocaleString("en-IN", {
+                        day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit",
+                      })
+                    : "—",
+              },
+              {
                 header: "",
                 render: (t) => {
                   const target = nextStatus[t.status];
