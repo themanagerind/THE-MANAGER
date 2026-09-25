@@ -111,16 +111,18 @@ export function AdminAccounts() {
  * and it's usable immediately. Title is no longer free-typed on the
  * entry itself — it's always taken from the picked heading.
  *
- * A confirmation line appears after adding (the "Add a new heading"
- * field just going blank on its own read as "did that even work?"),
- * and the selected heading can be renamed in place — safe because an
- * entry's title is a snapshot taken when it was created/edited, so
- * renaming a heading never touches an entry that already used it.
+ * Adding and renaming are both gated behind their own checkbox — left
+ * unchecked, those fields stay disabled, so they can't be typed into by
+ * accident (the "3000" mistake this whole thing started from). A
+ * confirmation line appears after adding, and renaming is safe because
+ * an entry's title is a snapshot taken when it was created/edited, so
+ * it never retroactively touches an entry that already used a heading.
  */
 function HeadingPicker({
   entryType, headingId, onChange,
 }: { entryType: EntryType; headingId: string; onChange: (id: string) => void }) {
   const queryClient = useQueryClient();
+  const [addingNew, setAddingNew] = useState(false);
   const [newHeadingTitle, setNewHeadingTitle] = useState("");
   const [justAdded, setJustAdded] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -136,6 +138,7 @@ function HeadingPicker({
     mutationFn: () => accountEntriesApi.addHeading(entryType, newHeadingTitle.trim()),
     onSuccess: (res) => {
       setNewHeadingTitle("");
+      setAddingNew(false);
       setJustAdded(res.data.title);
       setError(null);
       onChange(res.data.id);
@@ -165,33 +168,20 @@ function HeadingPicker({
           <ErrorState message="Couldn't load headings." onRetry={() => headingsQuery.refetch()} />
         )}
         {headingsQuery.data && (
-          <div className="flex gap-2 items-start">
-            <select
-              value={headingId}
-              onChange={(e) => {
-                onChange(e.target.value);
-                setJustAdded(null);
-                setRenaming(false);
-              }}
-              className="flex-1 border border-line rounded px-3 py-2 text-sm"
-            >
-              <option value="">Select a heading</option>
-              {headingsQuery.data.map((h) => (
-                <option key={h.id} value={h.id}>{h.title}</option>
-              ))}
-            </select>
-            {headingId && !renaming && (
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  setRenameTitle(selectedHeading?.title ?? "");
-                  setRenaming(true);
-                }}
-              >
-                Rename
-              </Button>
-            )}
-          </div>
+          <select
+            value={headingId}
+            onChange={(e) => {
+              onChange(e.target.value);
+              setJustAdded(null);
+              setRenaming(false);
+            }}
+            className="w-full border border-line rounded px-3 py-2 text-sm"
+          >
+            <option value="">Select a heading</option>
+            {headingsQuery.data.map((h) => (
+              <option key={h.id} value={h.id}>{h.title}</option>
+            ))}
+          </select>
         )}
         {justAdded && (
           <p className="text-xs text-success mt-1">
@@ -200,47 +190,78 @@ function HeadingPicker({
         )}
       </div>
 
-      {renaming && (
-        <div className="flex gap-2 items-end border border-line rounded p-3 bg-paper">
-          <div className="flex-1">
-            <Input label="Rename this heading" value={renameTitle} onChange={(e) => setRenameTitle(e.target.value)} />
-          </div>
-          <Button
-            variant="secondary"
-            loading={renameHeading.isPending}
-            disabled={!renameTitle.trim()}
-            onClick={() => renameHeading.mutate()}
-          >
-            Save
-          </Button>
-          <Button variant="secondary" onClick={() => setRenaming(false)}>Cancel</Button>
+      {headingId && (
+        <div className="space-y-2">
+          <label className="flex items-center gap-2 text-sm text-ink">
+            <input
+              type="checkbox"
+              checked={renaming}
+              onChange={(e) => {
+                setRenaming(e.target.checked);
+                setRenameTitle(e.target.checked ? selectedHeading?.title ?? "" : "");
+              }}
+            />
+            Rename the selected heading
+          </label>
+          {renaming && (
+            <div className="flex gap-2 items-end border border-line rounded p-3 bg-paper">
+              <div className="flex-1">
+                <Input label="New name" value={renameTitle} onChange={(e) => setRenameTitle(e.target.value)} />
+              </div>
+              <Button
+                variant="secondary"
+                loading={renameHeading.isPending}
+                disabled={!renameTitle.trim()}
+                onClick={() => renameHeading.mutate()}
+              >
+                Save
+              </Button>
+            </div>
+          )}
         </div>
       )}
 
-      <div className="flex gap-2 items-end">
-        <div className="flex-1">
-          <Input
-            label="Add a new heading"
-            value={newHeadingTitle}
+      <div className="space-y-2">
+        <label className="flex items-center gap-2 text-sm text-ink">
+          <input
+            type="checkbox"
+            checked={addingNew}
             onChange={(e) => {
-              setNewHeadingTitle(e.target.value);
-              setJustAdded(null);
+              setAddingNew(e.target.checked);
+              if (!e.target.checked) setNewHeadingTitle("");
             }}
-            placeholder={entryType === "INCOME" ? "e.g. Interest on Fixed Deposit" : "e.g. Diwali Decoration"}
           />
-        </div>
-        <Button
-          variant="secondary"
-          loading={addHeading.isPending}
-          disabled={!newHeadingTitle.trim()}
-          onClick={() => addHeading.mutate()}
-        >
-          Add
-        </Button>
+          Add a new heading
+        </label>
+        {addingNew && (
+          <>
+            <div className="flex gap-2 items-end">
+              <div className="flex-1">
+                <Input
+                  label="Heading name"
+                  value={newHeadingTitle}
+                  onChange={(e) => {
+                    setNewHeadingTitle(e.target.value);
+                    setJustAdded(null);
+                  }}
+                  placeholder={entryType === "INCOME" ? "e.g. Interest on Fixed Deposit" : "e.g. Diwali Decoration"}
+                />
+              </div>
+              <Button
+                variant="secondary"
+                loading={addHeading.isPending}
+                disabled={!newHeadingTitle.trim()}
+                onClick={() => addHeading.mutate()}
+              >
+                Add
+              </Button>
+            </div>
+            <p className="text-xs text-navy-muted">
+              Must contain letters — an amount by itself (like &quot;3000&quot;) isn&apos;t a valid heading.
+            </p>
+          </>
+        )}
       </div>
-      <p className="text-xs text-navy-muted">
-        Must contain letters — an amount by itself (like &quot;3000&quot;) isn&apos;t a valid heading.
-      </p>
       {error && <p className="text-sm text-danger">{error}</p>}
     </div>
   );
