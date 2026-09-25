@@ -7,16 +7,18 @@ import { Table } from "@/components/Table";
 import { Button } from "@/components/Button";
 
 /**
- * A Wing/Row-first way to assign a Sub-admin — pick the Wing/Row first,
- * then one of the residents actually living there, instead of the old
- * per-resident "Sub-admin" button that showed on every row in the
- * Residents table regardless of whether it made sense there. Works the
- * same for a Flats (Wing) or Bungalow (Row) society — list_residents_by_
- * location doesn't care which.
+ * A Wing/Row-first way to assign a Sub-admin — pick one or more Wings/
+ * Rows first (a single Sub-admin can cover several — Section 7's only
+ * cardinality rule is one active Sub-admin per Wing/Row, not the
+ * reverse), then one of the residents actually living in any of them,
+ * instead of the old per-resident "Sub-admin" button that showed on
+ * every row in the Residents table regardless of whether it made sense
+ * there. Works the same for a Flats (Wing) or Bungalow (Row) society —
+ * list_residents_by_location doesn't care which.
  */
 export function AssignSubAdmin() {
   const queryClient = useQueryClient();
-  const [locationId, setLocationId] = useState("");
+  const [locationIds, setLocationIds] = useState<string[]>([]);
   const [residentId, setResidentId] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -32,17 +34,28 @@ export function AssignSubAdmin() {
     queryFn: () => subadminsApi.listAll().then((r) => r.data),
   });
 
+  // Union of residents across every selected Wing/Row, deduped — a
+  // resident living in any one of them is a reasonable pick to
+  // administer the combined scope.
   const residentsQuery = useQuery({
-    queryKey: ["admin", "residents", "by-location", locationId],
-    queryFn: () => residentsApi.byLocation(locationId).then((r) => r.data),
-    enabled: !!locationId,
+    queryKey: ["admin", "residents", "by-location", [...locationIds].sort().join(",")],
+    queryFn: async () => {
+      const lists = await Promise.all(locationIds.map((id) => residentsApi.byLocation(id).then((r) => r.data)));
+      const byId = new Map<string, ResidentOut>();
+      for (const list of lists) {
+        for (const r of list) byId.set(r.id, r);
+      }
+      return [...byId.values()].sort((a, b) => a.full_name.localeCompare(b.full_name));
+    },
+    enabled: locationIds.length > 0,
   });
 
   const assign = useMutation({
-    mutationFn: () => subadminsApi.promote(residentId, [locationId]),
+    mutationFn: () => subadminsApi.promote(residentId, locationIds),
     onSuccess: () => {
       const resident = (residentsQuery.data ?? []).find((r) => r.id === residentId);
-      setSuccess(`${resident?.full_name ?? "Resident"} is now Sub-admin of ${locationLabel(selectedLocation)}.`);
+      const names = locations.filter((l) => locationIds.includes(l.id)).map(locationLabel).join(", ");
+      setSuccess(`${resident?.full_name ?? "Resident"} is now Sub-admin of ${names}.`);
       setError(null);
       setResidentId("");
       void queryClient.invalidateQueries({ queryKey: assignmentsQueryKey });
@@ -73,11 +86,10 @@ export function AssignSubAdmin() {
   const sortedLocations = [...locations].sort((a, b) =>
     a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" })
   );
-  const selectedLocation = locations.find((l) => l.id === locationId);
   const assignedLocationIds = new Set((assignmentsQuery.data ?? []).map((a) => a.location_id));
 
-  function handleLocationChange(id: string) {
-    setLocationId(id);
+  function toggleLocation(id: string, checked: boolean) {
+    setLocationIds((prev) => (checked ? [...prev, id] : prev.filter((existing) => existing !== id)));
     setResidentId("");
     setError(null);
     setSuccess(null);
@@ -89,7 +101,9 @@ export function AssignSubAdmin() {
 
       <div className="space-y-4 rounded border border-line bg-paper p-4 max-w-md">
         <div>
-          <label className="block text-sm text-navy-muted mb-1">Wing / Row</label>
+          <label className="block text-sm text-navy-muted mb-1">
+            Wing / Row <span className="text-xs text-navy-muted">(pick one or more — one Sub-admin can cover several)</span>
+          </label>
           {locationsQuery.isLoading && <Loader />}
           {locationsQuery.isError && (
             <ErrorState message="Couldn't load Wings/Rows." onRetry={() => locationsQuery.refetch()} />
@@ -98,23 +112,30 @@ export function AssignSubAdmin() {
             <p className="text-xs text-navy-muted">No Wings/Rows on record yet — add them from the Properties page.</p>
           )}
           {locations.length > 0 && (
-            <select
-              className="w-full px-3 py-2 border border-line rounded text-sm text-ink bg-white focus:border-navy"
-              value={locationId}
-              onChange={(e) => handleLocationChange(e.target.value)}
-            >
-              <option value="">Select a Wing/Row</option>
-              {sortedLocations.map((l) => (
-                <option key={l.id} value={l.id}>
-                  {locationLabel(l)}
-                  {assignedLocationIds.has(l.id) ? " — already has a Sub-admin" : ""}
-                </option>
-              ))}
-            </select>
+            <div className="space-y-1 max-h-56 overflow-y-auto border border-line rounded p-2">
+              {sortedLocations.map((l) => {
+                const alreadyAssigned = assignedLocationIds.has(l.id);
+                return (
+                  <label
+                    key={l.id}
+                    className={`flex items-center gap-2 text-sm px-1 py-0.5 ${alreadyAssigned ? "text-navy-muted/60" : "text-ink"}`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={locationIds.includes(l.id)}
+                      disabled={alreadyAssigned}
+                      onChange={(e) => toggleLocation(l.id, e.target.checked)}
+                    />
+                    {locationLabel(l)}
+                    {alreadyAssigned && <span className="text-xs"> — already has a Sub-admin</span>}
+                  </label>
+                );
+              })}
+            </div>
           )}
         </div>
 
-        {locationId && (
+        {locationIds.length > 0 && (
           <div>
             <label className="block text-sm text-navy-muted mb-1">Resident</label>
             {residentsQuery.isLoading && <Loader />}
