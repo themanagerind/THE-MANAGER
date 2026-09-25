@@ -8,6 +8,7 @@ export interface ExpenseBillOut {
   description: string | null;
   amount: number;
   category: string | null;
+  bill_image_key: string | null;
   status: ExpenseBillStatus;
   created_by: string;
   finalized_by: string | null;
@@ -32,9 +33,12 @@ export interface Page<T> {
 export const expenseBillsApi = {
   list: (skip = 0, limit = 20) => apiClient.get<Page<ExpenseBillOut>>("/expense-bills", { params: { skip, limit } }),
   detail: (id: string) => apiClient.get<ExpenseBillStatusDetail>(`/expense-bills/${id}`),
-  createDraft: (input: { title: string; description?: string; amount: number; category?: string }) =>
+  /** Never a directly fetchable URL — same authorization check as the
+   * bill's own detail endpoint runs before any bytes are streamed. */
+  imageUrl: (id: string) => `/expense-bills/${id}/image`,
+  createDraft: (input: { title: string; description?: string; amount: number; category?: string; bill_image_key: string }) =>
     apiClient.post<ExpenseBillOut>("/expense-bills/draft", input),
-  createAndFinalize: (input: { title: string; description?: string; amount: number; category?: string }) =>
+  createAndFinalize: (input: { title: string; description?: string; amount: number; category?: string; bill_image_key: string }) =>
     apiClient.post<ExpenseBillOut>("/expense-bills", input),
   finalize: (id: string) => apiClient.post<ExpenseBillOut>(`/expense-bills/${id}/finalize`),
   decide: (id: string, decision: Decision, reason?: string) =>

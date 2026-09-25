@@ -207,3 +207,65 @@ def delete_avatar_file(storage_key: str) -> None:
     except HTTPException:
         return
     path.unlink(missing_ok=True)
+
+
+# --- Expense bill image uploads — every new ExpenseBill must carry a photo
+# of the physical bill/receipt (user-requested redesign). Same local-disk,
+# storage-key, magic-byte-validated, rate-limited pattern as payment
+# proofs above; retrieval is GET /expense-bills/{bill_id}/image, checked
+# with the same authorization as the bill itself before streaming. ---
+
+
+def _bill_image_rate_key(uploaded_by: uuid.UUID) -> str:
+    return f"expense_bill_image_upload:rate:{uploaded_by}"
+
+
+async def save_expense_bill_image(file: UploadFile, uploaded_by: uuid.UUID) -> str:
+    """Validates the file is actually a JPEG or PNG (by signature) and
+    within the size limit, saves it to disk, and returns a storage key to
+    pass back as ExpenseBillCreateIn.bill_image_key — NOT a fetchable URL."""
+    r = get_redis()
+    attempts = await r.incr(_bill_image_rate_key(uploaded_by))
+    if attempts == 1:
+        await r.expire(_bill_image_rate_key(uploaded_by), _UPLOAD_RATE_WINDOW_SECONDS)
+    if attempts > _MAX_UPLOADS_PER_HOUR:
+        raise HTTPException(
+            status.HTTP_429_TOO_MANY_REQUESTS, "Too many uploads — try again in an hour"
+        )
+
+    contents = await file.read()
+    if len(contents) > _MAX_UPLOAD_BYTES:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"File too large — max {_MAX_UPLOAD_BYTES // (1024 * 1024)} MB",
+        )
+    if len(contents) == 0:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Empty file")
+
+    detected = _detect_image_type(contents)
+    if detected is None:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "Only JPEG or PNG images are accepted as a bill image",
+        )
+    _content_type, ext = detected
+
+    bill_image_dir = Path(settings.upload_dir) / "expense_bill_proofs"
+    bill_image_dir.mkdir(parents=True, exist_ok=True)
+
+    filename = f"{uuid.uuid4()}{ext}"
+    (bill_image_dir / filename).write_bytes(contents)
+
+    return f"expense_bill_proofs/{filename}"
+
+
+def resolve_expense_bill_image_path(storage_key: str) -> Path:
+    """Same path-traversal-safe resolution as resolve_payment_proof_path,
+    scoped to expense bill image storage keys."""
+    base = Path(settings.upload_dir).resolve()
+    candidate = (base / storage_key).resolve()
+    if base not in candidate.parents and candidate != base:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Bill image not found")
+    if not candidate.is_file():
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Bill image not found")
+    return candidate

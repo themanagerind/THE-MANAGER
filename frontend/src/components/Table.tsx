@@ -4,7 +4,17 @@ interface Column<T> {
   className?: string;
 }
 
-export function Table<T>({ columns, rows, keyFor }: { columns: Column<T>[]; rows: T[]; keyFor: (row: T) => string }) {
+export function Table<T>({
+  columns, rows, keyFor, rowClassName,
+}: {
+  columns: Column<T>[];
+  rows: T[];
+  keyFor: (row: T) => string;
+  /** Optional per-row class, e.g. to visually flag rows of a particular
+   * kind (like an Accounts entry settled from an approved expense bill)
+   * without reading every column's text. */
+  rowClassName?: (row: T) => string | undefined;
+}) {
   return (
     <div className="border border-line rounded overflow-hidden overflow-x-auto">
       <table className="w-full text-sm">
@@ -19,7 +29,10 @@ export function Table<T>({ columns, rows, keyFor }: { columns: Column<T>[]; rows
         </thead>
         <tbody>
           {rows.map((row) => (
-            <tr key={keyFor(row)} className="border-t border-line hover:bg-navy/[0.03]">
+            <tr
+              key={keyFor(row)}
+              className={`border-t border-line hover:bg-navy/[0.03] ${rowClassName?.(row) ?? ""}`}
+            >
               {columns.map((col) => (
                 <td key={col.header} className={`px-3 py-2 ${col.className ?? ""}`}>
                   {col.render(row)}

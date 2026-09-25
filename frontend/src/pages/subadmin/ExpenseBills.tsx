@@ -7,6 +7,7 @@ import { Table } from "@/components/Table";
 import { Button } from "@/components/Button";
 import { Modal } from "@/components/Modal";
 import { Input } from "@/components/Input";
+import { AuthenticatedImage } from "@/components/AuthenticatedImage";
 
 /**
  * Sub-admin's own view — Admin's ExpenseBills page creates/finalizes
@@ -30,7 +31,7 @@ export function SubAdminExpenseBills() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-xl font-semibold text-navy">Expense Bills</h1>
+      <h1 className="text-xl font-semibold text-navy">Expense Approval</h1>
 
       {billsQuery.isLoading && <Loader />}
       {billsQuery.isError && (
@@ -115,6 +116,14 @@ function BillDetailModal({ id, onClose }: { id: string; onClose: () => void }) {
               <span>{detailQuery.data.approve_count} / {detailQuery.data.active_subadmin_count} (needs {detailQuery.data.approvals_needed})</span>
             </div>
           )}
+          <div>
+            <p className="text-navy-muted mb-1">Bill image</p>
+            {detailQuery.data.bill.bill_image_key ? (
+              <AuthenticatedImage src={expenseBillsApi.imageUrl(id)} alt="Bill" />
+            ) : (
+              <p className="text-xs text-navy-muted">No image on file.</p>
+            )}
+          </div>
         </div>
       )}
     </Modal>

@@ -42,7 +42,7 @@ async def test_admin_finalize_and_single_subadmin_approve_approves_bill(
     subadmins = await _seed_subadmins(db_session, society_id, 1)
 
     resp = await client.post(
-        "/api/v1/expense-bills", json={"title": "Lift AMC", "amount": 5000.0}, headers=admin_headers,
+        "/api/v1/expense-bills", json={"title": "Lift AMC", "amount": 5000.0, "bill_image_key": "expense_bill_proofs/test.jpg"}, headers=admin_headers,
     )
     assert resp.status_code == 200
     bill_id = resp.json()["id"]
@@ -67,7 +67,7 @@ async def test_single_reject_is_immediate_and_final(
     subadmins = await _seed_subadmins(db_session, society_id, 2)
 
     resp = await client.post(
-        "/api/v1/expense-bills", json={"title": "Painting", "amount": 20000.0}, headers=admin_headers,
+        "/api/v1/expense-bills", json={"title": "Painting", "amount": 20000.0, "bill_image_key": "expense_bill_proofs/test.jpg"}, headers=admin_headers,
     )
     bill_id = resp.json()["id"]
 
@@ -101,7 +101,7 @@ async def test_demoting_last_active_subadmin_blocked_while_bill_pending(
     subadmins = await _seed_subadmins(db_session, society_id, 1)
 
     resp = await client.post(
-        "/api/v1/expense-bills", json={"title": "Elevator repair", "amount": 15000.0}, headers=admin_headers,
+        "/api/v1/expense-bills", json={"title": "Elevator repair", "amount": 15000.0, "bill_image_key": "expense_bill_proofs/test.jpg"}, headers=admin_headers,
     )
     bill_id = resp.json()["id"]
     assert resp.json()["status"] == "PENDING_APPROVAL"
@@ -128,7 +128,7 @@ async def test_create_and_finalize_rejects_when_zero_active_subadmins(
     admin_headers = auth_headers(admin_id, society_id, Role.ADMIN, [Role.ADMIN])
 
     resp = await client.post(
-        "/api/v1/expense-bills", json={"title": "No subadmins yet", "amount": 100.0}, headers=admin_headers,
+        "/api/v1/expense-bills", json={"title": "No subadmins yet", "amount": 100.0, "bill_image_key": "expense_bill_proofs/test.jpg"}, headers=admin_headers,
     )
     assert resp.status_code == 409
 
@@ -145,7 +145,7 @@ async def test_approving_last_subadmins_resignation_blocked_while_bill_pending(
     subadmin_headers = auth_headers(subadmins[0].id, society_id, Role.SUB_ADMIN, [Role.SUB_ADMIN])
 
     resp = await client.post(
-        "/api/v1/expense-bills", json={"title": "Gate repair", "amount": 8000.0}, headers=admin_headers,
+        "/api/v1/expense-bills", json={"title": "Gate repair", "amount": 8000.0, "bill_image_key": "expense_bill_proofs/test.jpg"}, headers=admin_headers,
     )
     assert resp.status_code == 200
 
@@ -157,3 +157,51 @@ async def test_approving_last_subadmins_resignation_blocked_while_bill_pending(
         f"/api/v1/subadmins/resignations/{request_id}/decision", json={"approve": True}, headers=admin_headers,
     )
     assert resp.status_code == 409
+
+
+async def test_bill_image_is_mandatory(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    """Redesign (user-requested): every new bill must carry a photo of the
+    physical bill — reverses the old "never required" v1.1 decision."""
+    society_id = two_societies_with_admins["a"]["society_id"]
+    admin_id = two_societies_with_admins["a"]["admin_id"]
+    admin_headers = auth_headers(admin_id, society_id, Role.ADMIN, [Role.ADMIN])
+    await _seed_subadmins(db_session, society_id, 1)
+
+    resp = await client.post(
+        "/api/v1/expense-bills", json={"title": "No image bill", "amount": 100.0}, headers=admin_headers,
+    )
+    assert resp.status_code == 422
+
+
+async def test_approval_no_longer_auto_posts_to_accounts(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    """Redesign (user-requested): APPROVED no longer creates an
+    AccountEntry by itself — Admin settles it manually from Accounts."""
+    society_id = two_societies_with_admins["a"]["society_id"]
+    admin_id = two_societies_with_admins["a"]["admin_id"]
+    admin_headers = auth_headers(admin_id, society_id, Role.ADMIN, [Role.ADMIN])
+    subadmins = await _seed_subadmins(db_session, society_id, 1)
+
+    resp = await client.post(
+        "/api/v1/expense-bills",
+        json={"title": "AMC no autopost", "amount": 7000.0, "bill_image_key": "expense_bill_proofs/test.jpg"},
+        headers=admin_headers,
+    )
+    bill_id = resp.json()["id"]
+
+    subadmin_headers = auth_headers(subadmins[0].id, society_id, Role.SUB_ADMIN, [Role.SUB_ADMIN])
+    resp = await client.post(
+        f"/api/v1/expense-bills/{bill_id}/decision", json={"decision": "APPROVE"}, headers=subadmin_headers,
+    )
+    assert resp.status_code == 200
+
+    resp = await client.get("/api/v1/account-entries", headers=admin_headers)
+    assert resp.status_code == 200
+    assert all(e["source"] != "EXPENSE_BILL" for e in resp.json()["items"])
+
+    resp = await client.get("/api/v1/account-entries/pending-expense-bills", headers=admin_headers)
+    assert resp.status_code == 200
+    assert any(b["id"] == bill_id for b in resp.json())

@@ -1,12 +1,14 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { accountEntriesApi, type AccountEntryOut } from "@/api/accountEntries";
+import { expenseBillsApi, type ExpenseBillOut } from "@/api/expenseBills";
 import { Loader, EmptyState, ErrorState, apiErrorMessage } from "@/components/States";
 import { Badge } from "@/components/Badge";
 import { Table } from "@/components/Table";
 import { Button } from "@/components/Button";
 import { Modal } from "@/components/Modal";
 import { Input } from "@/components/Input";
+import { AuthenticatedImage } from "@/components/AuthenticatedImage";
 import type { EntryType } from "@/types/enums";
 
 export function AdminAccounts() {
@@ -55,26 +57,45 @@ export function AdminAccounts() {
         <EmptyState title="No entries yet" description="Manual entries and auto-generated payment/expense entries show up here." />
       )}
       {entriesQuery.data && entriesQuery.data.items.length > 0 && (
-        <Table<AccountEntryOut>
-          keyFor={(e) => e.id}
-          columns={[
-            { header: "Heading", render: (e) => <span className="font-medium">{e.title}</span> },
-            { header: "Type", render: (e) => <Badge status={e.entry_type === "INCOME" ? "PAID" : "REJECTED"}>{e.entry_type}</Badge> },
-            { header: "Amount", render: (e) => `₹${e.amount.toLocaleString("en-IN")}` },
-            { header: "Date", render: (e) => new Date(e.entry_date).toLocaleDateString("en-IN") },
-            { header: "Source", render: (e) => (e.is_edited ? <Badge status="PENDING">Edited</Badge> : e.source) },
-            {
-              header: "",
-              render: (e) =>
-                e.source === "MANUAL" ? (
-                  <div className="flex justify-end">
-                    <Button variant="secondary" onClick={() => setEditing(e)}>Edit</Button>
-                  </div>
-                ) : null,
-            },
-          ]}
-          rows={entriesQuery.data.items}
-        />
+        <>
+          <p className="text-xs text-navy-muted flex items-center gap-1.5">
+            <span className="inline-block w-3 h-3 rounded-sm bg-gold/20 border border-gold/40" />
+            Gold-tinted rows are entries settled from an approved expense bill.
+          </p>
+          <Table<AccountEntryOut>
+            keyFor={(e) => e.id}
+            rowClassName={(e) => (e.source === "EXPENSE_BILL" ? "bg-gold/10" : undefined)}
+            columns={[
+              { header: "Heading", render: (e) => <span className="font-medium">{e.title}</span> },
+              { header: "Type", render: (e) => <Badge status={e.entry_type === "INCOME" ? "PAID" : "REJECTED"}>{e.entry_type}</Badge> },
+              { header: "Amount", render: (e) => `₹${e.amount.toLocaleString("en-IN")}` },
+              { header: "Date", render: (e) => new Date(e.entry_date).toLocaleDateString("en-IN") },
+              {
+                header: "Source",
+                render: (e) => {
+                  if (e.source === "EXPENSE_BILL") {
+                    return (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gold/20 text-gold">
+                        Approved bill
+                      </span>
+                    );
+                  }
+                  return e.is_edited ? <Badge status="PENDING">Edited</Badge> : e.source;
+                },
+              },
+              {
+                header: "",
+                render: (e) =>
+                  e.source === "MANUAL" ? (
+                    <div className="flex justify-end">
+                      <Button variant="secondary" onClick={() => setEditing(e)}>Edit</Button>
+                    </div>
+                  ) : null,
+              },
+            ]}
+            rows={entriesQuery.data.items}
+          />
+        </>
       )}
 
       {creating && (
@@ -84,6 +105,7 @@ export function AdminAccounts() {
             setCreating(false);
             void queryClient.invalidateQueries({ queryKey: ["admin", "account-entries"] });
             void queryClient.invalidateQueries({ queryKey: ["admin", "account-balance"] });
+            void queryClient.invalidateQueries({ queryKey: ["admin", "pending-expense-bills"] });
           }}
         />
       )}
@@ -267,39 +289,115 @@ function HeadingPicker({
   );
 }
 
+type EntrySourceChoice = "MANUAL" | "SETTLE_BILL";
+
+/**
+ * Picks an APPROVED expense bill not yet settled into Accounts (redesign,
+ * user-requested — approval stopped auto-posting here). Shows the bill's
+ * approved amount and photo so Admin can verify it before entering the
+ * final amount, which the parent form caps at the approved amount.
+ */
+function PendingBillPicker({
+  billId, onChange,
+}: { billId: string; onChange: (bill: ExpenseBillOut | null) => void }) {
+  const pendingQuery = useQuery({
+    queryKey: ["admin", "pending-expense-bills"],
+    queryFn: () => accountEntriesApi.pendingExpenseBills().then((r) => r.data),
+  });
+
+  const selected = pendingQuery.data?.find((b) => b.id === billId) ?? null;
+
+  return (
+    <div className="space-y-3">
+      <div>
+        <label className="block text-sm text-navy-muted mb-1">Approved bill</label>
+        {pendingQuery.isLoading && <Loader />}
+        {pendingQuery.isError && (
+          <ErrorState message="Couldn't load pending bills." onRetry={() => pendingQuery.refetch()} />
+        )}
+        {pendingQuery.data && pendingQuery.data.length === 0 && (
+          <p className="text-xs text-navy-muted">No approved bills are waiting to be settled right now.</p>
+        )}
+        {pendingQuery.data && pendingQuery.data.length > 0 && (
+          <select
+            value={billId}
+            onChange={(e) => onChange(pendingQuery.data.find((b) => b.id === e.target.value) ?? null)}
+            className="w-full border border-line rounded px-3 py-2 text-sm"
+          >
+            <option value="">Select an approved bill</option>
+            {pendingQuery.data.map((b) => (
+              <option key={b.id} value={b.id}>{b.title} — ₹{b.amount.toLocaleString("en-IN")} approved</option>
+            ))}
+          </select>
+        )}
+      </div>
+
+      {selected && (
+        <div className="border border-line rounded p-3 bg-paper space-y-2 text-xs">
+          {selected.category && <p><span className="text-navy-muted">Category: </span>{selected.category}</p>}
+          {selected.description && <p><span className="text-navy-muted">Description: </span>{selected.description}</p>}
+          <p><span className="text-navy-muted">Approved amount: </span>₹{selected.amount.toLocaleString("en-IN")}</p>
+          {selected.bill_image_key && (
+            <div>
+              <p className="text-navy-muted mb-1">Bill image</p>
+              <AuthenticatedImage src={expenseBillsApi.imageUrl(selected.id)} alt="Bill" className="max-w-xs rounded border border-line" />
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function CreateEntryModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
   const [entryType, setEntryType] = useState<EntryType>("INCOME");
+  const [source, setSource] = useState<EntrySourceChoice>("MANUAL");
   const [headingId, setHeadingId] = useState("");
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
   const [entryDate, setEntryDate] = useState(new Date().toISOString().slice(0, 10));
+  const [selectedBill, setSelectedBill] = useState<ExpenseBillOut | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const create = useMutation({
     mutationFn: () =>
-      accountEntriesApi.create({
-        entry_type: entryType,
-        heading_id: headingId,
-        description: description.trim() || undefined,
-        amount: Number(amount),
-        entry_date: entryDate,
-      }),
+      source === "SETTLE_BILL"
+        ? accountEntriesApi.settleExpenseBill({
+            expense_bill_id: selectedBill!.id,
+            heading_id: headingId,
+            description: description.trim() || undefined,
+            amount: Number(amount),
+            entry_date: entryDate,
+          })
+        : accountEntriesApi.create({
+            entry_type: entryType,
+            heading_id: headingId,
+            description: description.trim() || undefined,
+            amount: Number(amount),
+            entry_date: entryDate,
+          }),
     onSuccess,
-    onError: (e) => setError(apiErrorMessage(e, "Couldn't add this entry.")),
+    onError: (e) => setError(apiErrorMessage(e, source === "SETTLE_BILL" ? "Couldn't settle this bill." : "Couldn't add this entry.")),
   });
 
-  const validAmount = Number(amount) > 0;
+  const validAmount = Number(amount) > 0 && (source !== "SETTLE_BILL" || !selectedBill || Number(amount) <= selectedBill.amount);
+  const canSubmit =
+    source === "SETTLE_BILL"
+      ? !!selectedBill && !!headingId && validAmount
+      : !!headingId && validAmount;
 
   return (
-    <Modal open onClose={onClose} title="Add account entry">
+    <Modal open onClose={onClose} title={source === "SETTLE_BILL" ? "Settle an approved bill" : "Add account entry"}>
       <div className="space-y-4">
         <div>
           <label className="block text-sm text-navy-muted mb-1">Type</label>
           <select
             value={entryType}
             onChange={(e) => {
-              setEntryType(e.target.value as EntryType);
+              const next = e.target.value as EntryType;
+              setEntryType(next);
               setHeadingId("");
+              if (next === "INCOME") setSource("MANUAL");
             }}
             className="w-full border border-line rounded px-3 py-2 text-sm"
           >
@@ -308,9 +406,48 @@ function CreateEntryModal({ onClose, onSuccess }: { onClose: () => void; onSucce
           </select>
         </div>
 
+        {entryType === "EXPENSE" && (
+          <div className="flex gap-4 text-sm">
+            <label className="flex items-center gap-1.5">
+              <input
+                type="radio"
+                checked={source === "MANUAL"}
+                onChange={() => { setSource("MANUAL"); setSelectedBill(null); setAmount(""); setHeadingId(""); }}
+              />
+              Manual entry
+            </label>
+            <label className="flex items-center gap-1.5">
+              <input
+                type="radio"
+                checked={source === "SETTLE_BILL"}
+                onChange={() => { setSource("SETTLE_BILL"); setHeadingId(""); setAmount(""); }}
+              />
+              Settle an approved bill
+            </label>
+          </div>
+        )}
+
+        {source === "SETTLE_BILL" ? (
+          <PendingBillPicker
+            billId={selectedBill?.id ?? ""}
+            onChange={(bill) => { setSelectedBill(bill); setAmount(bill ? String(bill.amount) : ""); }}
+          />
+        ) : null}
+
         <HeadingPicker entryType={entryType} headingId={headingId} onChange={setHeadingId} />
 
-        <Input label="Amount" type="number" min="0" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} />
+        <Input
+          label={source === "SETTLE_BILL" ? `Amount (max ₹${selectedBill?.amount.toLocaleString("en-IN") ?? "—"})` : "Amount"}
+          type="number"
+          min="0"
+          step="0.01"
+          max={source === "SETTLE_BILL" ? selectedBill?.amount : undefined}
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+        />
+        {source === "SETTLE_BILL" && selectedBill && Number(amount) > selectedBill.amount && (
+          <p className="text-xs text-danger -mt-2">Cannot exceed the approved amount of ₹{selectedBill.amount.toLocaleString("en-IN")}.</p>
+        )}
         <Input label="Date" type="date" value={entryDate} onChange={(e) => setEntryDate(e.target.value)} />
         <div>
           <label className="block text-sm text-navy-muted mb-1">Description (optional)</label>
@@ -324,8 +461,8 @@ function CreateEntryModal({ onClose, onSuccess }: { onClose: () => void; onSucce
         {error && <p className="text-sm text-danger">{error}</p>}
         <div className="flex gap-2 justify-end pt-2">
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button loading={create.isPending} disabled={!headingId || !validAmount} onClick={() => create.mutate()}>
-            Add
+          <Button loading={create.isPending} disabled={!canSubmit} onClick={() => create.mutate()}>
+            {source === "SETTLE_BILL" ? "Settle" : "Add"}
           </Button>
         </div>
       </div>

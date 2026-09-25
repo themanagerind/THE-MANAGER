@@ -16,7 +16,9 @@ from app.schemas.account_entry import (
     AccountHeadingOut,
     AccountHeadingUpdateIn,
     BalanceSummaryOut,
+    SettleExpenseBillIn,
 )
+from app.schemas.expense_bill import ExpenseBillOut
 from app.schemas.pagination import Page, Pagination, pagination_params
 from app.services import account_entry_service
 
@@ -91,6 +93,33 @@ async def list_all(
         db, current.society_id, pagination.skip, pagination.limit
     )
     return Page(items=[AccountEntryOut.model_validate(e) for e in entries], total=total, skip=pagination.skip, limit=pagination.limit)
+
+
+@router.get("/pending-expense-bills", response_model=list[ExpenseBillOut])
+async def pending_expense_bills(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current: Annotated[CurrentUser, Depends(require_role(Role.ADMIN))],
+) -> list[ExpenseBillOut]:
+    """APPROVED expense bills not yet settled into Accounts — powers the
+    "Pending Approved Bills" picker on the Accounts "Add entry" screen
+    (redesign, user-requested)."""
+    bills = await account_entry_service.list_pending_approved_bills(db, current.society_id)
+    return [ExpenseBillOut.model_validate(b) for b in bills]
+
+
+@router.post("/settle-expense-bill", response_model=AccountEntryOut)
+async def settle_expense_bill(
+    body: SettleExpenseBillIn,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current: Annotated[CurrentUser, Depends(require_role(Role.ADMIN))],
+) -> AccountEntryOut:
+    """Settles an APPROVED bill into the ledger — Admin picks the heading,
+    and the amount can't exceed what was actually approved."""
+    entry = await account_entry_service.settle_expense_bill(
+        db, current.society_id, current.user_id,
+        body.expense_bill_id, body.heading_id, body.amount, body.entry_date, body.description,
+    )
+    return AccountEntryOut.model_validate(entry)
 
 
 @router.get("/balance", response_model=BalanceSummaryOut)

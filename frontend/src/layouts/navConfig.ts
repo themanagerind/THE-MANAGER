@@ -28,7 +28,7 @@ export const navByRole: Record<Role, NavItem[]> = {
     { label: "Notices", path: "/admin/notices", icon: "notice" },
     { label: "Amenities", path: "/admin/amenities", icon: "amenity" },
     { label: "Proposals", path: "/admin/proposals", icon: "proposal" },
-    { label: "Expenses", path: "/admin/expense-bills", icon: "expense" },
+    { label: "Expense Approval", path: "/admin/expense-bills", icon: "expense" },
     { label: "Accounts", path: "/admin/accounts", icon: "wallet" },
     { label: "Reports", path: "/admin/reports", icon: "report" },
   ],
@@ -37,7 +37,7 @@ export const navByRole: Record<Role, NavItem[]> = {
     { label: "MONTHLY MAINTENANCE", path: "/subadmin/dues", icon: "dues" },
     { label: "Complaints", path: "/subadmin/complaints", icon: "complaint" },
     { label: "Proposals", path: "/subadmin/proposals", icon: "proposal" },
-    { label: "Expenses", path: "/subadmin/expense-bills", icon: "expense" },
+    { label: "Expense Approval", path: "/subadmin/expense-bills", icon: "expense" },
     { label: "Reports", path: "/subadmin/reports", icon: "report" },
   ],
   MANAGER: [

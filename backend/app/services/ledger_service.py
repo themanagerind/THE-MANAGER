@@ -51,22 +51,8 @@ async def post_adjustment(
     return entry
 
 
-async def post_expense_bill_expense(
-    db: AsyncSession, society_id: uuid.UUID, expense_bill_id: uuid.UUID, amount: float, created_by: uuid.UUID
-) -> AccountEntry:
-    """Exactly-once per expense bill — relies on the partial unique index
-    on (related_expense_bill_id) WHERE source='EXPENSE_BILL'. Called when
-    an expense bill reaches APPROVED (100% active Sub-admin approval)."""
-    entry = AccountEntry(
-        society_id=society_id,
-        entry_type=EntryType.EXPENSE,
-        source=EntrySource.EXPENSE_BILL,
-        title="Approved expense bill",
-        amount=amount,
-        entry_date=date.today(),
-        related_expense_bill_id=expense_bill_id,
-        created_by=created_by,
-    )
-    db.add(entry)
-    await db.flush()
-    return entry
+# post_expense_bill_expense was removed (redesign, user-requested): an
+# APPROVED expense bill no longer auto-posts to Accounts. See
+# account_entry_service.settle_expense_bill() — Admin now settles it
+# manually from the Accounts screen instead, picking a heading and an
+# amount capped at the bill's approved amount.

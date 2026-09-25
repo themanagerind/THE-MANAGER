@@ -104,3 +104,17 @@ class BalanceSummaryOut(BaseModel):
     total_income: float
     total_expense: float
     balance: float
+
+
+class SettleExpenseBillIn(BaseModel):
+    """Admin settles an APPROVED expense bill into the Accounts ledger
+    (redesign, user-requested) — picks a heading, and an amount that
+    can't exceed the bill's own approved amount (enforced in
+    account_entry_service.settle_expense_bill). Replaces the old
+    automatic post-on-approval behaviour."""
+
+    expense_bill_id: uuid.UUID
+    heading_id: uuid.UUID
+    amount: float
+    entry_date: date
+    description: str | None = None

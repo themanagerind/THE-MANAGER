@@ -2,7 +2,8 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_db
@@ -16,7 +17,7 @@ from app.schemas.expense_bill import (
     ExpenseBillStatusDetailOut,
 )
 from app.schemas.pagination import Page, Pagination, pagination_params
-from app.services import expense_bill_service
+from app.services import expense_bill_service, upload_service
 
 router = APIRouter(prefix="/expense-bills", tags=["expense-bills"])
 
@@ -64,6 +65,23 @@ async def list_all(
 ) -> Page[ExpenseBillOut]:
     bills, total = await expense_bill_service.list_bills(db, current.society_id, pagination.skip, pagination.limit)
     return Page(items=[ExpenseBillOut.model_validate(b) for b in bills], total=total, skip=pagination.skip, limit=pagination.limit)
+
+
+@router.get("/{bill_id}/image")
+async def get_bill_image(
+    bill_id: uuid.UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current: Annotated[
+        CurrentUser, Depends(require_role(Role.ADMIN, Role.SUB_ADMIN, Role.MANAGER))
+    ],
+) -> FileResponse:
+    """The only way to read a bill image's bytes — same authorization as
+    the bill's own detail endpoint (society-scoped, no public mount)."""
+    bill = await expense_bill_service.get_bill(db, current.society_id, bill_id)
+    if not bill.bill_image_key:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No bill image uploaded for this bill")
+    path = upload_service.resolve_expense_bill_image_path(bill.bill_image_key)
+    return FileResponse(path)
 
 
 @router.get("/{bill_id}", response_model=ExpenseBillStatusDetailOut)

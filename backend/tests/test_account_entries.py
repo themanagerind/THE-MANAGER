@@ -265,3 +265,111 @@ async def test_renaming_heading_to_an_existing_title_rejected(
         f"/api/v1/account-entries/headings/{heading_a.id}", json={"title": "Scrap Sale (rename test)"}, headers=admin_headers
     )
     assert resp.status_code == 409
+
+
+async def _seed_approved_bill(
+    db_session: AsyncSession, society_id, admin_id, mobile_prefix: str, amount: float = 10000.0
+):
+    """A Sub-admin-approved expense bill, ready to be settled into
+    Accounts — same shape the redesigned decide_approval() leaves behind
+    (APPROVED, no linked AccountEntry yet)."""
+    from datetime import datetime, timezone
+
+    from app.models.enums import Decision, ExpenseBillStatus
+    from app.models.governance import ExpenseBill, ExpenseBillApproval
+
+    subadmin = User(society_id=society_id, full_name="Settle SubAdmin", mobile=mobile_prefix, status=UserStatus.ACTIVE)
+    db_session.add(subadmin)
+    await db_session.flush()
+    db_session.add(UserRole(user_id=subadmin.id, role=Role.SUB_ADMIN, assigned_at=datetime.now(timezone.utc)))
+
+    bill = ExpenseBill(
+        society_id=society_id, title="Lift AMC (settle test)", amount=amount,
+        bill_image_key="expense_bill_proofs/test.jpg", status=ExpenseBillStatus.APPROVED,
+        created_by=admin_id, finalized_by=admin_id, finalized_at=datetime.now(timezone.utc),
+    )
+    db_session.add(bill)
+    await db_session.flush()
+    db_session.add(
+        ExpenseBillApproval(
+            society_id=society_id, expense_bill_id=bill.id, sub_admin_id=subadmin.id,
+            decision=Decision.APPROVE, decided_at=datetime.now(timezone.utc),
+        )
+    )
+    await db_session.commit()
+    await db_session.refresh(bill)
+    return bill
+
+
+async def test_pending_approved_bills_lists_unsettled_bills(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    society_id = two_societies_with_admins["a"]["society_id"]
+    admin_id = two_societies_with_admins["a"]["admin_id"]
+    admin_headers = auth_headers(admin_id, society_id, Role.ADMIN, [Role.ADMIN])
+    bill = await _seed_approved_bill(db_session, society_id, admin_id, "9502000001")
+
+    resp = await client.get("/api/v1/account-entries/pending-expense-bills", headers=admin_headers)
+    assert resp.status_code == 200
+    assert any(b["id"] == str(bill.id) for b in resp.json())
+
+
+async def test_settle_expense_bill_creates_expense_bill_sourced_entry(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    society_id = two_societies_with_admins["a"]["society_id"]
+    admin_id = two_societies_with_admins["a"]["admin_id"]
+    admin_headers = auth_headers(admin_id, society_id, Role.ADMIN, [Role.ADMIN])
+    bill = await _seed_approved_bill(db_session, society_id, admin_id, "9502000002", amount=10000.0)
+    heading = await _seed_heading(db_session, EntryType.EXPENSE, "Lift Maintenance (settle test)")
+
+    resp = await client.post(
+        "/api/v1/account-entries/settle-expense-bill",
+        json={
+            "expense_bill_id": str(bill.id), "heading_id": str(heading.id),
+            "amount": 9500.0, "entry_date": "2026-09-25",
+        },
+        headers=admin_headers,
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["source"] == "EXPENSE_BILL"
+    assert body["title"] == "Lift Maintenance (settle test)"
+    assert body["amount"] == 9500.0
+
+    # Now settled — no longer listed as pending.
+    resp = await client.get("/api/v1/account-entries/pending-expense-bills", headers=admin_headers)
+    assert all(b["id"] != str(bill.id) for b in resp.json())
+
+    # Settling the same bill again is rejected.
+    resp = await client.post(
+        "/api/v1/account-entries/settle-expense-bill",
+        json={
+            "expense_bill_id": str(bill.id), "heading_id": str(heading.id),
+            "amount": 500.0, "entry_date": "2026-09-25",
+        },
+        headers=admin_headers,
+    )
+    assert resp.status_code == 409
+
+
+async def test_settle_expense_bill_amount_cannot_exceed_approved_amount(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    """The exact scenario the user described: a ₹10,000 approved bill
+    can't be settled for ₹12,000."""
+    society_id = two_societies_with_admins["a"]["society_id"]
+    admin_id = two_societies_with_admins["a"]["admin_id"]
+    admin_headers = auth_headers(admin_id, society_id, Role.ADMIN, [Role.ADMIN])
+    bill = await _seed_approved_bill(db_session, society_id, admin_id, "9502000003", amount=10000.0)
+    heading = await _seed_heading(db_session, EntryType.EXPENSE, "Lift Maintenance (cap test)")
+
+    resp = await client.post(
+        "/api/v1/account-entries/settle-expense-bill",
+        json={
+            "expense_bill_id": str(bill.id), "heading_id": str(heading.id),
+            "amount": 12000.0, "entry_date": "2026-09-25",
+        },
+        headers=admin_headers,
+    )
+    assert resp.status_code == 400

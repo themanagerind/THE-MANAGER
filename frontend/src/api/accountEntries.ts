@@ -1,4 +1,5 @@
 import { apiClient } from "@/api/client";
+import type { ExpenseBillOut } from "@/api/expenseBills";
 import type { EntryType } from "@/types/enums";
 
 /** Platform-global catalog of Income/Expense headings (v1.7) — Admin
@@ -60,4 +61,11 @@ export const accountEntriesApi = {
     apiClient.post<AccountEntryOut>("/account-entries", input),
   edit: (id: string, input: Partial<{ heading_id: string; description: string; amount: number; entry_date: string }>) =>
     apiClient.patch<AccountEntryOut>(`/account-entries/${id}`, input),
+  /** APPROVED expense bills not yet settled into Accounts (redesign —
+   * approval no longer auto-posts; Admin settles manually from here). */
+  pendingExpenseBills: () => apiClient.get<ExpenseBillOut[]>("/account-entries/pending-expense-bills"),
+  /** Settles a picked bill into the ledger — amount is capped server-side
+   * at the bill's own approved amount. */
+  settleExpenseBill: (input: { expense_bill_id: string; heading_id: string; amount: number; entry_date: string; description?: string }) =>
+    apiClient.post<AccountEntryOut>("/account-entries/settle-expense-bill", input),
 };

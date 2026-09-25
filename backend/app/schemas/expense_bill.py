@@ -12,6 +12,10 @@ class ExpenseBillCreateIn(BaseModel):
     description: str | None = None
     amount: float
     category: str | None = None
+    # Mandatory — a storage key from POST /uploads/expense-bill-image, not
+    # a fetchable URL. Every new bill must carry a photo of the physical
+    # bill/receipt (user-requested, reverses the old "never required" rule).
+    bill_image_key: str
 
 
 class ExpenseBillOut(BaseModel):
@@ -21,6 +25,7 @@ class ExpenseBillOut(BaseModel):
     description: str | None
     amount: float
     category: str | None
+    bill_image_key: str | None
     status: ExpenseBillStatus
     created_by: uuid.UUID
     finalized_by: uuid.UUID | None

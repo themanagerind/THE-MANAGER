@@ -1,12 +1,14 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { expenseBillsApi, type ExpenseBillOut } from "@/api/expenseBills";
+import { uploadsApi } from "@/api/uploads";
 import { Loader, EmptyState, ErrorState, apiErrorMessage } from "@/components/States";
 import { Badge } from "@/components/Badge";
 import { Table } from "@/components/Table";
 import { Button } from "@/components/Button";
 import { Modal } from "@/components/Modal";
 import { Input } from "@/components/Input";
+import { AuthenticatedImage } from "@/components/AuthenticatedImage";
 
 export function AdminExpenseBills() {
   const queryClient = useQueryClient();
@@ -26,7 +28,7 @@ export function AdminExpenseBills() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-navy">Expense Bills</h1>
+        <h1 className="text-xl font-semibold text-navy">Expense Approval</h1>
         <Button onClick={() => setCreating(true)}>Add bill</Button>
       </div>
 
@@ -109,6 +111,14 @@ function BillDetailModal({ id, onClose }: { id: string; onClose: () => void }) {
               <span>{detailQuery.data.approve_count} / {detailQuery.data.active_subadmin_count} (needs {detailQuery.data.approvals_needed})</span>
             </div>
           )}
+          <div>
+            <p className="text-navy-muted mb-1">Bill image</p>
+            {detailQuery.data.bill.bill_image_key ? (
+              <AuthenticatedImage src={expenseBillsApi.imageUrl(id)} alt="Bill" />
+            ) : (
+              <p className="text-xs text-navy-muted">No image on file.</p>
+            )}
+          </div>
         </div>
       )}
     </Modal>
@@ -120,7 +130,18 @@ function CreateBillModal({ onClose, onSuccess }: { onClose: () => void; onSucces
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
   const [category, setCategory] = useState("");
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [billImageKey, setBillImageKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const uploadImage = useMutation({
+    mutationFn: (file: File) => uploadsApi.expenseBillImage(file),
+    onSuccess: (res) => {
+      setBillImageKey(res.data.file_url);
+      setError(null);
+    },
+    onError: (e) => setError(apiErrorMessage(e, "Couldn't upload the bill image.")),
+  });
 
   const create = useMutation({
     mutationFn: () =>
@@ -129,6 +150,7 @@ function CreateBillModal({ onClose, onSuccess }: { onClose: () => void; onSucces
         description: description.trim() || undefined,
         amount: Number(amount),
         category: category.trim() || undefined,
+        bill_image_key: billImageKey!,
       }),
     onSuccess,
     onError: (e) => setError(apiErrorMessage(e, "Couldn't add this bill.")),
@@ -150,6 +172,25 @@ function CreateBillModal({ onClose, onSuccess }: { onClose: () => void; onSucces
           onChange={(e) => setAmount(e.target.value)}
         />
         <div>
+          <label className="block text-sm text-navy-muted mb-1">Bill image (mandatory)</label>
+          <input
+            type="file"
+            accept="image/jpeg,image/png"
+            onChange={(e) => {
+              const file = e.target.files?.[0] ?? null;
+              setImageFile(file);
+              setBillImageKey(null);
+              if (file) uploadImage.mutate(file);
+            }}
+            className="text-sm"
+          />
+          {uploadImage.isPending && <p className="text-xs text-navy-muted mt-1">Uploading…</p>}
+          {billImageKey && <p className="text-xs text-success mt-1">✓ Bill image uploaded.</p>}
+          {imageFile && !billImageKey && !uploadImage.isPending && (
+            <p className="text-xs text-danger mt-1">Upload failed — pick the file again.</p>
+          )}
+        </div>
+        <div>
           <label className="block text-sm text-navy-muted mb-1">Description (optional)</label>
           <textarea
             value={description}
@@ -161,7 +202,11 @@ function CreateBillModal({ onClose, onSuccess }: { onClose: () => void; onSucces
         {error && <p className="text-sm text-danger">{error}</p>}
         <div className="flex gap-2 justify-end pt-2">
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button loading={create.isPending} disabled={!title.trim() || !validAmount} onClick={() => create.mutate()}>
+          <Button
+            loading={create.isPending}
+            disabled={!title.trim() || !validAmount || !billImageKey}
+            onClick={() => create.mutate()}
+          >
             Add & finalize
           </Button>
         </div>

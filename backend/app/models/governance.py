@@ -147,7 +147,15 @@ class ProposalVoteHistory(Base, UUIDPKMixin):
 
 class ExpenseBill(Base, UUIDPKMixin, TimestampMixin):
     """status: DRAFT (Manager draft) -> PENDING_APPROVAL (Admin-finalized) ->
-    APPROVED/REJECTED (Section 23). No proof_url (v1.1 fix — never required)."""
+    APPROVED/REJECTED (Section 23).
+
+    Redesign (v1.10, user-requested): approval no longer auto-posts to
+    Accounts — see account_entry_service.settle_expense_bill(), which
+    Admin drives manually from the Accounts screen, capped at `amount`.
+    bill_image_key reverses the old "No proof_url — never required" v1.1
+    decision: every new bill must carry a photo of the physical bill,
+    enforced at the schema layer (nullable here so pre-existing rows
+    aren't retroactively broken — same pattern as AccountEntry.heading_id)."""
 
     __tablename__ = "expense_bills"
 
@@ -158,6 +166,7 @@ class ExpenseBill(Base, UUIDPKMixin, TimestampMixin):
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     amount: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
     category: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    bill_image_key: Mapped[str | None] = mapped_column(String(300), nullable=True)
     status: Mapped[ExpenseBillStatus] = mapped_column(
         pg_enum(ExpenseBillStatus, "expense_bill_status_enum"),
         nullable=False,

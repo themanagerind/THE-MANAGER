@@ -21,7 +21,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.enums import Decision, ExpenseBillStatus
 from app.models.governance import ExpenseBill, ExpenseBillApproval
 from app.schemas.expense_bill import ExpenseBillCreateIn
-from app.services import ledger_service
 from app.services.scope_service import active_subadmin_ids
 
 
@@ -35,6 +34,7 @@ async def create_draft(
         description=body.description,
         amount=body.amount,
         category=body.category,
+        bill_image_key=body.bill_image_key,
         status=ExpenseBillStatus.DRAFT,
         created_by=created_by,
     )
@@ -61,6 +61,7 @@ async def create_and_finalize(
         description=body.description,
         amount=body.amount,
         category=body.category,
+        bill_image_key=body.bill_image_key,
         status=ExpenseBillStatus.PENDING_APPROVAL,
         created_by=created_by,
         finalized_by=created_by,
@@ -206,12 +207,12 @@ async def decide_approval(
         detail = await status_detail(db, bill)
         if detail["active_subadmin_count"] > 0 and detail["approve_count"] >= detail["active_subadmin_count"]:
             bill.status = ExpenseBillStatus.APPROVED
-            # Section 13.0/23 integration: post the Expense-side ledger entry
-            # exactly once (DB partial unique index on related_expense_bill_id
-            # guards this even under a race between the last two approvals).
-            await ledger_service.post_expense_bill_expense(
-                db, society_id, bill.id, float(bill.amount), created_by=sub_admin_id
-            )
+            # Redesign (user-requested): approval no longer auto-posts to
+            # Accounts. Admin settles it manually from the Accounts screen
+            # (account_entry_service.settle_expense_bill), picking a
+            # heading and an amount capped at bill.amount — this bill just
+            # becomes visible there once APPROVED, nothing more happens
+            # here automatically.
 
     await db.commit()
     await db.refresh(approval)

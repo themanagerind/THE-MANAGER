@@ -22,3 +22,16 @@ async def upload_payment_proof(
     PaymentProof row itself, submit_payment() does that atomically."""
     file_url = await upload_service.save_payment_proof(file, current.user_id)
     return UploadProofOut(file_url=file_url)
+
+
+@router.post("/expense-bill-image", response_model=UploadProofOut)
+async def upload_expense_bill_image(
+    file: UploadFile,
+    current: Annotated[CurrentUser, Depends(require_role(Role.ADMIN, Role.MANAGER))],
+) -> UploadProofOut:
+    """Admin or Manager uploads a photo of the physical bill/receipt before
+    raising an expense bill (POST /expense-bills or /expense-bills/draft).
+    Returns a file_url to pass as ExpenseBillCreateIn.bill_image_key — a
+    storage key, not a fetchable URL."""
+    file_url = await upload_service.save_expense_bill_image(file, current.user_id)
+    return UploadProofOut(file_url=file_url)

@@ -12,7 +12,8 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.accounts import AccountEntry, AccountEntryEditHistory, AccountHeading
-from app.models.enums import EntrySource, EntryType
+from app.models.enums import EntrySource, EntryType, ExpenseBillStatus
+from app.models.governance import ExpenseBill
 
 
 async def add_heading(db: AsyncSession, entry_type: EntryType, title: str, created_by: uuid.UUID) -> AccountHeading:
@@ -185,6 +186,75 @@ async def list_entries(db: AsyncSession, society_id: uuid.UUID, skip: int = 0, l
         )
     ).scalars().all()
     return rows, total
+
+
+async def list_pending_approved_bills(db: AsyncSession, society_id: uuid.UUID) -> list[ExpenseBill]:
+    """APPROVED expense bills not yet settled into Accounts — derived, not
+    a stored flag: "not yet settled" means no AccountEntry exists with
+    source=EXPENSE_BILL pointing at it, which the partial unique index
+    ux_account_entries_expense_bill_once already guarantees is at most
+    one row per bill. Powers the "Pending Approved Bills" picker Admin
+    uses to settle a bill into the ledger (redesign, user-requested)."""
+    settled_subq = select(AccountEntry.related_expense_bill_id).where(
+        AccountEntry.source == EntrySource.EXPENSE_BILL, AccountEntry.related_expense_bill_id.isnot(None)
+    )
+    rows = (
+        await db.execute(
+            select(ExpenseBill)
+            .where(
+                ExpenseBill.society_id == society_id,
+                ExpenseBill.status == ExpenseBillStatus.APPROVED,
+                ExpenseBill.id.notin_(settled_subq),
+            )
+            .order_by(ExpenseBill.finalized_at.desc())
+        )
+    ).scalars().all()
+    return rows
+
+
+async def settle_expense_bill(
+    db: AsyncSession, society_id: uuid.UUID, created_by: uuid.UUID,
+    expense_bill_id: uuid.UUID, heading_id: uuid.UUID, amount: float, entry_date: date, description: str | None,
+) -> AccountEntry:
+    """Admin settles an APPROVED bill into the ledger — picks a heading
+    (never auto-derived from the bill's title/category) and an amount
+    that can't exceed what was actually approved (e.g. a ₹10,000 approved
+    bill can't be settled for ₹12,000; settling for less, e.g. the actual
+    invoice came in lower, is fine). Creates an EXPENSE_BILL-sourced
+    AccountEntry — the partial unique index on related_expense_bill_id is
+    the race-safety net behind the IntegrityError catch below."""
+    bill = (
+        await db.execute(
+            select(ExpenseBill).where(ExpenseBill.id == expense_bill_id, ExpenseBill.society_id == society_id)
+        )
+    ).scalar_one_or_none()
+    if bill is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Expense bill not found in this society")
+    if bill.status != ExpenseBillStatus.APPROVED:
+        raise HTTPException(status.HTTP_409_CONFLICT, f"Bill is {bill.status.value}, not APPROVED")
+    if amount <= 0:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Amount must be positive")
+    if amount > float(bill.amount):
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"Amount cannot exceed the approved bill amount of ₹{bill.amount}",
+        )
+
+    heading = await _get_heading_or_404(db, heading_id, EntryType.EXPENSE)
+
+    entry = AccountEntry(
+        society_id=society_id, entry_type=EntryType.EXPENSE, source=EntrySource.EXPENSE_BILL,
+        heading_id=heading.id, title=heading.title, description=description,
+        amount=amount, entry_date=entry_date, related_expense_bill_id=bill.id, created_by=created_by,
+    )
+    db.add(entry)
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(status.HTTP_409_CONFLICT, "This bill has already been settled into Accounts") from None
+    await db.refresh(entry)
+    return entry
 
 
 async def balance_summary(db: AsyncSession, society_id: uuid.UUID) -> dict:
