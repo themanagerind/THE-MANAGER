@@ -185,3 +185,83 @@ async def test_resident_cannot_manage_headings(
         "/api/v1/account-entries/headings", json={"entry_type": "INCOME", "title": "Made up"}, headers=resident_headers
     )
     assert resp.status_code == 403
+
+
+async def test_purely_numeric_heading_rejected(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    """The mistake that prompted this: typing an amount like "3000" into
+    the heading box instead of a real category name."""
+    society_id = two_societies_with_admins["a"]["society_id"]
+    admin_id = two_societies_with_admins["a"]["admin_id"]
+    admin_headers = auth_headers(admin_id, society_id, Role.ADMIN, [Role.ADMIN])
+
+    resp = await client.post(
+        "/api/v1/account-entries/headings", json={"entry_type": "INCOME", "title": "3000"}, headers=admin_headers
+    )
+    assert resp.status_code == 422
+
+    resp = await client.post(
+        "/api/v1/account-entries/headings", json={"entry_type": "INCOME", "title": "24x7 Security"}, headers=admin_headers
+    )
+    assert resp.status_code == 200
+
+
+async def test_admin_can_rename_a_heading_without_touching_past_entries(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    society_id = two_societies_with_admins["a"]["society_id"]
+    admin_id = two_societies_with_admins["a"]["admin_id"]
+    admin_headers = auth_headers(admin_id, society_id, Role.ADMIN, [Role.ADMIN])
+    heading = AccountHeading(entry_type=EntryType.INCOME, title="3000")
+    db_session.add(heading)
+    await db_session.commit()
+    await db_session.refresh(heading)
+
+    resp = await client.post(
+        "/api/v1/account-entries",
+        json={"entry_type": "INCOME", "heading_id": str(heading.id), "amount": 500, "entry_date": "2026-09-01"},
+        headers=admin_headers,
+    )
+    assert resp.status_code == 200
+    entry_id = resp.json()["id"]
+    assert resp.json()["title"] == "3000"
+
+    resp = await client.patch(
+        f"/api/v1/account-entries/headings/{heading.id}", json={"title": "Interest on Fixed Deposit"}, headers=admin_headers
+    )
+    assert resp.status_code == 200
+    assert resp.json()["title"] == "Interest on Fixed Deposit"
+
+    # The already-created entry keeps its own title as a historical
+    # snapshot — renaming the heading doesn't retroactively touch it.
+    resp = await client.get("/api/v1/account-entries", headers=admin_headers)
+    matching = next(i for i in resp.json()["items"] if i["id"] == entry_id)
+    assert matching["title"] == "3000"
+
+    # A NEW entry picking the (now renamed) heading gets the new title.
+    resp = await client.post(
+        "/api/v1/account-entries",
+        json={"entry_type": "INCOME", "heading_id": str(heading.id), "amount": 700, "entry_date": "2026-09-02"},
+        headers=admin_headers,
+    )
+    assert resp.status_code == 200
+    assert resp.json()["title"] == "Interest on Fixed Deposit"
+
+
+async def test_renaming_heading_to_an_existing_title_rejected(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    society_id = two_societies_with_admins["a"]["society_id"]
+    admin_id = two_societies_with_admins["a"]["admin_id"]
+    admin_headers = auth_headers(admin_id, society_id, Role.ADMIN, [Role.ADMIN])
+    heading_a = AccountHeading(entry_type=EntryType.INCOME, title="Lawn Rent (rename test)")
+    heading_b = AccountHeading(entry_type=EntryType.INCOME, title="Scrap Sale (rename test)")
+    db_session.add_all([heading_a, heading_b])
+    await db_session.commit()
+    await db_session.refresh(heading_a)
+
+    resp = await client.patch(
+        f"/api/v1/account-entries/headings/{heading_a.id}", json={"title": "Scrap Sale (rename test)"}, headers=admin_headers
+    )
+    assert resp.status_code == 409

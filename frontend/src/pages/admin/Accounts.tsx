@@ -110,13 +110,22 @@ export function AdminAccounts() {
  * "Lift Maintenance", "Society Maintenance Charges"), or type a new one
  * and it's usable immediately. Title is no longer free-typed on the
  * entry itself — it's always taken from the picked heading.
+ *
+ * A confirmation line appears after adding (the "Add a new heading"
+ * field just going blank on its own read as "did that even work?"),
+ * and the selected heading can be renamed in place — safe because an
+ * entry's title is a snapshot taken when it was created/edited, so
+ * renaming a heading never touches an entry that already used it.
  */
 function HeadingPicker({
   entryType, headingId, onChange,
 }: { entryType: EntryType; headingId: string; onChange: (id: string) => void }) {
   const queryClient = useQueryClient();
   const [newHeadingTitle, setNewHeadingTitle] = useState("");
+  const [justAdded, setJustAdded] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [renaming, setRenaming] = useState(false);
+  const [renameTitle, setRenameTitle] = useState("");
 
   const headingsQuery = useQuery({
     queryKey: ["admin", "account-headings", entryType],
@@ -127,12 +136,25 @@ function HeadingPicker({
     mutationFn: () => accountEntriesApi.addHeading(entryType, newHeadingTitle.trim()),
     onSuccess: (res) => {
       setNewHeadingTitle("");
+      setJustAdded(res.data.title);
       setError(null);
       onChange(res.data.id);
       void queryClient.invalidateQueries({ queryKey: ["admin", "account-headings"] });
     },
     onError: (e) => setError(apiErrorMessage(e, "Couldn't add this heading.")),
   });
+
+  const renameHeading = useMutation({
+    mutationFn: () => accountEntriesApi.editHeading(headingId, renameTitle.trim()),
+    onSuccess: () => {
+      setRenaming(false);
+      setError(null);
+      void queryClient.invalidateQueries({ queryKey: ["admin", "account-headings"] });
+    },
+    onError: (e) => setError(apiErrorMessage(e, "Couldn't rename this heading.")),
+  });
+
+  const selectedHeading = headingsQuery.data?.find((h) => h.id === headingId);
 
   return (
     <div className="space-y-3">
@@ -143,24 +165,67 @@ function HeadingPicker({
           <ErrorState message="Couldn't load headings." onRetry={() => headingsQuery.refetch()} />
         )}
         {headingsQuery.data && (
-          <select
-            value={headingId}
-            onChange={(e) => onChange(e.target.value)}
-            className="w-full border border-line rounded px-3 py-2 text-sm"
-          >
-            <option value="">Select a heading</option>
-            {headingsQuery.data.map((h) => (
-              <option key={h.id} value={h.id}>{h.title}</option>
-            ))}
-          </select>
+          <div className="flex gap-2 items-start">
+            <select
+              value={headingId}
+              onChange={(e) => {
+                onChange(e.target.value);
+                setJustAdded(null);
+                setRenaming(false);
+              }}
+              className="flex-1 border border-line rounded px-3 py-2 text-sm"
+            >
+              <option value="">Select a heading</option>
+              {headingsQuery.data.map((h) => (
+                <option key={h.id} value={h.id}>{h.title}</option>
+              ))}
+            </select>
+            {headingId && !renaming && (
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setRenameTitle(selectedHeading?.title ?? "");
+                  setRenaming(true);
+                }}
+              >
+                Rename
+              </Button>
+            )}
+          </div>
+        )}
+        {justAdded && (
+          <p className="text-xs text-success mt-1">
+            ✓ &quot;{justAdded}&quot; added and selected above as this entry&apos;s heading.
+          </p>
         )}
       </div>
+
+      {renaming && (
+        <div className="flex gap-2 items-end border border-line rounded p-3 bg-paper">
+          <div className="flex-1">
+            <Input label="Rename this heading" value={renameTitle} onChange={(e) => setRenameTitle(e.target.value)} />
+          </div>
+          <Button
+            variant="secondary"
+            loading={renameHeading.isPending}
+            disabled={!renameTitle.trim()}
+            onClick={() => renameHeading.mutate()}
+          >
+            Save
+          </Button>
+          <Button variant="secondary" onClick={() => setRenaming(false)}>Cancel</Button>
+        </div>
+      )}
+
       <div className="flex gap-2 items-end">
         <div className="flex-1">
           <Input
             label="Add a new heading"
             value={newHeadingTitle}
-            onChange={(e) => setNewHeadingTitle(e.target.value)}
+            onChange={(e) => {
+              setNewHeadingTitle(e.target.value);
+              setJustAdded(null);
+            }}
             placeholder={entryType === "INCOME" ? "e.g. Interest on Fixed Deposit" : "e.g. Diwali Decoration"}
           />
         </div>
@@ -173,6 +238,9 @@ function HeadingPicker({
           Add
         </Button>
       </div>
+      <p className="text-xs text-navy-muted">
+        Must contain letters — an amount by itself (like &quot;3000&quot;) isn&apos;t a valid heading.
+      </p>
       {error && <p className="text-sm text-danger">{error}</p>}
     </div>
   );

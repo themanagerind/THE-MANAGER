@@ -51,6 +51,11 @@ export const accountEntriesApi = {
    * returns the existing row instead of erroring. */
   addHeading: (entryType: EntryType, title: string) =>
     apiClient.post<AccountHeadingOut>("/account-entries/headings", { entry_type: entryType, title }),
+  /** Renames a heading (fixes a typo) — never touches an entry that
+   * already used it, since an entry's title is a snapshot taken when
+   * it was created/edited, not a live reference. */
+  editHeading: (headingId: string, title: string) =>
+    apiClient.patch<AccountHeadingOut>(`/account-entries/headings/${headingId}`, { title }),
   create: (input: { entry_type: EntryType; heading_id: string; description?: string; amount: number; entry_date: string }) =>
     apiClient.post<AccountEntryOut>("/account-entries", input),
   edit: (id: string, input: Partial<{ heading_id: string; description: string; amount: number; entry_date: string }>) =>

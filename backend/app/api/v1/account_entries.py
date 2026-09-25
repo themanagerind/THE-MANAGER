@@ -14,6 +14,7 @@ from app.schemas.account_entry import (
     AccountEntryUpdateIn,
     AccountHeadingCreateIn,
     AccountHeadingOut,
+    AccountHeadingUpdateIn,
     BalanceSummaryOut,
 )
 from app.schemas.pagination import Page, Pagination, pagination_params
@@ -42,6 +43,19 @@ async def add_heading(
 ) -> AccountHeadingOut:
     """Add-only, platform-global — same shape as POST /task-suggestions."""
     heading = await account_entry_service.add_heading(db, body.entry_type, body.title, current.user_id)
+    return AccountHeadingOut.model_validate(heading)
+
+
+@router.patch("/headings/{heading_id}", response_model=AccountHeadingOut)
+async def edit_heading(
+    heading_id: uuid.UUID,
+    body: AccountHeadingUpdateIn,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current: Annotated[CurrentUser, Depends(require_role(Role.ADMIN))],
+) -> AccountHeadingOut:
+    """Renames a heading — fixes a typo (e.g. "3000") without touching
+    any entry that already used it, since entry titles are snapshots."""
+    heading = await account_entry_service.edit_heading(db, heading_id, body.title)
     return AccountHeadingOut.model_validate(heading)
 
 

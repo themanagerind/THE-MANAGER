@@ -47,6 +47,36 @@ async def add_heading(db: AsyncSession, entry_type: EntryType, title: str, creat
     return heading
 
 
+async def edit_heading(db: AsyncSession, heading_id: uuid.UUID, title: str) -> AccountHeading:
+    """Renames a heading — entry_type is fixed. Safe to allow: AccountEntry
+    .title is a snapshot taken at creation/edit time (see create_manual_entry
+    / edit_manual_entry), never a live reference, so renaming here doesn't
+    retroactively touch any entry that already picked this heading."""
+    heading = (await db.execute(select(AccountHeading).where(AccountHeading.id == heading_id))).scalar_one_or_none()
+    if heading is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Heading not found in the catalog")
+
+    existing = (
+        await db.execute(
+            select(AccountHeading).where(
+                AccountHeading.entry_type == heading.entry_type, AccountHeading.title == title,
+                AccountHeading.id != heading_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if existing is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, f"A {heading.entry_type.value} heading named '{title}' already exists")
+
+    heading.title = title
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(status.HTTP_409_CONFLICT, f"A {heading.entry_type.value} heading named '{title}' already exists") from None
+    await db.refresh(heading)
+    return heading
+
+
 async def list_headings(db: AsyncSession, entry_type: EntryType | None = None) -> list[AccountHeading]:
     query = select(AccountHeading)
     if entry_type is not None:

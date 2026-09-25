@@ -1,16 +1,54 @@
 """Account report schemas — Section 13.0/13.1, plus the Account Heading
-catalog extension (v1.7)."""
+catalog extension (v1.7/v1.9)."""
+import re
 import uuid
 from datetime import date, datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from app.models.enums import EntrySource, EntryType
+
+_HAS_LETTER = re.compile(r"[A-Za-z]")
+
+
+def _validate_heading_title(v: str) -> str:
+    """A heading is a category label, not a number — this is exactly the
+    mistake that prompted it (someone typed an amount like "3000" into
+    the heading box instead of a real name). Doesn't block mixed
+    alphanumeric titles like "24x7 Security", only ones with no letters
+    at all."""
+    v = v.strip()
+    if len(v) < 3:
+        raise ValueError("Heading must be at least 3 characters long")
+    if not _HAS_LETTER.search(v):
+        raise ValueError("Heading must contain letters — looks like you typed a number/amount by mistake")
+    return v
 
 
 class AccountHeadingCreateIn(BaseModel):
     entry_type: EntryType
     title: str
+
+    @field_validator("title")
+    @classmethod
+    def _title_must_look_like_a_heading(cls, v: str) -> str:
+        return _validate_heading_title(v)
+
+
+class AccountHeadingUpdateIn(BaseModel):
+    """Renames a heading — entry_type is fixed (not editable: changing it
+    could make the catalog inconsistent for whichever Income/Expense
+    dropdown it was already being picked from). Safe to allow renaming
+    at all: AccountEntry.title is a snapshot taken at creation/edit time,
+    not a live reference, so this never retroactively changes any
+    already-created entry's displayed title."""
+
+    title: str
+
+    @field_validator("title")
+    @classmethod
+    def _title_must_look_like_a_heading(cls, v: str) -> str:
+        return _validate_heading_title(v)
 
 
 class AccountHeadingOut(BaseModel):
