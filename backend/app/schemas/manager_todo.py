@@ -41,3 +41,21 @@ class ManagerTodoOut(BaseModel):
 
 class ManagerTodoStatusUpdateIn(BaseModel):
     status: TodoStatus
+
+
+class ManagerDailyTaskSetIn(BaseModel):
+    """The full set of task_suggestions that should be ON for this Manager
+    — a checkbox list submits its whole current state, not one toggle at a
+    time, so this replaces rather than adds to whatever was set before."""
+
+    task_suggestion_ids: list[uuid.UUID]
+
+
+class ManagerDailyTaskOut(BaseModel):
+    id: uuid.UUID
+    society_id: uuid.UUID
+    manager_id: uuid.UUID
+    task_suggestion_id: uuid.UUID
+    task_title: str
+    is_active: bool
+    created_at: datetime

@@ -2,13 +2,15 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_db
 from app.core.security import CurrentUser, require_role
 from app.models.enums import Role
 from app.schemas.manager_todo import (
+    ManagerDailyTaskOut,
+    ManagerDailyTaskSetIn,
     ManagerTodoCreateIn,
     ManagerTodoOut,
     ManagerTodoStatusUpdateIn,
@@ -71,6 +73,33 @@ async def list_todos(
             db, current.society_id, pagination.skip, pagination.limit
         )
     return Page(items=[ManagerTodoOut.model_validate(t) for t in todos], total=total, skip=pagination.skip, limit=pagination.limit)
+
+
+@router.put("/managers/{manager_id}/daily-tasks", response_model=list[ManagerDailyTaskOut])
+async def set_daily_tasks(
+    manager_id: uuid.UUID,
+    body: ManagerDailyTaskSetIn,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current: Annotated[CurrentUser, Depends(require_role(Role.ADMIN))],
+) -> list[ManagerDailyTaskOut]:
+    """Sets this Manager's recurring daily-duty checklist — typically
+    called right after Admin creates the Manager's staff account, but can
+    be re-called any time to change it. Replaces the whole set (a
+    checkbox UI submits its current state, not one toggle at a time)."""
+    return await manager_todo_service.set_daily_tasks(
+        db, current.society_id, manager_id, body.task_suggestion_ids, current.user_id
+    )
+
+
+@router.get("/managers/{manager_id}/daily-tasks", response_model=list[ManagerDailyTaskOut])
+async def list_daily_tasks(
+    manager_id: uuid.UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current: Annotated[CurrentUser, Depends(require_role(Role.ADMIN, Role.MANAGER))],
+) -> list[ManagerDailyTaskOut]:
+    if current.active_role == Role.MANAGER and manager_id != current.user_id:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "You can only view your own daily-task checklist")
+    return await manager_todo_service.list_daily_tasks(db, current.society_id, manager_id)
 
 
 @router.patch("/manager-todos/{todo_id}/status", response_model=ManagerTodoOut)

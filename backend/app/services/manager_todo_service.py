@@ -1,13 +1,14 @@
 """Manager To-Do service — Section 16."""
 import uuid
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.enums import Role, TodoStatus
-from app.models.operations import ManagerTodo, TaskSuggestion
+from app.models.operations import ManagerDailyTask, ManagerTodo, TaskSuggestion
+from app.schemas.manager_todo import ManagerDailyTaskOut
 from app.services.scope_service import user_has_active_role
 
 # Audit findings C7/C8: status was previously overwritten unconditionally,
@@ -71,6 +72,122 @@ async def assign_todo(
     return todo
 
 
+async def set_daily_tasks(
+    db: AsyncSession,
+    society_id: uuid.UUID,
+    manager_id: uuid.UUID,
+    task_suggestion_ids: list[uuid.UUID],
+    assigned_by: uuid.UUID,
+) -> list[ManagerDailyTaskOut]:
+    """Replaces this Manager's recurring daily-duty checklist with exactly
+    the given set — matches a checkbox UI, which always submits its whole
+    current state. Existing rows are toggled (is_active) rather than
+    deleted, so completed-history ManagerTodo rows they already generated
+    stay intact; only genuinely new task_suggestion_ids get a new row."""
+    if not await user_has_active_role(db, manager_id, society_id, Role.MANAGER):
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, "Target user does not hold an active Manager role in this society"
+        )
+
+    wanted = set(task_suggestion_ids)
+    if wanted:
+        found = (
+            await db.execute(select(TaskSuggestion.id).where(TaskSuggestion.id.in_(wanted)))
+        ).scalars().all()
+        missing = wanted - set(found)
+        if missing:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, f"Unknown task suggestion(s): {sorted(str(m) for m in missing)}")
+
+    existing = (
+        await db.execute(select(ManagerDailyTask).where(ManagerDailyTask.manager_id == manager_id))
+    ).scalars().all()
+    existing_by_task = {row.task_suggestion_id: row for row in existing}
+
+    for task_id, row in existing_by_task.items():
+        row.is_active = task_id in wanted
+
+    for task_id in wanted - set(existing_by_task):
+        db.add(
+            ManagerDailyTask(
+                society_id=society_id, manager_id=manager_id, task_suggestion_id=task_id,
+                is_active=True, assigned_by=assigned_by,
+            )
+        )
+
+    await db.commit()
+    return await list_daily_tasks(db, society_id, manager_id, active_only=False)
+
+
+async def list_daily_tasks(
+    db: AsyncSession, society_id: uuid.UUID, manager_id: uuid.UUID, active_only: bool = True
+) -> list[ManagerDailyTaskOut]:
+    query = (
+        select(ManagerDailyTask, TaskSuggestion.title)
+        .join(TaskSuggestion, TaskSuggestion.id == ManagerDailyTask.task_suggestion_id)
+        .where(ManagerDailyTask.society_id == society_id, ManagerDailyTask.manager_id == manager_id)
+    )
+    if active_only:
+        query = query.where(ManagerDailyTask.is_active.is_(True))
+    rows = (await db.execute(query)).all()
+    return [
+        ManagerDailyTaskOut(
+            id=row.id, society_id=row.society_id, manager_id=row.manager_id,
+            task_suggestion_id=row.task_suggestion_id, task_title=title,
+            is_active=row.is_active, created_at=row.created_at,
+        )
+        for row, title in rows
+    ]
+
+
+async def _active_daily_task_rows(db: AsyncSession, society_id: uuid.UUID, manager_id: uuid.UUID) -> list[ManagerDailyTask]:
+    return (
+        await db.execute(
+            select(ManagerDailyTask).where(
+                ManagerDailyTask.society_id == society_id,
+                ManagerDailyTask.manager_id == manager_id,
+                ManagerDailyTask.is_active.is_(True),
+            )
+        )
+    ).scalars().all()
+
+
+async def _ensure_todays_todos_generated(db: AsyncSession, society_id: uuid.UUID, manager_id: uuid.UUID) -> None:
+    """Turns each of this Manager's active daily-task templates into an
+    actual today's ManagerTodo row, if one doesn't already exist — called
+    right before a Manager reads their own list (no in-app scheduler
+    exists, so generation happens lazily on read, same as compute_penalty
+    elsewhere in this codebase)."""
+    daily_tasks = await _active_daily_task_rows(db, society_id, manager_id)
+    if not daily_tasks:
+        return
+
+    today = date.today()
+    already_today = (
+        await db.execute(
+            select(ManagerTodo.task_suggestion_id).where(
+                ManagerTodo.society_id == society_id,
+                ManagerTodo.manager_id == manager_id,
+                ManagerTodo.task_date == today,
+            )
+        )
+    ).scalars().all()
+    already_today = set(already_today)
+
+    created = False
+    for daily_task in daily_tasks:
+        if daily_task.task_suggestion_id in already_today:
+            continue
+        db.add(
+            ManagerTodo(
+                society_id=society_id, manager_id=manager_id, task_suggestion_id=daily_task.task_suggestion_id,
+                task_date=today, status=TodoStatus.PENDING, assigned_by=daily_task.assigned_by,
+            )
+        )
+        created = True
+    if created:
+        await db.commit()
+
+
 async def list_todos_for_society(db: AsyncSession, society_id: uuid.UUID, skip: int = 0, limit: int = 20) -> tuple[list[ManagerTodo], int]:
     from sqlalchemy import func
     total = (await db.execute(select(func.count()).select_from(ManagerTodo).where(ManagerTodo.society_id == society_id))).scalar_one()
@@ -85,6 +202,7 @@ async def list_todos_for_society(db: AsyncSession, society_id: uuid.UUID, skip: 
 
 async def list_todos_for_manager(db: AsyncSession, society_id: uuid.UUID, manager_id: uuid.UUID, skip: int = 0, limit: int = 20) -> tuple[list[ManagerTodo], int]:
     from sqlalchemy import func
+    await _ensure_todays_todos_generated(db, society_id, manager_id)
     total = (
         await db.execute(
             select(func.count()).select_from(ManagerTodo)

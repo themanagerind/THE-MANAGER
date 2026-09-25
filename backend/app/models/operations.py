@@ -41,6 +41,44 @@ class TaskSuggestion(Base, UUIDPKMixin, CreatedAtOnlyMixin):
     )
 
 
+class ManagerDailyTask(Base, UUIDPKMixin, TimestampMixin):
+    """A Manager's recurring daily-duty checklist (v1.4 addition) — the
+    Admin ticks which task_suggestions apply to a given Manager once
+    (typically at staff-creation time), instead of calling ManagerTodo's
+    one-off assign_todo every single day for the same recurring task.
+    is_active lets the Admin turn a task off later without losing history
+    (unique on manager_id+task_suggestion_id — toggle the existing row
+    rather than duplicate it). manager_todo_service generates today's
+    actual ManagerTodo row from each active one lazily, on the Manager's
+    own todo-list read (same compute-on-read, no cron approach as the
+    rest of this schema — see 0011's penalty comment)."""
+
+    __tablename__ = "manager_daily_tasks"
+
+    society_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("societies.id"), nullable=False
+    )
+    manager_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    task_suggestion_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("task_suggestions.id"), nullable=False
+    )
+    is_active: Mapped[bool] = mapped_column(nullable=False, default=True)
+    assigned_by: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
+    )
+
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["society_id", "manager_id"],
+            ["users.society_id", "users.id"],
+            name="fk_manager_daily_tasks_society_manager",
+        ),
+        UniqueConstraint(
+            "manager_id", "task_suggestion_id", name="ux_manager_daily_tasks_manager_task"
+        ),
+    )
+
+
 class ManagerTodo(Base, UUIDPKMixin, TimestampMixin):
     __tablename__ = "manager_todos"
 
