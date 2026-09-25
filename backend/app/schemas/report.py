@@ -49,3 +49,16 @@ class ComplaintForRatingOut(BaseModel):
     resolved_manager_name: str | None
     rating: int | None
     rated_at: datetime | None
+
+
+class SocietyPeopleOverviewOut(BaseModel):
+    """Platform Owner's per-society headcount (v1.8) — a society has
+    exactly one active Admin (DB-enforced, Section 8), so admin_name/
+    admin_mobile is a single identity, not a count."""
+
+    admin_name: str | None
+    admin_mobile: str | None
+    sub_admin_count: int
+    manager_count: int
+    security_guard_count: int
+    resident_count: int

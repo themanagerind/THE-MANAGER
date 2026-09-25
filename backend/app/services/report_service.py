@@ -10,7 +10,12 @@ from app.models.enums import ComplaintStatus, MaintenanceDueStatus, Role, TodoSt
 from app.models.identity import PropertyResident, User, UserRole
 from app.models.operations import Complaint, ComplaintAssignment, ComplaintRating, ManagerTodo
 from app.models.payments import MaintenanceDue
-from app.schemas.report import ComplaintForRatingOut, ManagerPerformanceOut, MaintenanceSummaryOut
+from app.schemas.report import (
+    ComplaintForRatingOut,
+    ManagerPerformanceOut,
+    MaintenanceSummaryOut,
+    SocietyPeopleOverviewOut,
+)
 from app.services.maintenance_service import compute_penalty
 from app.services.scope_service import subadmin_has_scope_over_property
 
@@ -26,6 +31,26 @@ async def _resident_property_ids(db: AsyncSession, society_id: uuid.UUID, reside
         )
     ).scalars().all()
     return set(rows)
+
+
+def _summarize_dues(dues: list[MaintenanceDue]) -> MaintenanceSummaryOut:
+    today = date.today()
+    total_billed = sum(float(d.amount) for d in dues)
+    total_collected = sum(float(d.amount) for d in dues if d.status == MaintenanceDueStatus.PAID)
+    pending_dues = [d for d in dues if d.status == MaintenanceDueStatus.PENDING]
+    total_pending = sum(float(d.amount) for d in pending_dues)
+    overdue_dues = [d for d in pending_dues if d.due_date < today]
+    total_overdue_amount = sum(float(d.amount) + compute_penalty(d, today) for d in overdue_dues)
+
+    return MaintenanceSummaryOut(
+        properties_count=len({d.property_id for d in dues}),
+        total_billed=round(total_billed, 2),
+        total_collected=round(total_collected, 2),
+        total_pending=round(total_pending, 2),
+        overdue_count=len(overdue_dues),
+        total_overdue_amount=round(total_overdue_amount, 2),
+        collection_rate_percent=round(total_collected / total_billed * 100, 1) if total_billed else 0.0,
+    )
 
 
 async def maintenance_summary(
@@ -49,22 +74,59 @@ async def maintenance_summary(
         property_ids = await _resident_property_ids(db, society_id, user_id)
         dues = [d for d in dues if d.property_id in property_ids]
 
-    today = date.today()
-    total_billed = sum(float(d.amount) for d in dues)
-    total_collected = sum(float(d.amount) for d in dues if d.status == MaintenanceDueStatus.PAID)
-    pending_dues = [d for d in dues if d.status == MaintenanceDueStatus.PENDING]
-    total_pending = sum(float(d.amount) for d in pending_dues)
-    overdue_dues = [d for d in pending_dues if d.due_date < today]
-    total_overdue_amount = sum(float(d.amount) + compute_penalty(d, today) for d in overdue_dues)
+    return _summarize_dues(dues)
 
-    return MaintenanceSummaryOut(
-        properties_count=len({d.property_id for d in dues}),
-        total_billed=round(total_billed, 2),
-        total_collected=round(total_collected, 2),
-        total_pending=round(total_pending, 2),
-        overdue_count=len(overdue_dues),
-        total_overdue_amount=round(total_overdue_amount, 2),
-        collection_rate_percent=round(total_collected / total_billed * 100, 1) if total_billed else 0.0,
+
+async def platform_maintenance_summary(db: AsyncSession, society_id: uuid.UUID) -> MaintenanceSummaryOut:
+    """Platform Owner — full, unscoped view of any one society (picked by
+    society_id, not derived from the caller's own — a Platform Owner has
+    no society_id of their own). Same numbers an Admin would see for
+    their own society."""
+    dues = (
+        await db.execute(select(MaintenanceDue).where(MaintenanceDue.society_id == society_id))
+    ).scalars().all()
+    return _summarize_dues(dues)
+
+
+async def society_people_overview(db: AsyncSession, society_id: uuid.UUID) -> SocietyPeopleOverviewOut:
+    """Platform Owner — headcount across every role in one society: the
+    Admin's identity (a society has exactly one active Admin, enforced by
+    a DB trigger — Section 8), plus counts of active Sub-admins, Managers,
+    Security Guards and Residents. One GROUP BY for the counts instead of
+    four separate queries."""
+    admin_row = (
+        await db.execute(
+            select(User.full_name, User.mobile)
+            .join(UserRole, UserRole.user_id == User.id)
+            .where(
+                User.society_id == society_id, User.status == UserStatus.ACTIVE,
+                UserRole.role == Role.ADMIN, UserRole.revoked_at.is_(None),
+            )
+        )
+    ).first()
+
+    role_counts = dict(
+        (
+            await db.execute(
+                select(UserRole.role, func.count(func.distinct(UserRole.user_id)))
+                .join(User, User.id == UserRole.user_id)
+                .where(
+                    User.society_id == society_id, User.status == UserStatus.ACTIVE,
+                    UserRole.revoked_at.is_(None),
+                    UserRole.role.in_([Role.SUB_ADMIN, Role.MANAGER, Role.SECURITY_GUARD, Role.RESIDENT]),
+                )
+                .group_by(UserRole.role)
+            )
+        ).all()
+    )
+
+    return SocietyPeopleOverviewOut(
+        admin_name=admin_row[0] if admin_row else None,
+        admin_mobile=admin_row[1] if admin_row else None,
+        sub_admin_count=role_counts.get(Role.SUB_ADMIN, 0),
+        manager_count=role_counts.get(Role.MANAGER, 0),
+        security_guard_count=role_counts.get(Role.SECURITY_GUARD, 0),
+        resident_count=role_counts.get(Role.RESIDENT, 0),
     )
 
 

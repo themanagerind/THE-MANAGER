@@ -1,4 +1,5 @@
 import { apiClient } from "@/api/client";
+import type { BalanceSummary } from "@/api/accountEntries";
 import type { ComplaintStatus } from "@/types/enums";
 
 /** Admin: society-wide. Sub-admin: their assigned Wing/Row scope only.
@@ -45,8 +46,29 @@ export interface ComplaintForRatingOut {
   rated_at: string | null;
 }
 
+/** Platform Owner's per-society headcount — a society has exactly one
+ * active Admin, so admin_name/admin_mobile is a single identity. */
+export interface SocietyPeopleOverviewOut {
+  admin_name: string | null;
+  admin_mobile: string | null;
+  sub_admin_count: number;
+  manager_count: number;
+  security_guard_count: number;
+  resident_count: number;
+}
+
 export const reportsApi = {
   maintenanceSummary: () => apiClient.get<MaintenanceSummaryOut>("/reports/maintenance-summary"),
   managerPerformance: () => apiClient.get<ManagerPerformanceOut[]>("/reports/manager-performance"),
   rateableComplaints: () => apiClient.get<ComplaintForRatingOut[]>("/reports/rateable-complaints"),
+
+  // --- Platform Owner: any one society, picked by id ---
+  platformOverview: (societyId: string) =>
+    apiClient.get<SocietyPeopleOverviewOut>(`/reports/platform/${societyId}/overview`),
+  platformMaintenanceSummary: (societyId: string) =>
+    apiClient.get<MaintenanceSummaryOut>(`/reports/platform/${societyId}/maintenance-summary`),
+  platformManagerPerformance: (societyId: string) =>
+    apiClient.get<ManagerPerformanceOut[]>(`/reports/platform/${societyId}/manager-performance`),
+  platformBalance: (societyId: string) =>
+    apiClient.get<BalanceSummary>(`/reports/platform/${societyId}/balance`),
 };
