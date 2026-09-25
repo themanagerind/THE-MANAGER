@@ -174,15 +174,23 @@ class ComplaintAssignment(Base, UUIDPKMixin):
 
 
 class ComplaintRating(Base, UUIDPKMixin, CreatedAtOnlyMixin):
-    """Resident's one-time rating of the Manager who resolved their
-    complaint (Reports feature, v1.5) — feeds the Manager Performance
-    report Admin/Sub-admin/Resident see, and (per the Admin's stated
-    intent) is meant to inform Manager promotion decisions down the
-    line. Immutable once given (append-only, same as ManagerTodo's
-    completed_at) — no edit endpoint exists, and manager_id is captured
-    at rating time from the complaint's current assignment rather than
-    looked up live, so a later reassignment can't retroactively change
-    who a past rating counts for."""
+    """One-time rating of the Manager who resolved a complaint (Reports
+    feature, v1.5) — feeds the Manager Performance report Admin/Sub-
+    admin/Resident see, and (per the Admin's stated intent) is meant to
+    inform Manager promotion decisions down the line. Immutable once
+    given (append-only, same as ManagerTodo's completed_at) — no edit
+    endpoint exists, and manager_id is captured at rating time from the
+    complaint's current assignment rather than looked up live, so a
+    later reassignment can't retroactively change who a past rating
+    counts for.
+
+    rated_by is NOT always the complaint's own resident_id (v1.6
+    extension): a Resident may only rate a complaint they themselves
+    raised, but a Sub-admin may rate ANY complaint within their
+    assigned Wing/Row scope regardless of who raised it — or one they
+    raised themselves even if it's outside that scope, since Sub-admin
+    is a promoted Resident and keeps that dual identity (Section 6).
+    See complaint_service.rate_complaint for the authorization rule."""
 
     __tablename__ = "complaint_ratings"
 
@@ -192,15 +200,15 @@ class ComplaintRating(Base, UUIDPKMixin, CreatedAtOnlyMixin):
     complaint_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("complaints.id"), nullable=False, unique=True
     )
-    resident_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    rated_by: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
     manager_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
     rating: Mapped[int] = mapped_column(nullable=False)
 
     __table_args__ = (
         CheckConstraint("rating BETWEEN 1 AND 5", name="ck_complaint_ratings_rating_range"),
         ForeignKeyConstraint(
-            ["society_id", "resident_id"], ["users.society_id", "users.id"],
-            name="fk_complaint_ratings_society_resident",
+            ["society_id", "rated_by"], ["users.society_id", "users.id"],
+            name="fk_complaint_ratings_society_rated_by",
         ),
         ForeignKeyConstraint(
             ["society_id", "manager_id"], ["users.society_id", "users.id"],

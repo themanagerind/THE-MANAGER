@@ -54,7 +54,7 @@ class ComplaintRatingIn(BaseModel):
 class ComplaintRatingOut(BaseModel):
     id: uuid.UUID
     complaint_id: uuid.UUID
-    resident_id: uuid.UUID
+    rated_by: uuid.UUID
     manager_id: uuid.UUID
     rating: int
     created_at: datetime

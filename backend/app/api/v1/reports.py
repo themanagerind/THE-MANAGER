@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.db import get_db
 from app.core.security import CurrentUser, require_role
 from app.models.enums import Role
-from app.schemas.report import ManagerPerformanceOut, MaintenanceSummaryOut, MyComplaintForRatingOut
+from app.schemas.report import ComplaintForRatingOut, ManagerPerformanceOut, MaintenanceSummaryOut
 from app.services import report_service
 
 router = APIRouter(prefix="/reports", tags=["reports"])
@@ -29,9 +29,12 @@ async def manager_performance(
     return await report_service.manager_performance(db, current.society_id)
 
 
-@router.get("/my-complaint-ratings", response_model=list[MyComplaintForRatingOut])
-async def my_complaint_ratings(
+@router.get("/rateable-complaints", response_model=list[ComplaintForRatingOut])
+async def rateable_complaints(
     db: Annotated[AsyncSession, Depends(get_db)],
-    current: Annotated[CurrentUser, Depends(require_role(Role.RESIDENT))],
-) -> list[MyComplaintForRatingOut]:
-    return await report_service.my_complaints_for_rating(db, current.society_id, current.user_id)
+    current: Annotated[CurrentUser, Depends(require_role(Role.RESIDENT, Role.SUB_ADMIN))],
+) -> list[ComplaintForRatingOut]:
+    """Resident: their own resolved complaints. Sub-admin: any resolved
+    complaint within their assigned Wing/Row scope, plus any they raised
+    themselves."""
+    return await report_service.complaints_for_rating(db, current.society_id, current.active_role, current.user_id)

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { reportsApi, type ManagerPerformanceOut, type MyComplaintForRatingOut } from "@/api/reports";
+import { reportsApi, type ManagerPerformanceOut, type ComplaintForRatingOut } from "@/api/reports";
 import { complaintsApi } from "@/api/complaints";
 import { Loader, EmptyState, ErrorState, apiErrorMessage } from "@/components/States";
 import { Table } from "@/components/Table";
@@ -19,10 +19,13 @@ function StatTile({ label, value }: { label: string; value: string | number }) {
  * Shared by Admin, Sub-admin and Resident — Monthly Maintenance and
  * Manager Performance are scoped correctly per role server-side
  * (Admin: society-wide, Sub-admin: their Wing/Row, Resident: their own
- * property), so this page just renders whatever comes back. Only a
- * Resident can rate a Manager (showRatingSection), since only they can
- * have raised the complaint being rated. More report sections get added
- * here as they come up — this is meant to stay the one place they live.
+ * property), so this page just renders whatever comes back.
+ * showRatingSection is true for Resident (their own complaints) and
+ * Sub-admin (any complaint in their scope, plus their own) — the
+ * backend enforces exactly who's allowed to rate which complaint
+ * either way, this just decides whether to render the section at all.
+ * More report sections get added here as they come up — this is meant
+ * to stay the one place they live.
  */
 export function ReportsPage({ showRatingSection }: { showRatingSection: boolean }) {
   const maintenanceQuery = useQuery({
@@ -84,7 +87,7 @@ export function ReportsPage({ showRatingSection }: { showRatingSection: boolean 
         )}
       </section>
 
-      {showRatingSection && <MyComplaintRatings />}
+      {showRatingSection && <RateableComplaints />}
     </div>
   );
 }
@@ -107,14 +110,14 @@ function StarPicker({ value, onChange }: { value: number; onChange: (n: number) 
   );
 }
 
-function MyComplaintRatings() {
+function RateableComplaints() {
   const queryClient = useQueryClient();
   const [drafts, setDrafts] = useState<Record<string, number>>({});
   const [error, setError] = useState<string | null>(null);
 
   const query = useQuery({
-    queryKey: ["reports", "my-complaint-ratings"],
-    queryFn: () => reportsApi.myComplaintRatings().then((r) => r.data),
+    queryKey: ["reports", "rateable-complaints"],
+    queryFn: () => reportsApi.rateableComplaints().then((r) => r.data),
   });
 
   const submit = useMutation({
@@ -122,33 +125,34 @@ function MyComplaintRatings() {
       complaintsApi.rate(complaintId, rating),
     onSuccess: () => {
       setError(null);
-      void queryClient.invalidateQueries({ queryKey: ["reports", "my-complaint-ratings"] });
+      void queryClient.invalidateQueries({ queryKey: ["reports", "rateable-complaints"] });
       void queryClient.invalidateQueries({ queryKey: ["reports", "manager-performance"] });
     },
-    onError: (e) => setError(apiErrorMessage(e, "Couldn't submit your rating.")),
+    onError: (e) => setError(apiErrorMessage(e, "Couldn't submit the rating.")),
   });
 
   return (
     <section className="space-y-3">
-      <h2 className="text-sm font-medium text-navy-muted">Rate your resolved complaints</h2>
+      <h2 className="text-sm font-medium text-navy-muted">Rate resolved complaints</h2>
       <p className="text-xs text-navy-muted">
-        Once you submit a rating for a complaint it's final and can't be changed — it feeds the Manager's
+        Once a rating is submitted for a complaint it's final and can't be changed — it feeds the Manager's
         performance record above.
       </p>
       {error && <p className="text-sm text-danger">{error}</p>}
       {query.isLoading && <Loader />}
-      {query.isError && <ErrorState message="Couldn't load your complaints." onRetry={() => query.refetch()} />}
+      {query.isError && <ErrorState message="Couldn't load resolved complaints." onRetry={() => query.refetch()} />}
       {query.data && query.data.length === 0 && (
-        <EmptyState title="Nothing to rate yet" description="Once a complaint you raised is resolved, it'll show up here." />
+        <EmptyState title="Nothing to rate yet" description="A resolved complaint will show up here once one exists." />
       )}
       {query.data && query.data.length > 0 && (
-        <Table<MyComplaintForRatingOut>
+        <Table<ComplaintForRatingOut>
           keyFor={(c) => c.complaint_id}
           columns={[
             { header: "Complaint", render: (c) => c.title },
+            { header: "Raised by", render: (c) => c.resident_name },
             { header: "Manager", render: (c) => c.resolved_manager_name ?? "—" },
             {
-              header: "Your rating",
+              header: "Rating",
               render: (c) => {
                 if (c.rating != null) return <span className="text-amber-500">{"★".repeat(c.rating)}</span>;
                 if (!c.resolved_manager_id) return <span className="text-xs text-navy-muted">Not assigned to a Manager</span>;

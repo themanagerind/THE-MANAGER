@@ -26,12 +26,19 @@ export interface ManagerPerformanceOut {
   ratings_count: number;
 }
 
-export interface MyComplaintForRatingOut {
+/** Resident: only their own resolved complaints. Sub-admin: any
+ * resolved complaint within their assigned Wing/Row scope, plus any
+ * they raised themselves (a Sub-admin is a promoted Resident and
+ * keeps that dual identity) — resident_id/resident_name is who raised
+ * it, which may not be the caller. */
+export interface ComplaintForRatingOut {
   complaint_id: string;
   title: string;
   category: string;
   status: ComplaintStatus;
   created_at: string;
+  resident_id: string;
+  resident_name: string;
   resolved_manager_id: string | null;
   resolved_manager_name: string | null;
   rating: number | null;
@@ -41,5 +48,5 @@ export interface MyComplaintForRatingOut {
 export const reportsApi = {
   maintenanceSummary: () => apiClient.get<MaintenanceSummaryOut>("/reports/maintenance-summary"),
   managerPerformance: () => apiClient.get<ManagerPerformanceOut[]>("/reports/manager-performance"),
-  myComplaintRatings: () => apiClient.get<MyComplaintForRatingOut[]>("/reports/my-complaint-ratings"),
+  rateableComplaints: () => apiClient.get<ComplaintForRatingOut[]>("/reports/rateable-complaints"),
 };

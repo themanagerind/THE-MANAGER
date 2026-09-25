@@ -117,21 +117,38 @@ async def assign_complaint(
 
 
 async def rate_complaint(
-    db: AsyncSession, society_id: uuid.UUID, resident_id: uuid.UUID, complaint_id: uuid.UUID, rating: int,
+    db: AsyncSession, society_id: uuid.UUID, actor_id: uuid.UUID, actor_role: Role,
+    complaint_id: uuid.UUID, rating: int,
 ) -> ComplaintRating:
     """One-time, immutable rating of the Manager who resolved this
-    complaint — only the Resident who raised it can give it, only once
-    the complaint is actually RESOLVED/CLOSED, and only once per
-    complaint (Reports feature). manager_id is captured from the
-    complaint's CURRENT assignment (the same one that was in force when
-    it got resolved — assign_complaint always closes out the prior
-    assignment on reassignment, so "current" and "who resolved it" are
-    the same row) rather than resolved again later, so a subsequent
-    reassignment can't retroactively change who a past rating counts
-    for."""
+    complaint, only once the complaint is actually RESOLVED/CLOSED, and
+    only once per complaint (Reports feature). Who may give it depends
+    on the caller's role (v1.6):
+      - Resident: only the complaint's own resident_id — their own
+        complaint, nothing else.
+      - Sub-admin: any complaint within their assigned Wing/Row scope
+        (regardless of who raised it), OR one they raised themselves
+        even outside that scope — a Sub-admin is a promoted Resident
+        (Section 6) and keeps that dual identity.
+    manager_id is captured from the complaint's CURRENT assignment (the
+    same one that was in force when it got resolved — assign_complaint
+    always closes out the prior assignment on reassignment, so
+    "current" and "who resolved it" are the same row) rather than
+    resolved again later, so a subsequent reassignment can't
+    retroactively change who a past rating counts for."""
     complaint = await get_complaint(db, society_id, complaint_id)
-    if complaint.resident_id != resident_id:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "You can only rate a complaint you raised yourself")
+
+    if actor_role == Role.RESIDENT:
+        if complaint.resident_id != actor_id:
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "You can only rate a complaint you raised yourself")
+    else:  # Role.SUB_ADMIN
+        in_scope = await subadmin_has_scope_over_property(db, actor_id, complaint.property_id, society_id)
+        if not in_scope and complaint.resident_id != actor_id:
+            raise HTTPException(
+                status.HTTP_403_FORBIDDEN,
+                "This complaint is outside your assigned scope, and you didn't raise it yourself",
+            )
+
     if complaint.status not in (ComplaintStatus.RESOLVED, ComplaintStatus.CLOSED):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "This complaint isn't resolved yet")
 
@@ -139,7 +156,7 @@ async def rate_complaint(
         await db.execute(select(ComplaintRating).where(ComplaintRating.complaint_id == complaint_id))
     ).scalar_one_or_none()
     if existing is not None:
-        raise HTTPException(status.HTTP_409_CONFLICT, "You've already rated this complaint")
+        raise HTTPException(status.HTTP_409_CONFLICT, "This complaint has already been rated")
 
     assignment = (
         await db.execute(
@@ -151,7 +168,7 @@ async def rate_complaint(
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "This complaint was never assigned to a Manager")
 
     complaint_rating = ComplaintRating(
-        society_id=society_id, complaint_id=complaint_id, resident_id=resident_id,
+        society_id=society_id, complaint_id=complaint_id, rated_by=actor_id,
         manager_id=assignment.assigned_to, rating=rating,
     )
     db.add(complaint_rating)

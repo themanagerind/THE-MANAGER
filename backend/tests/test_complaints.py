@@ -1,7 +1,11 @@
-"""Complaint rating tests — Reports feature (v1.5): the Resident who
-raised a complaint can rate the Manager who resolved it, once, only
-after it's actually RESOLVED/CLOSED, and it can never be changed
-afterward (no update/delete endpoint exists)."""
+"""Complaint rating tests — Reports feature (v1.5/v1.6): a Resident can
+rate the Manager who resolved a complaint they raised themselves; a
+Sub-admin can rate any complaint within their assigned Wing/Row scope
+(regardless of who raised it) or one they raised themselves even
+outside that scope (a Sub-admin is a promoted Resident and keeps that
+dual identity — Section 6). Either way: once, only after it's actually
+RESOLVED/CLOSED, and it can never be changed afterward (no update/
+delete endpoint exists)."""
 from datetime import datetime, timezone
 
 import pytest
@@ -9,7 +13,7 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.enums import HouseType, LocationType, RelationshipType, Role, UserStatus
-from app.models.identity import Property, PropertyResident, SocietyLocation, User, UserRole
+from app.models.identity import Property, PropertyResident, SocietyLocation, SubAdminScope, User, UserRole
 from tests.conftest import auth_headers
 
 pytestmark = pytest.mark.asyncio
@@ -183,3 +187,108 @@ async def test_rating_out_of_range_rejected(
     assert resp.status_code == 422
     resp = await client.post(f"/api/v1/complaints/{complaint_id}/rating", json={"rating": 0}, headers=resident_headers)
     assert resp.status_code == 422
+
+
+async def test_subadmin_can_rate_any_resolved_complaint_in_their_scope(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    society_id = two_societies_with_admins["a"]["society_id"]
+    admin_id = two_societies_with_admins["a"]["admin_id"]
+    admin_headers = auth_headers(admin_id, society_id, Role.ADMIN, [Role.ADMIN])
+    resident, manager, prop = await _seed_resident_manager_and_complaint(db_session, society_id, admin_id)
+    resident_headers = auth_headers(resident.id, society_id, Role.RESIDENT, [Role.RESIDENT])
+
+    complaint_id = await _create_and_assign_complaint(client, resident_headers, admin_headers, prop.id, manager.id)
+    await client.patch(f"/api/v1/complaints/{complaint_id}/status", json={"status": "RESOLVED"}, headers=admin_headers)
+
+    subadmin = User(society_id=society_id, full_name="Sub Admin", mobile="9500000010", status=UserStatus.ACTIVE)
+    db_session.add(subadmin)
+    await db_session.flush()
+    now = datetime.now(timezone.utc)
+    db_session.add(UserRole(user_id=subadmin.id, role=Role.SUB_ADMIN, assigned_at=now))
+    db_session.add(SubAdminScope(society_id=society_id, sub_admin_id=subadmin.id, location_id=prop.location_id, assigned_by=admin_id, assigned_at=now))
+    await db_session.commit()
+    subadmin_headers = auth_headers(subadmin.id, society_id, Role.SUB_ADMIN, [Role.SUB_ADMIN])
+
+    resp = await client.post(f"/api/v1/complaints/{complaint_id}/rating", json={"rating": 5}, headers=subadmin_headers)
+    assert resp.status_code == 200
+    assert resp.json()["rated_by"] == str(subadmin.id)
+
+
+async def test_subadmin_rejected_for_complaint_outside_scope_and_not_their_own(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    society_id = two_societies_with_admins["a"]["society_id"]
+    admin_id = two_societies_with_admins["a"]["admin_id"]
+    admin_headers = auth_headers(admin_id, society_id, Role.ADMIN, [Role.ADMIN])
+    resident, manager, prop = await _seed_resident_manager_and_complaint(db_session, society_id, admin_id)
+    resident_headers = auth_headers(resident.id, society_id, Role.RESIDENT, [Role.RESIDENT])
+
+    complaint_id = await _create_and_assign_complaint(client, resident_headers, admin_headers, prop.id, manager.id)
+    await client.patch(f"/api/v1/complaints/{complaint_id}/status", json={"status": "RESOLVED"}, headers=admin_headers)
+
+    other_wing = SocietyLocation(society_id=society_id, name="Wing B", location_type=LocationType.WING)
+    db_session.add(other_wing)
+    await db_session.flush()
+    subadmin = User(society_id=society_id, full_name="Sub Admin", mobile="9500000011", status=UserStatus.ACTIVE)
+    db_session.add(subadmin)
+    await db_session.flush()
+    now = datetime.now(timezone.utc)
+    db_session.add(UserRole(user_id=subadmin.id, role=Role.SUB_ADMIN, assigned_at=now))
+    # Scoped to Wing B, but the complaint's property is in Wing A.
+    db_session.add(SubAdminScope(society_id=society_id, sub_admin_id=subadmin.id, location_id=other_wing.id, assigned_by=admin_id, assigned_at=now))
+    await db_session.commit()
+    subadmin_headers = auth_headers(subadmin.id, society_id, Role.SUB_ADMIN, [Role.SUB_ADMIN])
+
+    resp = await client.post(f"/api/v1/complaints/{complaint_id}/rating", json={"rating": 2}, headers=subadmin_headers)
+    assert resp.status_code == 403
+
+
+async def test_subadmin_can_rate_own_complaint_even_outside_assigned_scope(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    """A Sub-admin is a promoted Resident (Section 6) and keeps that
+    dual identity — if they personally raised a complaint on their own
+    property, they can still rate it once resolved even if that
+    property falls outside the Wing/Row they're currently assigned to
+    administer."""
+    society_id = two_societies_with_admins["a"]["society_id"]
+    admin_id = two_societies_with_admins["a"]["admin_id"]
+    admin_headers = auth_headers(admin_id, society_id, Role.ADMIN, [Role.ADMIN])
+
+    wing_a = SocietyLocation(society_id=society_id, name="Wing A", location_type=LocationType.WING)
+    wing_b = SocietyLocation(society_id=society_id, name="Wing B", location_type=LocationType.WING)
+    db_session.add_all([wing_a, wing_b])
+    await db_session.flush()
+
+    # The Sub-admin's own home, in Wing B — outside the Wing A scope
+    # they're about to be assigned.
+    own_prop = Property(society_id=society_id, location_id=wing_b.id, house_number="B-1", house_type=HouseType.FLAT, floor_number=1, status="ACTIVE")
+    db_session.add(own_prop)
+    await db_session.flush()
+
+    manager = User(society_id=society_id, full_name="Manager", mobile="9500000012", status=UserStatus.ACTIVE)
+    subadmin = User(society_id=society_id, full_name="Sub Admin Resident", mobile="9500000013", status=UserStatus.ACTIVE)
+    db_session.add_all([manager, subadmin])
+    await db_session.flush()
+    now = datetime.now(timezone.utc)
+    db_session.add(UserRole(user_id=manager.id, role=Role.MANAGER, assigned_at=now))
+    db_session.add(UserRole(user_id=subadmin.id, role=Role.RESIDENT, assigned_at=now))
+    db_session.add(UserRole(user_id=subadmin.id, role=Role.SUB_ADMIN, assigned_at=now))
+    db_session.add(
+        PropertyResident(
+            society_id=society_id, property_id=own_prop.id, resident_id=subadmin.id,
+            relationship_type=RelationshipType.OWNER, is_active=True, created_at=now,
+        )
+    )
+    db_session.add(SubAdminScope(society_id=society_id, sub_admin_id=subadmin.id, location_id=wing_a.id, assigned_by=admin_id, assigned_at=now))
+    await db_session.commit()
+    await db_session.refresh(subadmin)
+
+    resident_headers = auth_headers(subadmin.id, society_id, Role.RESIDENT, [Role.RESIDENT, Role.SUB_ADMIN])
+    complaint_id = await _create_and_assign_complaint(client, resident_headers, admin_headers, own_prop.id, manager.id)
+    await client.patch(f"/api/v1/complaints/{complaint_id}/status", json={"status": "RESOLVED"}, headers=admin_headers)
+
+    subadmin_headers = auth_headers(subadmin.id, society_id, Role.SUB_ADMIN, [Role.RESIDENT, Role.SUB_ADMIN])
+    resp = await client.post(f"/api/v1/complaints/{complaint_id}/rating", json={"rating": 3}, headers=subadmin_headers)
+    assert resp.status_code == 200

@@ -86,11 +86,13 @@ async def rate(
     complaint_id: uuid.UUID,
     body: ComplaintRatingIn,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current: Annotated[CurrentUser, Depends(require_role(Role.RESIDENT))],
+    current: Annotated[CurrentUser, Depends(require_role(Role.RESIDENT, Role.SUB_ADMIN))],
 ) -> ComplaintRatingOut:
-    """Only the Resident who raised this complaint can rate the Manager
-    who resolved it, once, after it's actually RESOLVED/CLOSED."""
+    """A Resident can rate only a complaint they raised themselves; a
+    Sub-admin can rate any complaint within their assigned Wing/Row
+    scope, or one they raised themselves — either way, only once, and
+    only after it's actually RESOLVED/CLOSED."""
     rating = await complaint_service.rate_complaint(
-        db, current.society_id, current.user_id, complaint_id, body.rating
+        db, current.society_id, current.user_id, current.active_role, complaint_id, body.rating
     )
     return ComplaintRatingOut.model_validate(rating)

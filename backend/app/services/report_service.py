@@ -10,7 +10,7 @@ from app.models.enums import ComplaintStatus, MaintenanceDueStatus, Role, TodoSt
 from app.models.identity import PropertyResident, User, UserRole
 from app.models.operations import Complaint, ComplaintAssignment, ComplaintRating, ManagerTodo
 from app.models.payments import MaintenanceDue
-from app.schemas.report import ManagerPerformanceOut, MaintenanceSummaryOut, MyComplaintForRatingOut
+from app.schemas.report import ComplaintForRatingOut, ManagerPerformanceOut, MaintenanceSummaryOut
 from app.services.maintenance_service import compute_penalty
 from app.services.scope_service import subadmin_has_scope_over_property
 
@@ -140,25 +140,44 @@ async def manager_performance(db: AsyncSession, society_id: uuid.UUID) -> list[M
     ]
 
 
-async def my_complaints_for_rating(
-    db: AsyncSession, society_id: uuid.UUID, resident_id: uuid.UUID
-) -> list[MyComplaintForRatingOut]:
-    """This Resident's own RESOLVED/CLOSED complaints, with the current
-    assignment's Manager and this complaint's rating (if any already
-    given) resolved inline — everything the "rate this Manager" screen
-    needs in one call."""
+async def complaints_for_rating(
+    db: AsyncSession, society_id: uuid.UUID, role: Role, user_id: uuid.UUID
+) -> list[ComplaintForRatingOut]:
+    """RESOLVED/CLOSED complaints the caller is allowed to rate, with the
+    current assignment's Manager and this complaint's rating (if any
+    already given) resolved inline — everything the "rate this Manager"
+    screen needs in one call. Resident: only their own. Sub-admin: any
+    complaint within their assigned Wing/Row scope, plus any they raised
+    themselves even outside it (same authorization rule as
+    complaint_service.rate_complaint — mirrored here rather than shared,
+    since this filters a list instead of gating a single write)."""
     complaints = (
         await db.execute(
             select(Complaint).where(
-                Complaint.society_id == society_id, Complaint.resident_id == resident_id,
+                Complaint.society_id == society_id,
                 Complaint.status.in_([ComplaintStatus.RESOLVED, ComplaintStatus.CLOSED]),
             ).order_by(Complaint.created_at.desc())
         )
     ).scalars().all()
+
+    if role == Role.RESIDENT:
+        complaints = [c for c in complaints if c.resident_id == user_id]
+    else:  # Role.SUB_ADMIN
+        scoped = []
+        for c in complaints:
+            if c.resident_id == user_id or await subadmin_has_scope_over_property(db, user_id, c.property_id, society_id):
+                scoped.append(c)
+        complaints = scoped
+
     if not complaints:
         return []
 
     complaint_ids = [c.id for c in complaints]
+    resident_rows = (
+        await db.execute(select(User.id, User.full_name).where(User.id.in_({c.resident_id for c in complaints})))
+    ).all()
+    resident_name_by_id = dict(resident_rows)
+
     assignment_rows = (
         await db.execute(
             select(ComplaintAssignment.complaint_id, ComplaintAssignment.assigned_to, User.full_name)
@@ -181,8 +200,9 @@ async def my_complaints_for_rating(
         manager_id, manager_name = manager_by_complaint.get(c.id, (None, None))
         rating, rated_at = rating_by_complaint.get(c.id, (None, None))
         result.append(
-            MyComplaintForRatingOut(
+            ComplaintForRatingOut(
                 complaint_id=c.id, title=c.title, category=c.category, status=c.status, created_at=c.created_at,
+                resident_id=c.resident_id, resident_name=resident_name_by_id.get(c.resident_id, "—"),
                 resolved_manager_id=manager_id, resolved_manager_name=manager_name,
                 rating=rating, rated_at=rated_at,
             )

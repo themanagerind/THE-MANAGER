@@ -142,7 +142,7 @@ async def test_manager_performance_aggregates_tasks_complaints_and_ratings(
     db_session.add(complaint)
     await db_session.flush()
     db_session.add(ComplaintAssignment(complaint_id=complaint.id, assigned_to=manager.id, assigned_by=admin_id, assigned_at=now))
-    db_session.add(ComplaintRating(society_id=society_id, complaint_id=complaint.id, resident_id=resident.id, manager_id=manager.id, rating=4))
+    db_session.add(ComplaintRating(society_id=society_id, complaint_id=complaint.id, rated_by=resident.id, manager_id=manager.id, rating=4))
     await db_session.commit()
 
     resp = await client.get("/api/v1/reports/manager-performance", headers=admin_headers)
@@ -184,10 +184,48 @@ async def test_my_complaint_ratings_shows_manager_and_rating_status(
     await db_session.commit()
 
     resident_headers = auth_headers(resident.id, society_id, Role.RESIDENT, [Role.RESIDENT])
-    resp = await client.get("/api/v1/reports/my-complaint-ratings", headers=resident_headers)
+    resp = await client.get("/api/v1/reports/rateable-complaints", headers=resident_headers)
     assert resp.status_code == 200
     body = resp.json()
     assert len(body) == 1
     assert body[0]["complaint_id"] == str(resolved.id)
+    assert body[0]["resident_id"] == str(resident.id)
     assert body[0]["resolved_manager_name"] == "Manager One"
     assert body[0]["rating"] is None
+
+
+async def test_rateable_complaints_scoped_for_subadmin(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    """Sub-admin sees resolved complaints from ANY resident within their
+    assigned Wing (not just one resident's), but not a resolved
+    complaint from a different Wing they're not scoped to."""
+    society_id = two_societies_with_admins["a"]["society_id"]
+    admin_id = two_societies_with_admins["a"]["admin_id"]
+    admin_headers = auth_headers(admin_id, society_id, Role.ADMIN, [Role.ADMIN])
+
+    wing_a = SocietyLocation(society_id=society_id, name="Wing A", location_type=LocationType.WING)
+    wing_b = SocietyLocation(society_id=society_id, name="Wing B", location_type=LocationType.WING)
+    db_session.add_all([wing_a, wing_b])
+    await db_session.flush()
+    prop_a, resident_a = await _seed_property_with_resident(db_session, society_id, wing_a, "101")
+    prop_b, resident_b = await _seed_property_with_resident(db_session, society_id, wing_b, "201")
+
+    now = datetime.now(timezone.utc)
+    complaint_a = Complaint(society_id=society_id, property_id=prop_a.id, resident_id=resident_a.id, category="A", title="In scope", description="...", status=ComplaintStatus.RESOLVED)
+    complaint_b = Complaint(society_id=society_id, property_id=prop_b.id, resident_id=resident_b.id, category="B", title="Out of scope", description="...", status=ComplaintStatus.RESOLVED)
+    db_session.add_all([complaint_a, complaint_b])
+    await db_session.flush()
+
+    subadmin = User(society_id=society_id, full_name="Sub Admin", mobile="9640000001", status=UserStatus.ACTIVE)
+    db_session.add(subadmin)
+    await db_session.flush()
+    db_session.add(UserRole(user_id=subadmin.id, role=Role.SUB_ADMIN, assigned_at=now))
+    db_session.add(SubAdminScope(society_id=society_id, sub_admin_id=subadmin.id, location_id=wing_a.id, assigned_by=admin_id, assigned_at=now))
+    await db_session.commit()
+    subadmin_headers = auth_headers(subadmin.id, society_id, Role.SUB_ADMIN, [Role.SUB_ADMIN])
+
+    resp = await client.get("/api/v1/reports/rateable-complaints", headers=subadmin_headers)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert [c["complaint_id"] for c in body] == [str(complaint_a.id)]

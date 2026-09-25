@@ -2,10 +2,11 @@
 
 Three read-only views, scoped per role: a Monthly Maintenance summary,
 a Manager task-completion + complaint-resolution performance scorecard
-(feeding the rating a Resident can give — see complaint_service.
-rate_complaint), and a Resident's own list of resolved complaints
-still open to be rated. More report types get added here as they come
-up — this module is meant to be the one place they all live.
+(feeding the rating a Resident or Sub-admin can give — see
+complaint_service.rate_complaint), and a list of resolved complaints
+the caller is allowed to rate (their own, for a Resident; their scope
+plus their own, for a Sub-admin). More report types get added here as
+they come up — this module is meant to be the one place they all live.
 """
 import uuid
 from datetime import datetime
@@ -36,12 +37,14 @@ class ManagerPerformanceOut(BaseModel):
     ratings_count: int
 
 
-class MyComplaintForRatingOut(BaseModel):
+class ComplaintForRatingOut(BaseModel):
     complaint_id: uuid.UUID
     title: str
     category: str
     status: ComplaintStatus
     created_at: datetime
+    resident_id: uuid.UUID
+    resident_name: str
     resolved_manager_id: uuid.UUID | None
     resolved_manager_name: str | None
     rating: int | None
