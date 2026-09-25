@@ -7,17 +7,42 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_db
 from app.core.security import CurrentUser, require_role
-from app.models.enums import Role
+from app.models.enums import EntryType, Role
 from app.schemas.account_entry import (
     AccountEntryCreateIn,
     AccountEntryOut,
     AccountEntryUpdateIn,
+    AccountHeadingCreateIn,
+    AccountHeadingOut,
     BalanceSummaryOut,
 )
 from app.schemas.pagination import Page, Pagination, pagination_params
 from app.services import account_entry_service
 
 router = APIRouter(prefix="/account-entries", tags=["account-entries"])
+
+
+@router.get("/headings", response_model=list[AccountHeadingOut])
+async def list_headings(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current: Annotated[CurrentUser, Depends(require_role(Role.ADMIN))],
+    entry_type: EntryType | None = None,
+) -> list[AccountHeadingOut]:
+    """Platform-global catalog — powers the heading picker on the "Add
+    entry" screen. Optional entry_type filters to just Income or Expense."""
+    headings = await account_entry_service.list_headings(db, entry_type)
+    return [AccountHeadingOut.model_validate(h) for h in headings]
+
+
+@router.post("/headings", response_model=AccountHeadingOut)
+async def add_heading(
+    body: AccountHeadingCreateIn,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current: Annotated[CurrentUser, Depends(require_role(Role.ADMIN))],
+) -> AccountHeadingOut:
+    """Add-only, platform-global — same shape as POST /task-suggestions."""
+    heading = await account_entry_service.add_heading(db, body.entry_type, body.title, current.user_id)
+    return AccountHeadingOut.model_validate(heading)
 
 
 @router.post("", response_model=AccountEntryOut)
@@ -28,7 +53,7 @@ async def create(
 ) -> AccountEntryOut:
     """Section 13.1 — sirf Admin entry create kar sakta hai."""
     entry = await account_entry_service.create_manual_entry(
-        db, current.society_id, current.user_id, body.entry_type, body.title,
+        db, current.society_id, current.user_id, body.entry_type, body.heading_id,
         body.description, body.amount, body.entry_date,
     )
     return AccountEntryOut.model_validate(entry)
@@ -76,6 +101,6 @@ async def edit(
     'Edited' badge in the UI."""
     entry = await account_entry_service.edit_manual_entry(
         db, current.society_id, entry_id, current.user_id,
-        body.title, body.description, body.amount, body.entry_date,
+        body.heading_id, body.description, body.amount, body.entry_date,
     )
     return AccountEntryOut.model_validate(entry)

@@ -31,7 +31,7 @@ from app.models.payments import (  # noqa: F401
     Wallet,
     WalletTransaction,
 )
-from app.models.accounts import AccountEntry, AccountEntryEditHistory  # noqa: F401
+from app.models.accounts import AccountEntry, AccountEntryEditHistory, AccountHeading  # noqa: F401
 from app.models.operations import (  # noqa: F401
     Amenity,
     AmenityBooking,

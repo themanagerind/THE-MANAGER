@@ -58,7 +58,7 @@ export function AdminAccounts() {
         <Table<AccountEntryOut>
           keyFor={(e) => e.id}
           columns={[
-            { header: "Title", render: (e) => <span className="font-medium">{e.title}</span> },
+            { header: "Heading", render: (e) => <span className="font-medium">{e.title}</span> },
             { header: "Type", render: (e) => <Badge status={e.entry_type === "INCOME" ? "PAID" : "REJECTED"}>{e.entry_type}</Badge> },
             { header: "Amount", render: (e) => `₹${e.amount.toLocaleString("en-IN")}` },
             { header: "Date", render: (e) => new Date(e.entry_date).toLocaleDateString("en-IN") },
@@ -103,9 +103,84 @@ export function AdminAccounts() {
   );
 }
 
+/**
+ * Heading picker + inline "add a new heading" — same pattern as Staff's
+ * Daily Tasks checklist: pick from the platform-global catalog (seeded
+ * with headings universal to Indian housing-society bookkeeping, e.g.
+ * "Lift Maintenance", "Society Maintenance Charges"), or type a new one
+ * and it's usable immediately. Title is no longer free-typed on the
+ * entry itself — it's always taken from the picked heading.
+ */
+function HeadingPicker({
+  entryType, headingId, onChange,
+}: { entryType: EntryType; headingId: string; onChange: (id: string) => void }) {
+  const queryClient = useQueryClient();
+  const [newHeadingTitle, setNewHeadingTitle] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  const headingsQuery = useQuery({
+    queryKey: ["admin", "account-headings", entryType],
+    queryFn: () => accountEntriesApi.headings(entryType).then((r) => r.data),
+  });
+
+  const addHeading = useMutation({
+    mutationFn: () => accountEntriesApi.addHeading(entryType, newHeadingTitle.trim()),
+    onSuccess: (res) => {
+      setNewHeadingTitle("");
+      setError(null);
+      onChange(res.data.id);
+      void queryClient.invalidateQueries({ queryKey: ["admin", "account-headings"] });
+    },
+    onError: (e) => setError(apiErrorMessage(e, "Couldn't add this heading.")),
+  });
+
+  return (
+    <div className="space-y-3">
+      <div>
+        <label className="block text-sm text-navy-muted mb-1">Heading</label>
+        {headingsQuery.isLoading && <Loader />}
+        {headingsQuery.isError && (
+          <ErrorState message="Couldn't load headings." onRetry={() => headingsQuery.refetch()} />
+        )}
+        {headingsQuery.data && (
+          <select
+            value={headingId}
+            onChange={(e) => onChange(e.target.value)}
+            className="w-full border border-line rounded px-3 py-2 text-sm"
+          >
+            <option value="">Select a heading</option>
+            {headingsQuery.data.map((h) => (
+              <option key={h.id} value={h.id}>{h.title}</option>
+            ))}
+          </select>
+        )}
+      </div>
+      <div className="flex gap-2 items-end">
+        <div className="flex-1">
+          <Input
+            label="Add a new heading"
+            value={newHeadingTitle}
+            onChange={(e) => setNewHeadingTitle(e.target.value)}
+            placeholder={entryType === "INCOME" ? "e.g. Interest on Fixed Deposit" : "e.g. Diwali Decoration"}
+          />
+        </div>
+        <Button
+          variant="secondary"
+          loading={addHeading.isPending}
+          disabled={!newHeadingTitle.trim()}
+          onClick={() => addHeading.mutate()}
+        >
+          Add
+        </Button>
+      </div>
+      {error && <p className="text-sm text-danger">{error}</p>}
+    </div>
+  );
+}
+
 function CreateEntryModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
   const [entryType, setEntryType] = useState<EntryType>("INCOME");
-  const [title, setTitle] = useState("");
+  const [headingId, setHeadingId] = useState("");
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
   const [entryDate, setEntryDate] = useState(new Date().toISOString().slice(0, 10));
@@ -115,7 +190,7 @@ function CreateEntryModal({ onClose, onSuccess }: { onClose: () => void; onSucce
     mutationFn: () =>
       accountEntriesApi.create({
         entry_type: entryType,
-        title: title.trim(),
+        heading_id: headingId,
         description: description.trim() || undefined,
         amount: Number(amount),
         entry_date: entryDate,
@@ -133,14 +208,19 @@ function CreateEntryModal({ onClose, onSuccess }: { onClose: () => void; onSucce
           <label className="block text-sm text-navy-muted mb-1">Type</label>
           <select
             value={entryType}
-            onChange={(e) => setEntryType(e.target.value as EntryType)}
+            onChange={(e) => {
+              setEntryType(e.target.value as EntryType);
+              setHeadingId("");
+            }}
             className="w-full border border-line rounded px-3 py-2 text-sm"
           >
             <option value="INCOME">Income</option>
             <option value="EXPENSE">Expense</option>
           </select>
         </div>
-        <Input label="Title" value={title} onChange={(e) => setTitle(e.target.value)} />
+
+        <HeadingPicker entryType={entryType} headingId={headingId} onChange={setHeadingId} />
+
         <Input label="Amount" type="number" min="0" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} />
         <Input label="Date" type="date" value={entryDate} onChange={(e) => setEntryDate(e.target.value)} />
         <div>
@@ -155,7 +235,7 @@ function CreateEntryModal({ onClose, onSuccess }: { onClose: () => void; onSucce
         {error && <p className="text-sm text-danger">{error}</p>}
         <div className="flex gap-2 justify-end pt-2">
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button loading={create.isPending} disabled={!title.trim() || !validAmount} onClick={() => create.mutate()}>
+          <Button loading={create.isPending} disabled={!headingId || !validAmount} onClick={() => create.mutate()}>
             Add
           </Button>
         </div>
@@ -167,7 +247,7 @@ function CreateEntryModal({ onClose, onSuccess }: { onClose: () => void; onSucce
 function EditEntryModal({
   entry, onClose, onSuccess,
 }: { entry: AccountEntryOut; onClose: () => void; onSuccess: () => void }) {
-  const [title, setTitle] = useState(entry.title);
+  const [headingId, setHeadingId] = useState(entry.heading_id ?? "");
   const [description, setDescription] = useState(entry.description ?? "");
   const [amount, setAmount] = useState(String(entry.amount));
   const [entryDate, setEntryDate] = useState(entry.entry_date.slice(0, 10));
@@ -176,7 +256,7 @@ function EditEntryModal({
   const edit = useMutation({
     mutationFn: () =>
       accountEntriesApi.edit(entry.id, {
-        title: title.trim(),
+        heading_id: headingId || undefined,
         description: description.trim() || undefined,
         amount: Number(amount),
         entry_date: entryDate,
@@ -190,7 +270,8 @@ function EditEntryModal({
   return (
     <Modal open onClose={onClose} title={`Edit — ${entry.title}`}>
       <div className="space-y-4">
-        <Input label="Title" value={title} onChange={(e) => setTitle(e.target.value)} />
+        <HeadingPicker entryType={entry.entry_type} headingId={headingId} onChange={setHeadingId} />
+
         <Input label="Amount" type="number" min="0" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} />
         <Input label="Date" type="date" value={entryDate} onChange={(e) => setEntryDate(e.target.value)} />
         <div>
@@ -205,7 +286,7 @@ function EditEntryModal({
         {error && <p className="text-sm text-danger">{error}</p>}
         <div className="flex gap-2 justify-end pt-2">
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button loading={edit.isPending} disabled={!title.trim() || !validAmount} onClick={() => edit.mutate()}>
+          <Button loading={edit.isPending} disabled={!validAmount} onClick={() => edit.mutate()}>
             Save
           </Button>
         </div>

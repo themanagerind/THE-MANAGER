@@ -1,7 +1,7 @@
 """
 Accounts / Ledger — Schema Spec v1.3, Section 2.3.
 
-Tables: account_entries, account_entry_edit_history.
+Tables: account_entries, account_entry_edit_history, account_headings.
 This resolves the forward reference from
 payment_corrections.ledger_adjustment_entry_id (app/models/payments.py).
 """
@@ -17,14 +17,39 @@ from sqlalchemy import (
     Numeric,
     String,
     Text,
+    UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db import Base
 from app.models.enums import EntrySource, EntryType
-from app.models.mixins import TimestampMixin, UUIDPKMixin
+from app.models.mixins import CreatedAtOnlyMixin, TimestampMixin, UUIDPKMixin
 from app.models.pg_enum import pg_enum
+
+
+class AccountHeading(Base, UUIDPKMixin, CreatedAtOnlyMixin):
+    """Platform-global catalog of Income/Expense headings (v1.7) — Admin
+    picks one of these instead of free-typing a title when adding a
+    MANUAL account entry, same shape as manager_todo_service's
+    TaskSuggestion catalog: add-only (no edit/deactivate), and any
+    Admin's addition is visible to every society's Admin. Seeded with
+    headings universal to Indian housing-society bookkeeping (0015);
+    Admin can add more from the "Add entry" screen at any time."""
+
+    __tablename__ = "account_headings"
+
+    entry_type: Mapped[EntryType] = mapped_column(
+        pg_enum(EntryType, "entry_type_enum"), nullable=False
+    )
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    created_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+    )
+
+    __table_args__ = (
+        UniqueConstraint("entry_type", "title", name="ux_account_headings_type_title"),
+    )
 
 
 class AccountEntry(Base, UUIDPKMixin, TimestampMixin):
@@ -40,6 +65,14 @@ class AccountEntry(Base, UUIDPKMixin, TimestampMixin):
         pg_enum(EntrySource, "entry_source_enum"), nullable=False
     )
     title: Mapped[str] = mapped_column(String(200), nullable=False)
+    # Set for MANUAL entries (mirrors the picked AccountHeading's title at
+    # creation/edit time — heading rename isn't possible since the catalog
+    # is add-only, so this never drifts). NULL for system-generated entries
+    # (MAINTENANCE_PAYMENT/EXPENSE_BILL/ADJUSTMENT), which predate this
+    # catalog and have their own title-generation logic untouched.
+    heading_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("account_headings.id"), nullable=True
+    )
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     amount: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
     entry_date: Mapped[date] = mapped_column(Date, nullable=False)
