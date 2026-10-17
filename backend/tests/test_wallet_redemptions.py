@@ -126,6 +126,32 @@ async def test_verify_accepts_lowercase_and_whitespace_mangled_code(
     assert verified.is_used is True
 
 
+async def test_verify_empty_string_request_id_never_replays(
+    db_session: AsyncSession, two_societies_with_admins
+):
+    """Audit finding: some client serializers send "" for an unset string
+    field instead of omitting it. Without normalizing "" to None, a first
+    call storing "" and a retry also sending "" would both be falsy at the
+    `if request_id and ...` check — looking like they should match but
+    silently landing on the no-key (always-409) path instead. This must
+    behave exactly like never sending a request_id at all: no replay,
+    always 409 on a repeat verify."""
+    society_id = two_societies_with_admins["a"]["society_id"]
+    resident = await _seed_resident(db_session, society_id, "9860000009")
+    await _ensure_a_platform_owner_exists(db_session, "9860000091")
+    await wallet_service.credit_maintenance_payment(db_session, resident.id, None, 1000.0)
+    await db_session.commit()
+    redemption = await wallet_service.transfer_to_master_wallet(db_session, resident.id, 50.0)
+
+    first = await wallet_service.verify_and_redeem_code(db_session, redemption.code, request_id="")
+    assert first.is_used is True
+    assert first.consumed_request_id is None
+
+    with pytest.raises(HTTPException) as exc:
+        await wallet_service.verify_and_redeem_code(db_session, redemption.code, request_id="")
+    assert exc.value.status_code == 409
+
+
 async def test_verify_unknown_code_404(db_session: AsyncSession, two_societies_with_admins):
     with pytest.raises(HTTPException) as exc:
         await wallet_service.verify_and_redeem_code(db_session, "NOTAREAL")

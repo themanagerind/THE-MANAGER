@@ -1,6 +1,7 @@
 """Wallet redemption endpoints — Resident -> Platform Owner Master Wallet
 point transfer, and code verification for a future, separately-built
 Ecom store (user-requested)."""
+from decimal import Decimal
 from typing import Annotated
 
 from fastapi import APIRouter, Depends
@@ -61,5 +62,9 @@ async def verify_redemption(
     exactly once; a retry with the same body.request_id replays that same
     success, any other retry of an already-used code is a clean 409."""
     redemption = await wallet_service.verify_and_redeem_code(db, body.code, body.request_id)
-    amount_paise = round(float(redemption.amount) * 100)
+    # Exact Decimal arithmetic, not float(amount) * 100 — the column's
+    # Numeric(14,2) scale makes that float round-trip safe today, but only
+    # by accident of the current schema (audit finding); this holds by
+    # construction instead.
+    amount_paise = int((Decimal(str(redemption.amount)) * 100).to_integral_value())
     return RedemptionVerifyOut(amount_paise=amount_paise, used_at=redemption.used_at)

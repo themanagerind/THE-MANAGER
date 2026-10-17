@@ -231,8 +231,21 @@ async def verify_and_redeem_code(
     an already-used code replays the original success rather than 409.
     Any other request_id (including none) against a used code is treated
     as a genuine reuse attempt and still gets 409 — so a code can only
-    ever be effectively spent once no matter how it's retried."""
+    ever be effectively spent once no matter how it's retried.
+
+    An empty/whitespace-only request_id is normalized to None (audit
+    finding): some client serializers send "" for an unset string field
+    instead of omitting it. Without this, a first call storing "" as
+    consumed_request_id, followed by a retry that also sends "", would
+    hit the `if request_id and ...` check below as falsy on *both* calls —
+    silently landing on the no-key behavior (409 on any retry) instead of
+    the intended exact-match replay, even though the store sent the same
+    value both times. Normalizing first makes "" behave as documented —
+    identically to not supplying a key at all — rather than as an
+    accidental landmine that looks like it should replay but doesn't."""
     code = code.strip().upper()
+    if request_id is not None:
+        request_id = request_id.strip() or None
     redemption = (
         await db.execute(
             select(WalletRedemptionCode).where(WalletRedemptionCode.code == code).with_for_update()
