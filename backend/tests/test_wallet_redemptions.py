@@ -108,6 +108,24 @@ async def test_verify_and_redeem_code_marks_used_once(db_session: AsyncSession, 
     assert exc.value.status_code == 409
 
 
+async def test_verify_accepts_lowercase_and_whitespace_mangled_code(
+    db_session: AsyncSession, two_societies_with_admins
+):
+    """Codes are generated uppercase-only, but nothing guarantees a
+    store's own checkout UI preserves that before POSTing it here."""
+    society_id = two_societies_with_admins["a"]["society_id"]
+    resident = await _seed_resident(db_session, society_id, "9860000006")
+    await _ensure_a_platform_owner_exists(db_session, "9860000094")
+
+    await wallet_service.credit_maintenance_payment(db_session, resident.id, None, 1000.0)
+    await db_session.commit()
+    redemption = await wallet_service.transfer_to_master_wallet(db_session, resident.id, 100.0)
+
+    verified = await wallet_service.verify_and_redeem_code(db_session, f"  {redemption.code.lower()}  ")
+    assert verified.id == redemption.id
+    assert verified.is_used is True
+
+
 async def test_verify_unknown_code_404(db_session: AsyncSession, two_societies_with_admins):
     with pytest.raises(HTTPException) as exc:
         await wallet_service.verify_and_redeem_code(db_session, "NOTAREAL")

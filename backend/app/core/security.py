@@ -7,6 +7,7 @@ HINT only. Every protected endpoint re-verifies against current DB state
 (user_roles / sub_admin_scopes) via the dependencies here — never trust the
 token's claims alone for authorization decisions.
 """
+import hmac
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
@@ -167,11 +168,14 @@ async def require_store_api_key(
     store's server, not a logged-in person. No Bearer token, no DB
     lookup: a single shared secret, same trust model as a webhook. If
     the operator hasn't set ECOM_STORE_API_KEY yet, the endpoint is
-    unreachable (503) rather than silently accepting anything."""
+    unreachable (503) rather than silently accepting anything.
+    hmac.compare_digest, not `!=` — same reasoning as otp_service's own
+    constant-time check, so repeated guesses can't time their way to the
+    key one byte at a time."""
     configured = settings.ecom_store_api_key
     if not configured:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Ecom store integration is not configured")
-    if not provided or provided != configured:
+    if not provided or not hmac.compare_digest(provided, configured):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid or missing store API key")
 
 

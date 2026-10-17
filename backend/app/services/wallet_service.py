@@ -191,7 +191,11 @@ async def transfer_to_master_wallet(
         db, resident_id, amount,
         description="Transferred to Platform Owner Master Wallet", created_by=resident_id,
     )
-    master_wallet = await get_master_wallet(db, lock=True)
+    # Unlocked read — only .resident_id is used here; apply_adjustment
+    # below takes its own row lock when it actually mutates the balance,
+    # so locking it twice here would just double the round trips against
+    # the single Master Wallet row for no correctness benefit.
+    master_wallet = await get_master_wallet(db)
     await apply_adjustment(
         db, master_wallet.resident_id, amount,
         description=f"Received via redemption from resident {resident_id}",
@@ -211,7 +215,11 @@ async def transfer_to_master_wallet(
 async def verify_and_redeem_code(db: AsyncSession, code: str) -> WalletRedemptionCode:
     """The only way a (future) Ecom store's backend confirms a code is
     valid — row-locked so two near-simultaneous verify calls for the
-    same code (e.g. a client retry) can't both succeed."""
+    same code (e.g. a client retry) can't both succeed. Normalizes case/
+    whitespace before matching — codes are generated uppercase-only
+    (_REDEMPTION_CODE_ALPHABET), but there's no guarantee a store's own
+    checkout UI preserves that by the time it POSTs here."""
+    code = code.strip().upper()
     redemption = (
         await db.execute(
             select(WalletRedemptionCode).where(WalletRedemptionCode.code == code).with_for_update()

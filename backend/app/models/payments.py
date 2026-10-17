@@ -320,7 +320,7 @@ class WalletTransaction(Base, UUIDPKMixin, CreatedAtOnlyMixin):
     )
 
 
-class WalletRedemptionCode(Base, UUIDPKMixin):
+class WalletRedemptionCode(Base, UUIDPKMixin, CreatedAtOnlyMixin):
     """A Resident transfers points to the Platform Owner's Master Wallet
     (user-requested) and gets back a short, typeable code in return — the
     voucher they hand to a (future, separately-built) Ecom store. The
@@ -342,7 +342,6 @@ class WalletRedemptionCode(Base, UUIDPKMixin):
     )
     is_used: Mapped[bool] = mapped_column(nullable=False, default=False)
     used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     __table_args__ = (
         CheckConstraint("amount > 0", name="ck_wallet_redemption_codes_amount_positive"),
