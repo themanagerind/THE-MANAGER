@@ -89,5 +89,41 @@ async def apply_adjustment(
     return txn
 
 
+async def redeem_points(
+    db: AsyncSession, resident_id: uuid.UUID, amount: float, description: str, created_by: uuid.UUID
+) -> WalletTransaction:
+    """Spends `amount` points from the resident's own wallet — the
+    ready-made primitive a future Ecom PWA discount redemption will call
+    (user-requested; not built yet, so nothing calls this today). Same
+    row-locked, balance-can't-go-negative guarantee as apply_adjustment,
+    but kept as its own WalletTxnType.REDEMPTION rather than reusing
+    ADJUSTMENT, so a resident's own spend is never confused with an
+    Admin's correction in the transaction history. Does not touch how
+    points are earned — credit_maintenance_payment above is unchanged."""
+    if amount <= 0:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Redemption amount must be positive")
+
+    wallet = await get_or_create_wallet(db, resident_id, lock=True)
+    new_balance = float(wallet.balance) - amount
+    if new_balance < 0:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"Insufficient wallet balance (current: {wallet.balance}, requested: {amount})",
+        )
+    wallet.balance = new_balance
+
+    txn = WalletTransaction(
+        wallet_id=wallet.id,
+        transaction_type=WalletTxnType.REDEMPTION,
+        amount=-amount,
+        description=description,
+        created_by=created_by,
+        created_at=datetime.now(timezone.utc),
+    )
+    db.add(txn)
+    await db.flush()
+    return txn
+
+
 async def get_wallet(db: AsyncSession, resident_id: uuid.UUID) -> Wallet:
     return await get_or_create_wallet(db, resident_id)

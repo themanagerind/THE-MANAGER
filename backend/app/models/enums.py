@@ -91,6 +91,11 @@ class PaymentAuditAction(str, enum.Enum):
 class WalletTxnType(str, enum.Enum):
     MAINTENANCE_CREDIT = "MAINTENANCE_CREDIT"
     ADJUSTMENT = "ADJUSTMENT"
+    # A resident spending their own points — e.g. a future Ecom PWA
+    # discount redemption (user-requested, not built yet). Kept distinct
+    # from ADJUSTMENT (an Admin's correction) so the two never look the
+    # same in a resident's transaction history.
+    REDEMPTION = "REDEMPTION"
 
 
 class EntryType(str, enum.Enum):
