@@ -35,3 +35,14 @@ credentials.json
 
 # Persistent Postgres data dir (managed by backend/bootstrap_env.sh)
 .pgdata/
+
+# Android TWA (bubblewrap) — signing key and build output are generated
+# locally per android/README.md step 3; the keystore especially must never
+# be committed (losing/leaking it is unrecoverable for Play Store updates).
+android/*.keystore
+android/*.jks
+android/*.aab
+android/*.apk
+android/.gradle/
+android/build/
+android/app/build/
