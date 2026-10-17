@@ -196,11 +196,73 @@ async def test_verify_endpoint_requires_store_api_key(
         headers={"X-Store-Api-Key": "test-store-api-key-for-pytest-only"},
     )
     assert resp.status_code == 200
-    assert resp.json()["amount"] == 150.0
+    assert resp.json()["amount_paise"] == 15000  # 150.00 rupees as paise, never a float
 
-    # Second verify of the same code is a clean 409, not a 500.
+    # Second verify of the same code with no/different request_id is a
+    # clean 409, not a 500 — a genuine reuse attempt, not a retry.
     resp = await client.post(
         "/api/v1/wallet-redemptions/verify", json={"code": redemption.code},
         headers={"X-Store-Api-Key": "test-store-api-key-for-pytest-only"},
     )
     assert resp.status_code == 409
+
+
+async def test_verify_retry_with_same_request_id_replays_success_not_409(
+    db_session: AsyncSession, two_societies_with_admins
+):
+    """User-reported gap: if THE-MANAGER's 200 never reaches the store
+    (network failure after the code was already marked used), a naive
+    retry would get 409 and the store would never credit the customer.
+    A retry carrying the SAME idempotency key as the original call must
+    replay that same success instead."""
+    society_id = two_societies_with_admins["a"]["society_id"]
+    resident = await _seed_resident(db_session, society_id, "9860000007")
+    await _ensure_a_platform_owner_exists(db_session, "9860000093")
+    await wallet_service.credit_maintenance_payment(db_session, resident.id, None, 1000.0)
+    await db_session.commit()
+    redemption = await wallet_service.transfer_to_master_wallet(db_session, resident.id, 200.0)
+
+    first = await wallet_service.verify_and_redeem_code(db_session, redemption.code, request_id="store-order-abc")
+    assert first.is_used is True
+
+    # Same request_id again — store's own retry after losing the first response.
+    replay = await wallet_service.verify_and_redeem_code(db_session, redemption.code, request_id="store-order-abc")
+    assert replay.id == first.id
+    assert replay.is_used is True
+
+    # A different request_id (or none) against the now-used code is a
+    # genuine reuse attempt, not a retry — still 409.
+    with pytest.raises(HTTPException) as exc:
+        await wallet_service.verify_and_redeem_code(db_session, redemption.code, request_id="some-other-order")
+    assert exc.value.status_code == 409
+
+    with pytest.raises(HTTPException) as exc:
+        await wallet_service.verify_and_redeem_code(db_session, redemption.code)
+    assert exc.value.status_code == 409
+
+
+async def test_verify_endpoint_retry_with_same_request_id_returns_200(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    society_id = two_societies_with_admins["a"]["society_id"]
+    resident = await _seed_resident(db_session, society_id, "9860000008")
+    await _ensure_a_platform_owner_exists(db_session, "9860000092")
+    await wallet_service.credit_maintenance_payment(db_session, resident.id, None, 1000.0)
+    await db_session.commit()
+    redemption = await wallet_service.transfer_to_master_wallet(db_session, resident.id, 75.0)
+    headers = {"X-Store-Api-Key": "test-store-api-key-for-pytest-only"}
+
+    resp = await client.post(
+        "/api/v1/wallet-redemptions/verify",
+        json={"code": redemption.code, "request_id": "store-retry-1"}, headers=headers,
+    )
+    assert resp.status_code == 200
+    assert resp.json()["amount_paise"] == 7500
+
+    # Simulated retry after a dropped response — same request_id, still 200.
+    resp = await client.post(
+        "/api/v1/wallet-redemptions/verify",
+        json={"code": redemption.code, "request_id": "store-retry-1"}, headers=headers,
+    )
+    assert resp.status_code == 200
+    assert resp.json()["amount_paise"] == 7500

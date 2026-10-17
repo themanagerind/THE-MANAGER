@@ -342,6 +342,15 @@ class WalletRedemptionCode(Base, UUIDPKMixin, CreatedAtOnlyMixin):
     )
     is_used: Mapped[bool] = mapped_column(nullable=False, default=False)
     used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Store's own idempotency key for the /verify call that consumed this
+    # code (user-reported gap: a network failure between THE-MANAGER
+    # marking the code used and the store receiving that 200 would
+    # otherwise strand the code as a 409 on retry, with the store never
+    # knowing whether its own write actually landed). A retry carrying the
+    # SAME request_id as the original successful call replays that same
+    # 200 instead of 409; any other request_id (or none) for an already-
+    # used code is treated as a genuine reuse attempt and still gets 409.
+    consumed_request_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
     __table_args__ = (
         CheckConstraint("amount > 0", name="ck_wallet_redemption_codes_amount_positive"),

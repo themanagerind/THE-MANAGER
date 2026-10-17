@@ -212,13 +212,26 @@ async def transfer_to_master_wallet(
     return redemption
 
 
-async def verify_and_redeem_code(db: AsyncSession, code: str) -> WalletRedemptionCode:
+async def verify_and_redeem_code(
+    db: AsyncSession, code: str, request_id: str | None = None
+) -> WalletRedemptionCode:
     """The only way a (future) Ecom store's backend confirms a code is
     valid — row-locked so two near-simultaneous verify calls for the
     same code (e.g. a client retry) can't both succeed. Normalizes case/
     whitespace before matching — codes are generated uppercase-only
     (_REDEMPTION_CODE_ALPHABET), but there's no guarantee a store's own
-    checkout UI preserves that by the time it POSTs here."""
+    checkout UI preserves that by the time it POSTs here.
+
+    Idempotency (user-reported gap): THE-MANAGER can mark a code used and
+    commit, then lose the response to a network failure before the store
+    sees it — a bare retry would get 409 with no way to tell "my own
+    unseen success" apart from "someone else already spent this code."
+    `request_id` is the store's own idempotency key for *this specific
+    redemption attempt*; a retry that repeats the same request_id against
+    an already-used code replays the original success rather than 409.
+    Any other request_id (including none) against a used code is treated
+    as a genuine reuse attempt and still gets 409 — so a code can only
+    ever be effectively spent once no matter how it's retried."""
     code = code.strip().upper()
     redemption = (
         await db.execute(
@@ -228,10 +241,13 @@ async def verify_and_redeem_code(db: AsyncSession, code: str) -> WalletRedemptio
     if redemption is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Redemption code not found")
     if redemption.is_used:
+        if request_id and redemption.consumed_request_id == request_id:
+            return redemption
         raise HTTPException(status.HTTP_409_CONFLICT, "Redemption code has already been used")
 
     redemption.is_used = True
     redemption.used_at = datetime.now(timezone.utc)
+    redemption.consumed_request_id = request_id
     await db.commit()
     await db.refresh(redemption)
     return redemption

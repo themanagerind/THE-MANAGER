@@ -58,6 +58,8 @@ async def verify_redemption(
     """Called by a (future, separately-built) Ecom store's own backend —
     not a Resident, so authenticated via a shared X-Store-Api-Key header
     (require_store_api_key), never a Resident JWT. Marks the code used
-    exactly once; a second call for the same code is a clean 409."""
-    redemption = await wallet_service.verify_and_redeem_code(db, body.code)
-    return RedemptionVerifyOut(amount=float(redemption.amount), used_at=redemption.used_at)
+    exactly once; a retry with the same body.request_id replays that same
+    success, any other retry of an already-used code is a clean 409."""
+    redemption = await wallet_service.verify_and_redeem_code(db, body.code, body.request_id)
+    amount_paise = round(float(redemption.amount) * 100)
+    return RedemptionVerifyOut(amount_paise=amount_paise, used_at=redemption.used_at)

@@ -24,8 +24,18 @@ class RedemptionCodeOut(BaseModel):
 
 class RedemptionVerifyIn(BaseModel):
     code: str
+    # Store's own idempotency key for this redemption attempt (any stable
+    # string the store generates per attempt, e.g. its own order/txn id).
+    # Retrying with the SAME request_id replays the original success
+    # instead of a 409 if the first response never reached the store —
+    # see wallet_service.verify_and_redeem_code. Optional for backward
+    # compatibility, but a store that skips it loses idempotent retries.
+    request_id: str | None = Field(default=None, max_length=100)
 
 
 class RedemptionVerifyOut(BaseModel):
-    amount: float
+    # Smallest currency unit (paise for INR), never a float rupee amount —
+    # user-reported: floats crossing a system boundary as money is a
+    # precision-bug class best avoided entirely rather than guarded against.
+    amount_paise: int
     used_at: datetime
