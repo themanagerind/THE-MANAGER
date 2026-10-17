@@ -8,15 +8,22 @@ concurrent operations against the same resident's wallet (e.g. an approval
 and a correction landing at the same instant) serialize instead of racing
 on a read-modify-write of `balance`.
 """
+import secrets
 import uuid
 from datetime import datetime, timezone
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.enums import WalletTxnType
-from app.models.payments import Wallet, WalletTransaction
+from app.models.enums import Role, WalletTxnType
+from app.models.identity import User, UserRole
+from app.models.payments import Wallet, WalletRedemptionCode, WalletTransaction
+
+# Excludes 0/O and 1/I — a Resident reads this off a screen and types it
+# into a store's website, so ambiguous characters cost real support tickets.
+_REDEMPTION_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+_REDEMPTION_CODE_LENGTH = 8
 
 
 async def get_or_create_wallet(db: AsyncSession, resident_id: uuid.UUID, *, lock: bool = False) -> Wallet:
@@ -127,3 +134,115 @@ async def redeem_points(
 
 async def get_wallet(db: AsyncSession, resident_id: uuid.UUID) -> Wallet:
     return await get_or_create_wallet(db, resident_id)
+
+
+async def get_master_wallet(db: AsyncSession, *, lock: bool = False) -> Wallet:
+    """The Platform Owner's own Wallet, reused as-is (same table, same
+    mechanics — user-requested: no separate Master Wallet system) as
+    where a Resident's redeemed points go. Nothing in this codebase caps
+    Platform Owner accounts at one (scripts/seed_platform_owner.py can be
+    re-run with a different mobile) — rather than hard-failing every
+    Resident's redemption if that invariant is ever violated, this
+    deterministically picks the earliest-created active Platform Owner
+    account, so every call converges on the same one."""
+    owner_id = (
+        await db.execute(
+            select(UserRole.user_id)
+            .join(User, User.id == UserRole.user_id)
+            .where(UserRole.role == Role.PLATFORM_OWNER, UserRole.revoked_at.is_(None))
+            .order_by(User.created_at.asc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    if owner_id is None:
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, "No Platform Owner account exists for the Master Wallet")
+    return await get_or_create_wallet(db, owner_id, lock=lock)
+
+
+async def _unique_redemption_code(db: AsyncSession) -> str:
+    """Pre-checks uniqueness with a SELECT rather than insert-and-catch —
+    a caught IntegrityError would need a db.rollback() that undoes the
+    debit/credit transfer_to_master_wallet already flushed earlier in
+    the same transaction (same reasoning as notification_service's
+    dedup pre-check). Collisions are astronomically unlikely (32^8
+    codes), so this is a formality, not a real retry loop in practice."""
+    for _ in range(5):
+        code = "".join(secrets.choice(_REDEMPTION_CODE_ALPHABET) for _ in range(_REDEMPTION_CODE_LENGTH))
+        existing = (
+            await db.execute(select(WalletRedemptionCode.id).where(WalletRedemptionCode.code == code))
+        ).scalar_one_or_none()
+        if existing is None:
+            return code
+    raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, "Could not generate a unique redemption code")
+
+
+async def transfer_to_master_wallet(
+    db: AsyncSession, resident_id: uuid.UUID, amount: float
+) -> WalletRedemptionCode:
+    """A Resident redeems `amount` points into the Platform Owner's
+    Master Wallet (user-requested) and gets back a short code — the
+    voucher they'll hand to a future, separately-built Ecom store.
+    Reuses redeem_points (debit, Resident) and apply_adjustment (credit,
+    Master) rather than inventing new wallet mechanics — the code itself
+    is the only new thing. Owns its own commit (a single complete
+    operation triggered by one API call, same as subadmin_service.
+    promote_to_subadmin), unlike the chainable primitives it calls."""
+    debit_txn = await redeem_points(
+        db, resident_id, amount,
+        description="Transferred to Platform Owner Master Wallet", created_by=resident_id,
+    )
+    master_wallet = await get_master_wallet(db, lock=True)
+    await apply_adjustment(
+        db, master_wallet.resident_id, amount,
+        description=f"Received via redemption from resident {resident_id}",
+    )
+
+    code = await _unique_redemption_code(db)
+    redemption = WalletRedemptionCode(
+        resident_id=resident_id, code=code, amount=amount,
+        wallet_transaction_id=debit_txn.id, created_at=datetime.now(timezone.utc),
+    )
+    db.add(redemption)
+    await db.commit()
+    await db.refresh(redemption)
+    return redemption
+
+
+async def verify_and_redeem_code(db: AsyncSession, code: str) -> WalletRedemptionCode:
+    """The only way a (future) Ecom store's backend confirms a code is
+    valid — row-locked so two near-simultaneous verify calls for the
+    same code (e.g. a client retry) can't both succeed."""
+    redemption = (
+        await db.execute(
+            select(WalletRedemptionCode).where(WalletRedemptionCode.code == code).with_for_update()
+        )
+    ).scalar_one_or_none()
+    if redemption is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Redemption code not found")
+    if redemption.is_used:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Redemption code has already been used")
+
+    redemption.is_used = True
+    redemption.used_at = datetime.now(timezone.utc)
+    await db.commit()
+    await db.refresh(redemption)
+    return redemption
+
+
+async def list_redemption_codes(
+    db: AsyncSession, resident_id: uuid.UUID, skip: int = 0, limit: int = 20
+) -> tuple[list[WalletRedemptionCode], int]:
+    total = (
+        await db.execute(
+            select(func.count()).select_from(WalletRedemptionCode).where(
+                WalletRedemptionCode.resident_id == resident_id
+            )
+        )
+    ).scalar_one()
+    rows = (
+        await db.execute(
+            select(WalletRedemptionCode).where(WalletRedemptionCode.resident_id == resident_id)
+            .order_by(WalletRedemptionCode.created_at.desc()).offset(skip).limit(limit)
+        )
+    ).scalars().all()
+    return rows, total

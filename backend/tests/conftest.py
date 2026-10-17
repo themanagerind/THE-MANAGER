@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 os.environ.setdefault("DATABASE_URL", os.environ.get("TEST_DATABASE_URL", "postgresql+asyncpg://postgres:postgres@localhost:5432/housing_test"))
 os.environ.setdefault("JWT_SECRET_KEY", "test-secret-key-for-pytest-only")
 os.environ.setdefault("REDIS_URL", os.environ.get("TEST_REDIS_URL", "redis://localhost:6379/15"))
+os.environ.setdefault("ECOM_STORE_API_KEY", "test-store-api-key-for-pytest-only")
 
 from app.core.db import Base  # noqa: E402
 from app.main import app  # noqa: E402

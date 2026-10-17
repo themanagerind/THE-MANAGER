@@ -318,3 +318,32 @@ class WalletTransaction(Base, UUIDPKMixin, CreatedAtOnlyMixin):
             postgresql_where="transaction_type = 'MAINTENANCE_CREDIT'",
         ),
     )
+
+
+class WalletRedemptionCode(Base, UUIDPKMixin):
+    """A Resident transfers points to the Platform Owner's Master Wallet
+    (user-requested) and gets back a short, typeable code in return — the
+    voucher they hand to a (future, separately-built) Ecom store. The
+    store's own backend calls POST /wallet-redemptions/verify with the
+    code to redeem it exactly once; nothing about the Ecom store's
+    account/session model is assumed here, just "is this code valid, and
+    for how much." wallet_transaction_id links back to the resident's own
+    REDEMPTION debit for audit traceability."""
+
+    __tablename__ = "wallet_redemption_codes"
+
+    resident_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
+    )
+    code: Mapped[str] = mapped_column(String(8), nullable=False, unique=True)
+    amount: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False)
+    wallet_transaction_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("wallet_transactions.id"), nullable=False
+    )
+    is_used: Mapped[bool] = mapped_column(nullable=False, default=False)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    __table_args__ = (
+        CheckConstraint("amount > 0", name="ck_wallet_redemption_codes_amount_positive"),
+    )

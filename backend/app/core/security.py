@@ -12,7 +12,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
 from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi.security import APIKeyHeader, HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -154,6 +154,25 @@ async def get_current_user(
         active_role=requested_active_role,
         available_roles=available_roles,
     )
+
+
+_store_api_key_header = APIKeyHeader(name="X-Store-Api-Key", auto_error=False)
+
+
+async def require_store_api_key(
+    provided: Annotated[str | None, Depends(_store_api_key_header)],
+) -> None:
+    """Service-to-service auth for the (future, separate) Ecom store's
+    backend — never a Resident's own JWT, since the caller is the
+    store's server, not a logged-in person. No Bearer token, no DB
+    lookup: a single shared secret, same trust model as a webhook. If
+    the operator hasn't set ECOM_STORE_API_KEY yet, the endpoint is
+    unreachable (503) rather than silently accepting anything."""
+    configured = settings.ecom_store_api_key
+    if not configured:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Ecom store integration is not configured")
+    if not provided or provided != configured:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid or missing store API key")
 
 
 def require_role(*allowed: Role):

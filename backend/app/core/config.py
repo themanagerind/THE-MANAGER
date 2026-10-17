@@ -35,6 +35,13 @@ class Settings(BaseSettings):
     web_push_vapid_public_key: str | None = None
     web_push_vapid_private_key: str | None = None
 
+    # Shared secret for the (future, separately-built) Ecom store's
+    # backend to call POST /wallet-redemptions/verify — a service-to-
+    # service credential, never a Resident's own JWT, since the caller is
+    # the store's server, not a logged-in person. None in local dev means
+    # the endpoint is unreachable until an operator sets a real value.
+    ecom_store_api_key: str | None = None
+
     # Payment proof uploads (Section 14.2/14.3) — local disk for now,
     # served back only via the authenticated GET /payments/{id}/proofs/
     # {proof_id}/file endpoint (no public StaticFiles mount — that was

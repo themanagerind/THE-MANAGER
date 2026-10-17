@@ -26,6 +26,7 @@ from app.api.v1.subadmins import router as subadmins_router
 from app.api.v1.uploads import router as uploads_router
 from app.api.v1.users import router as users_router
 from app.api.v1.visitors import router as visitors_router
+from app.api.v1.wallet_redemptions import router as wallet_redemptions_router
 from app.core.config import get_settings
 
 settings = get_settings()
@@ -54,6 +55,7 @@ app.include_router(account_entries_router, prefix="/api/v1")
 app.include_router(users_router, prefix="/api/v1")
 app.include_router(reports_router, prefix="/api/v1")
 app.include_router(notifications_router, prefix="/api/v1")
+app.include_router(wallet_redemptions_router, prefix="/api/v1")
 
 # Audit fix: uploaded payment-proof files used to be served by a public
 # StaticFiles mount here with no authentication at all. Files are now only

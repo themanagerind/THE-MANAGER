@@ -29,6 +29,7 @@ from app.models.payments import (  # noqa: F401
     PaymentCorrection,
     PaymentProof,
     Wallet,
+    WalletRedemptionCode,
     WalletTransaction,
 )
 from app.models.accounts import AccountEntry, AccountEntryEditHistory, AccountHeading  # noqa: F401
