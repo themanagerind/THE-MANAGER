@@ -211,10 +211,12 @@ async def test_logout_does_not_affect_a_different_devices_session(
 
 
 # --- 12-hour absolute session cap for privileged roles (user-requested) ------
-# Platform Owner/Admin/Sub-admin only — Manager/Guard/Resident have no cap.
+# Platform Owner only for now — Admin/Sub-admin were disabled from this set
+# (user-requested, after briefly including them — see git history), so they
+# behave like Manager/Guard/Resident: no cap.
 
 
-async def test_refresh_rejected_after_12_hours_for_admin(
+async def test_refresh_rejected_after_12_hours_for_platform_owner(
     db_session: AsyncSession, two_societies_with_admins
 ):
     from datetime import datetime, timedelta, timezone
@@ -223,8 +225,7 @@ async def test_refresh_rejected_after_12_hours_for_admin(
 
     from app.services import auth_service, token_service
 
-    society_id = two_societies_with_admins["a"]["society_id"]
-    user = await _create_active_user(db_session, society_id, "9000000090", [Role.ADMIN])
+    user = await _create_active_user(db_session, None, "9000000090", [Role.PLATFORM_OWNER])
 
     old_login = datetime.now(timezone.utc) - timedelta(hours=12, minutes=1)
     old_jti = await token_service.issue_jti(user.id, old_login)
@@ -234,15 +235,14 @@ async def test_refresh_rejected_after_12_hours_for_admin(
     assert exc.value.status_code == 401
 
 
-async def test_refresh_still_works_just_under_12_hours_for_admin(
+async def test_refresh_still_works_just_under_12_hours_for_platform_owner(
     db_session: AsyncSession, two_societies_with_admins
 ):
     from datetime import datetime, timedelta, timezone
 
     from app.services import auth_service, token_service
 
-    society_id = two_societies_with_admins["a"]["society_id"]
-    user = await _create_active_user(db_session, society_id, "9000000089", [Role.ADMIN])
+    user = await _create_active_user(db_session, None, "9000000089", [Role.PLATFORM_OWNER])
 
     recent_login = datetime.now(timezone.utc) - timedelta(hours=11, minutes=59)
     jti = await token_service.issue_jti(user.id, recent_login)
@@ -254,8 +254,8 @@ async def test_refresh_still_works_just_under_12_hours_for_admin(
 async def test_refresh_has_no_12_hour_cap_for_resident(
     db_session: AsyncSession, two_societies_with_admins
 ):
-    """Only Platform Owner/Admin/Sub-admin carry the cap (user-requested
-    scope) — a plain Resident session of any age keeps refreshing."""
+    """Only Platform Owner carries the cap (user-requested scope) — a
+    plain Resident session of any age keeps refreshing."""
     from datetime import datetime, timedelta, timezone
 
     from app.services import auth_service, token_service
@@ -270,15 +270,32 @@ async def test_refresh_has_no_12_hour_cap_for_resident(
     assert tokens.access_token
 
 
+async def test_refresh_has_no_12_hour_cap_for_admin(
+    db_session: AsyncSession, two_societies_with_admins
+):
+    """Admin was deliberately disabled from the capped-roles set
+    (user-requested) — an old session still refreshes freely."""
+    from datetime import datetime, timedelta, timezone
+
+    from app.services import auth_service, token_service
+
+    society_id = two_societies_with_admins["a"]["society_id"]
+    user = await _create_active_user(db_session, society_id, "9000000091", [Role.ADMIN])
+
+    old_login = datetime.now(timezone.utc) - timedelta(hours=13)
+    jti = await token_service.issue_jti(user.id, old_login)
+
+    tokens = await auth_service.rotate_refresh_token(db_session, user.id, jti)
+    assert tokens.access_token
+
+
 async def test_refresh_has_no_12_hour_cap_for_sub_admin_dual_resident(
     db_session: AsyncSession, two_societies_with_admins
 ):
-    """A Sub-admin+Resident dual-role account IS capped — holding the
-    privileged role at all is what matters, not which mode the (now-
-    expired) access token happened to be acting as when refreshed."""
+    """Sub-admin was deliberately disabled from the capped-roles set
+    (user-requested) — an old Sub-admin+Resident dual-role session still
+    refreshes freely."""
     from datetime import datetime, timedelta, timezone
-
-    from fastapi import HTTPException
 
     from app.services import auth_service, token_service
 
@@ -290,9 +307,8 @@ async def test_refresh_has_no_12_hour_cap_for_sub_admin_dual_resident(
     old_login = datetime.now(timezone.utc) - timedelta(hours=13)
     jti = await token_service.issue_jti(user.id, old_login)
 
-    with pytest.raises(HTTPException) as exc:
-        await auth_service.rotate_refresh_token(db_session, user.id, jti)
-    assert exc.value.status_code == 401
+    tokens = await auth_service.rotate_refresh_token(db_session, user.id, jti)
+    assert tokens.access_token
 
 
 async def test_switch_role_carries_session_started_at_forward_not_reset(

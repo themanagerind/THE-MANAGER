@@ -22,11 +22,12 @@ from app.models.identity import Society, User, UserRole
 from app.schemas.auth import AccountChoice, OTPVerifyOut, TokenOut
 from app.services import token_service
 
-# Platform Owner/Admin/Sub-admin hold write/approval power over other
-# people's data or money, unlike Manager (operational, no approvals) or
-# Guard/Resident — user-requested: these three get a 12-hour absolute
-# session cap regardless of activity, enforced in rotate_refresh_token.
-_PRIVILEGED_ROLES = {Role.PLATFORM_OWNER, Role.ADMIN, Role.SUB_ADMIN}
+# User-requested: the 12-hour absolute session cap applies to Platform
+# Owner only for now — Admin and Sub-admin were disabled from this set
+# (were both included briefly; see git history) pending further
+# discussion, so a 12h-old Admin/Sub-admin session still refreshes freely
+# like Manager/Guard/Resident. Only Platform Owner is capped below.
+_PRIVILEGED_ROLES = {Role.PLATFORM_OWNER}
 _PRIVILEGED_SESSION_CAP = timedelta(hours=12)
 
 
