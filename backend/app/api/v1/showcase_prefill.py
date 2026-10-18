@@ -23,7 +23,8 @@ async def create_prefill_token(
     """Called when a Resident clicks "Shop Now" — the frontend is
     responsible for showing the DPDP consent line (name/mobile/address
     will be shared with Showcase) before calling this, and for building
-    the redirect URL (<showcase-host>/signup?prefill=<token>)."""
+    the redirect URL (<showcase-host>/welcome?prefill=<token> — path
+    agreed with the Showcase team, see docs/integrations/the-manager-prefill.md)."""
     row = await showcase_prefill_service.generate_prefill_token(db, current.user_id)
     return PrefillCreateOut(token=row.token, expires_at=row.expires_at)
 

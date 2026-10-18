@@ -29,7 +29,8 @@ export function ShopNowButton() {
     setError(false);
     try {
       const { data } = await showcasePrefillApi.create();
-      window.location.href = `${showcaseBaseUrl}/signup?prefill=${encodeURIComponent(data.token)}`;
+      // Path agreed with the Showcase team — see docs/integrations/the-manager-prefill.md.
+      window.location.href = `${showcaseBaseUrl}/welcome?prefill=${encodeURIComponent(data.token)}`;
     } catch {
       setError(true);
       setLoading(false);

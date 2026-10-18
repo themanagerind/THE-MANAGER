@@ -53,7 +53,7 @@ describe("ShopNowButton", () => {
     await user.click(screen.getByRole("button", { name: "Continue" }));
 
     expect(showcasePrefillApi.create).toHaveBeenCalledTimes(1);
-    expect(window.location.href).toBe("https://showcase.example.com/signup?prefill=abc123");
+    expect(window.location.href).toBe("https://showcase.example.com/welcome?prefill=abc123");
   });
 
   it("shows a retry-friendly error instead of redirecting if token issuance fails", async () => {
