@@ -21,6 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.db import get_db
+from app.core.redis_client import get_redis
 from app.models.enums import Role, SocietyStatus, UserStatus
 from app.models.identity import Society, User, UserRole
 
@@ -41,7 +42,19 @@ def create_access_token(
     society_id: uuid.UUID | None,
     active_role: Role,
     available_roles: list[Role],
+    session_started_at: datetime,
 ) -> str:
+    """`session_started_at` is the ORIGINAL login time for this session
+    chain — callers must carry it forward unchanged on every refresh/role-
+    switch (never reset it), since auth_service.rotate_refresh_token's
+    12-hour absolute cap for privileged roles measures from this, not from
+    whenever the access token itself happened to be (re)issued. Only a
+    fresh OTP-verified login sets it to "now".
+
+    `jti` (new, user-reported gap) lets logout blocklist THIS specific
+    access token for its remaining lifetime — see revoke_access_token.
+    Previously logout only revoked the refresh token, leaving an already-
+    issued access token usable for up to its remaining ~30 minutes."""
     expire = datetime.now(timezone.utc) + timedelta(
         minutes=settings.jwt_access_token_expire_minutes
     )
@@ -52,6 +65,8 @@ def create_access_token(
         "available_roles": [r.value for r in available_roles],
         "exp": expire,
         "type": "access",
+        "jti": str(uuid.uuid4()),
+        "session_started_at": session_started_at.isoformat(),
     }
     return jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
 
@@ -91,7 +106,13 @@ def decode_token(token: str) -> dict:
 class CurrentUser(BaseModel):
     """Re-derived from the DB on every request — NOT trusted from the JWT
     alone (Section 49.14). The JWT only tells us *which* user + which mode
-    they were in when the token was issued; roles/scope are re-checked here."""
+    they were in when the token was issued; roles/scope are re-checked here.
+
+    access_jti/access_exp/session_started_at are decoded straight from the
+    access token's own claims (never re-derived) — access_jti/access_exp
+    back the logout blocklist (revoke_access_token), session_started_at
+    backs the 12-hour absolute session cap for privileged roles
+    (auth_service.rotate_refresh_token/switch_role)."""
 
     model_config = {"arbitrary_types_allowed": True}
 
@@ -99,6 +120,9 @@ class CurrentUser(BaseModel):
     society_id: uuid.UUID | None
     active_role: Role
     available_roles: list[Role]
+    access_jti: str
+    access_exp: datetime
+    session_started_at: datetime
 
 
 async def get_current_user(
@@ -111,6 +135,12 @@ async def get_current_user(
     payload = decode_token(credentials.credentials)
     if payload.get("type") != "access":
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Not an access token")
+
+    access_jti = payload.get("jti")
+    if access_jti is None:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Malformed access token")
+    if await is_access_token_revoked(access_jti):
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Token has been revoked — please log in again")
 
     user_id = uuid.UUID(payload["sub"])
 
@@ -154,7 +184,33 @@ async def get_current_user(
         society_id=user.society_id,
         active_role=requested_active_role,
         available_roles=available_roles,
+        access_jti=access_jti,
+        access_exp=datetime.fromtimestamp(payload["exp"], tz=timezone.utc),
+        session_started_at=datetime.fromisoformat(payload["session_started_at"]),
     )
+
+
+def _access_blocklist_key(jti: str) -> str:
+    return f"revoked_access_jti:{jti}"
+
+
+async def revoke_access_token(jti: str, ttl_seconds: int) -> None:
+    """Blocklists this specific access token so it's rejected on its very
+    next use (get_current_user, above), even though it remains
+    cryptographically valid (signature + exp) until its own natural expiry
+    — logout revoking only the refresh token left an already-issued access
+    token usable for up to its remaining ~30 minutes (user-reported gap).
+    ttl_seconds should be the token's own remaining lifetime; the
+    blocklist entry expires alongside it so this never grows unbounded."""
+    if ttl_seconds <= 0:
+        return  # already expired on its own — nothing to blocklist
+    r = get_redis()
+    await r.set(_access_blocklist_key(jti), "1", ex=ttl_seconds)
+
+
+async def is_access_token_revoked(jti: str) -> bool:
+    r = get_redis()
+    return bool(await r.exists(_access_blocklist_key(jti)))
 
 
 _store_api_key_header = APIKeyHeader(name="X-Store-Api-Key", auto_error=False)

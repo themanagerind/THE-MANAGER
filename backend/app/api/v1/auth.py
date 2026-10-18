@@ -92,11 +92,14 @@ async def refresh_token_endpoint(
 async def logout_endpoint(
     body: RefreshTokenIn, current: Annotated[CurrentUser, Depends(get_current_user)]
 ) -> dict:
-    """Revokes the refresh token tied to the current session. Pass the
-    refresh_token so its specific jti is invalidated (not every session)."""
+    """Revokes the refresh token tied to the current session, AND
+    blocklists the access token used to authenticate this call for its
+    remaining lifetime (current.access_jti/access_exp) — see
+    auth_service.logout. Pass refresh_token so its specific jti is
+    invalidated (not every session)."""
     payload = decode_token(body.refresh_token)
     jti = payload.get("jti")
-    await auth_service.logout(current.user_id, jti)
+    await auth_service.logout(current.user_id, jti, current.access_jti, current.access_exp)
     return {"message": "Logged out"}
 
 

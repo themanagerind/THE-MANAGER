@@ -92,10 +92,15 @@ def bearer_token_for(user_id: uuid.UUID, society_id: uuid.UUID | None, active_ro
     """Test-only shortcut: issues a valid access token directly, bypassing
     the OTP flow, so tests can focus on the endpoint under test rather than
     re-deriving OTP delivery every time. The OTP flow itself is covered
-    separately in test_auth.py."""
+    separately in test_auth.py. Doesn't touch Redis (no refresh-token jti
+    issued), so it's unsuitable for logout-blocklist or 12-hour-session-cap
+    tests — those call auth_service.issue_tokens_for directly instead, to
+    get a token pair that's actually wired through Redis."""
+    from datetime import datetime, timezone
+
     from app.core.security import create_access_token
 
-    return create_access_token(user_id, society_id, active_role, available_roles)
+    return create_access_token(user_id, society_id, active_role, available_roles, datetime.now(timezone.utc))
 
 
 def auth_headers(user_id: uuid.UUID, society_id: uuid.UUID | None, active_role, available_roles: list) -> dict:

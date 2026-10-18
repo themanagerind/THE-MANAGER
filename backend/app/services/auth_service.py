@@ -3,6 +3,7 @@ Auth service — orchestrates the OTP verify -> (single account | choose
 account) -> token issuance flow, and role switching.
 """
 import uuid
+from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException, status
 from sqlalchemy import or_, select
@@ -14,11 +15,19 @@ from app.core.security import (
     create_otp_session_token,
     create_refresh_token,
     decode_otp_session_token,
+    revoke_access_token,
 )
 from app.models.enums import Role, SocietyStatus, UserStatus
 from app.models.identity import Society, User, UserRole
 from app.schemas.auth import AccountChoice, OTPVerifyOut, TokenOut
 from app.services import token_service
+
+# Platform Owner/Admin/Sub-admin hold write/approval power over other
+# people's data or money, unlike Manager (operational, no approvals) or
+# Guard/Resident — user-requested: these three get a 12-hour absolute
+# session cap regardless of activity, enforced in rotate_refresh_token.
+_PRIVILEGED_ROLES = {Role.PLATFORM_OWNER, Role.ADMIN, Role.SUB_ADMIN}
+_PRIVILEGED_SESSION_CAP = timedelta(hours=12)
 
 
 async def _society_is_active(db: AsyncSession, society_id: uuid.UUID | None) -> bool:
@@ -52,14 +61,21 @@ def _default_active_role(roles: list[Role]) -> Role:
     raise HTTPException(status.HTTP_403_FORBIDDEN, "User has no active roles")
 
 
-async def issue_tokens_for(db: AsyncSession, user: User) -> TokenOut:
+async def issue_tokens_for(
+    db: AsyncSession, user: User, session_started_at: datetime | None = None
+) -> TokenOut:
+    """`session_started_at` left as None means a fresh login — the session
+    clock starts now. A caller carrying forward an existing session
+    (rotate_refresh_token) passes the original value through instead, so
+    the 12-hour privileged-role cap measures from the real login."""
     roles = await _active_roles_for(db, user.id)
     if not roles:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Account has no active roles")
     active = _default_active_role(roles)
-    jti = await token_service.issue_jti(user.id)
+    started = session_started_at or datetime.now(timezone.utc)
+    jti = await token_service.issue_jti(user.id, started)
     return TokenOut(
-        access_token=create_access_token(user.id, user.society_id, active, roles),
+        access_token=create_access_token(user.id, user.society_id, active, roles, started),
         refresh_token=create_refresh_token(user.id, jti),
         active_role=active,
         available_roles=roles,
@@ -121,15 +137,19 @@ async def select_account(db: AsyncSession, otp_session_token: str, user_id: uuid
 
 async def switch_role(db: AsyncSession, current: CurrentUser, new_role: Role) -> TokenOut:
     """Context/dashboard switch only — never creates a second account, never
-    touches persistent role assignments (Section 4.3)."""
+    touches persistent role assignments (Section 4.3). Carries forward
+    current.session_started_at unchanged — switching role must never reset
+    the 12-hour privileged-role session clock (that would let someone stay
+    under the cap indefinitely by switching roles periodically)."""
     if new_role not in current.available_roles:
         raise HTTPException(
             status.HTTP_403_FORBIDDEN, f"Role {new_role.value} not available for this account"
         )
-    jti = await token_service.issue_jti(current.user_id)
+    jti = await token_service.issue_jti(current.user_id, current.session_started_at)
     return TokenOut(
         access_token=create_access_token(
-            current.user_id, current.society_id, new_role, current.available_roles
+            current.user_id, current.society_id, new_role, current.available_roles,
+            current.session_started_at,
         ),
         refresh_token=create_refresh_token(current.user_id, jti),
         active_role=new_role,
@@ -141,8 +161,15 @@ async def rotate_refresh_token(db: AsyncSession, user_id: uuid.UUID, old_jti: st
     """Section: refresh-token rotation/revocation. Uses atomic GETDEL
     (fix, audit round-8 item 8) so two concurrent refresh calls with the
     same token can never both succeed — the second always sees it already
-    consumed, closing the check-then-delete race window."""
-    if not await token_service.consume_jti(user_id, old_jti):
+    consumed, closing the check-then-delete race window.
+
+    consume_jti's return value is the session's original login time, which
+    this both uses to enforce the 12-hour absolute cap for privileged
+    roles (checked fresh against current DB roles, not whatever role the
+    stale token last claimed) and carries forward unchanged into the new
+    token pair — a refresh must never reset the session clock."""
+    session_started_at = await token_service.consume_jti(user_id, old_jti)
+    if session_started_at is None:
         raise HTTPException(
             status.HTTP_401_UNAUTHORIZED,
             "Refresh token has been revoked or already used — please log in again",
@@ -153,11 +180,30 @@ async def rotate_refresh_token(db: AsyncSession, user_id: uuid.UUID, old_jti: st
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "User not found or not active")
     if not await _society_is_active(db, user.society_id):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Society is suspended")
-    return await issue_tokens_for(db, user)
+
+    roles = await _active_roles_for(db, user_id)
+    if any(r in _PRIVILEGED_ROLES for r in roles):
+        if datetime.now(timezone.utc) - session_started_at > _PRIVILEGED_SESSION_CAP:
+            raise HTTPException(
+                status.HTTP_401_UNAUTHORIZED,
+                "Session expired after 12 hours for this account type — please log in again",
+            )
+
+    return await issue_tokens_for(db, user, session_started_at=session_started_at)
 
 
-async def logout(user_id: uuid.UUID, jti: str | None) -> None:
-    if jti is not None:
-        await token_service.revoke_jti(user_id, jti)
+async def logout(
+    user_id: uuid.UUID, refresh_jti: str | None, access_jti: str, access_exp: datetime
+) -> None:
+    """Revokes the refresh token (as before) AND blocklists the access
+    token that authenticated this very logout call for its remaining
+    lifetime (user-reported gap: previously an already-issued access
+    token stayed usable for up to ~30 more minutes after logout, since
+    only the refresh token was revoked and a JWT can't be individually
+    recalled by signature alone)."""
+    if refresh_jti is not None:
+        await token_service.revoke_jti(user_id, refresh_jti)
     else:
         await token_service.revoke_all_for_user(user_id)
+    ttl_seconds = int((access_exp - datetime.now(timezone.utc)).total_seconds())
+    await revoke_access_token(access_jti, ttl_seconds)
