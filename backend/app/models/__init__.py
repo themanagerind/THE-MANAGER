@@ -54,3 +54,4 @@ from app.models.governance import (  # noqa: F401
     ProposalVoteHistory,
 )
 from app.models.notifications import PushSubscription, ResidentNotification  # noqa: F401
+from app.models.showcase_prefill import ShowcasePrefillToken  # noqa: F401

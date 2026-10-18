@@ -46,3 +46,10 @@ android/*.apk
 android/.gradle/
 android/build/
 android/app/build/
+
+# .env.example is a committed template (no secrets, just documented
+# placeholder values) — un-ignored here, after every .env*-matching
+# pattern above, since gitignore negations only win over patterns earlier
+# in the file.
+!.env.example
+!**/.env.example

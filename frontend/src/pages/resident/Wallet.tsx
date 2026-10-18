@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { paymentsApi } from "@/api/payments";
 import { Loader, ErrorState } from "@/components/States";
+import { ShopNowButton } from "@/components/ShopNowButton";
 
 export function ResidentWallet() {
   const walletQuery = useQuery({
@@ -13,7 +14,10 @@ export function ResidentWallet() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-xl font-semibold text-navy">Wallet</h1>
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="text-xl font-semibold text-navy">Wallet</h1>
+        <ShopNowButton />
+      </div>
       <div className="border border-line rounded p-6">
         <p className="text-xs text-navy-muted mb-1">Balance</p>
         <p className="text-3xl font-semibold text-navy">
