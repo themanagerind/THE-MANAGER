@@ -59,6 +59,22 @@ class OTPVerifyOut(BaseModel):
     otp_session_token: str | None = None  # short-lived, proves OTP already verified
 
 
+class CurrentUserOut(BaseModel):
+    """GET /auth/me's response — deliberately NOT the same object as
+    app.core.security.CurrentUser (audit finding): that internal DI type
+    also carries access_jti/access_exp/session_started_at (the blocklist
+    key and absolute-session-age bookkeeping), which have no business
+    being handed to the client that already holds the token they're
+    derived from — distinct from "can be decoded from the JWT anyway" in
+    that there's still no reason to put them in a JSON response body
+    clients/logs/XHR history will casually carry around."""
+
+    user_id: uuid.UUID
+    society_id: uuid.UUID | None
+    active_role: Role
+    available_roles: list[Role]
+
+
 class SelectAccountIn(BaseModel):
     otp_session_token: str
     user_id: uuid.UUID

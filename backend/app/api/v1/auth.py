@@ -17,6 +17,7 @@ from app.core.security import (
 )
 from app.models.identity import User
 from app.schemas.auth import (
+    CurrentUserOut,
     OTPRequestIn,
     OTPRequestOut,
     OTPVerifyIn,
@@ -103,6 +104,14 @@ async def logout_endpoint(
     return {"message": "Logged out"}
 
 
-@router.get("/me", response_model=CurrentUser)
-async def get_me(current: Annotated[CurrentUser, Depends(get_current_user)]) -> CurrentUser:
-    return current
+@router.get("/me", response_model=CurrentUserOut)
+async def get_me(current: Annotated[CurrentUser, Depends(get_current_user)]) -> CurrentUserOut:
+    # Deliberately NOT `return current` (audit finding) — CurrentUser also
+    # carries access_jti/access_exp/session_started_at, which have no
+    # business in a JSON response body. CurrentUserOut is the public shape.
+    return CurrentUserOut(
+        user_id=current.user_id,
+        society_id=current.society_id,
+        active_role=current.active_role,
+        available_roles=current.available_roles,
+    )

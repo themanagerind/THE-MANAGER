@@ -16,7 +16,7 @@ absolute session cap for privileged roles by measuring from the real
 login, not from whenever the token was last refreshed (user-requested).
 """
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.core.config import get_settings
 from app.core.redis_client import get_redis
@@ -53,7 +53,20 @@ async def consume_jti(user_id: uuid.UUID, jti: str) -> datetime | None:
     value = await r.getdel(_jti_key(user_id, jti))
     if value is None:
         return None
-    return datetime.fromisoformat(value)
+    try:
+        return datetime.fromisoformat(value)
+    except ValueError:
+        # Audit finding: a refresh token issued before session_started_at
+        # existed as this key's value stored the old placeholder ("1"
+        # pre-this-change), which isn't parseable. The key is already
+        # consumed (GETDEL), so there's no retrying — fall back to "now"
+        # rather than crashing with an unhandled ValueError (which would
+        # 500 instead of the intended clean 401, with the token already
+        # unrecoverably burned). This only ever happens for sessions that
+        # existed at the exact moment this change deployed, and fully
+        # stops happening once those naturally expire/rotate within
+        # settings.jwt_refresh_token_expire_days.
+        return datetime.now(timezone.utc)
 
 
 async def is_jti_valid(user_id: uuid.UUID, jti: str) -> bool:

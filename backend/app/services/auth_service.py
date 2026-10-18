@@ -141,11 +141,25 @@ async def switch_role(db: AsyncSession, current: CurrentUser, new_role: Role) ->
     touches persistent role assignments (Section 4.3). Carries forward
     current.session_started_at unchanged — switching role must never reset
     the 12-hour privileged-role session clock (that would let someone stay
-    under the cap indefinitely by switching roles periodically)."""
+    under the cap indefinitely by switching roles periodically).
+
+    Also enforces the cap itself here, not just in rotate_refresh_token
+    (audit finding): without this check, repeatedly calling switch-role
+    before each access token's 30-minute expiry mints fresh token pairs
+    that never go through /token/refresh at all, silently bypassing the
+    cap forever. current.available_roles is already fresh for this
+    request (get_current_user re-derives it from the DB every time), so
+    no extra query is needed here."""
     if new_role not in current.available_roles:
         raise HTTPException(
             status.HTTP_403_FORBIDDEN, f"Role {new_role.value} not available for this account"
         )
+    if any(r in _PRIVILEGED_ROLES for r in current.available_roles):
+        if datetime.now(timezone.utc) - current.session_started_at > _PRIVILEGED_SESSION_CAP:
+            raise HTTPException(
+                status.HTTP_401_UNAUTHORIZED,
+                "Session expired after 12 hours for this account type — please log in again",
+            )
     jti = await token_service.issue_jti(current.user_id, current.session_started_at)
     return TokenOut(
         access_token=create_access_token(

@@ -342,6 +342,71 @@ async def test_switch_role_carries_session_started_at_forward_not_reset(
     assert abs((switched_started - old_login).total_seconds()) < 1
 
 
+# --- Audit fixes ---------------------------------------------------------
+
+
+async def test_switch_role_itself_enforces_12_hour_cap_for_platform_owner(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    """Audit finding: switch_role carried session_started_at forward but
+    never checked the cap itself, so repeated switch-role calls (even back
+    to the same role) could mint fresh token pairs forever without ever
+    going through /token/refresh, silently bypassing the 12-hour cap."""
+    from datetime import datetime, timedelta, timezone
+
+    from app.services import auth_service
+
+    user = await _create_active_user(db_session, None, "9000000084", [Role.PLATFORM_OWNER])
+
+    old_login = datetime.now(timezone.utc) - timedelta(hours=12, minutes=1)
+    tokens = await auth_service.issue_tokens_for(db_session, user, session_started_at=old_login)
+
+    headers = {"Authorization": f"Bearer {tokens.access_token}"}
+    resp = await client.post(
+        "/api/v1/auth/switch-role", json={"active_role": "PLATFORM_OWNER"}, headers=headers
+    )
+    assert resp.status_code == 401
+
+
+async def test_consume_jti_handles_pre_migration_placeholder_value_without_crashing(
+    db_session: AsyncSession, two_societies_with_admins
+):
+    """Audit finding: refresh tokens issued before session_started_at
+    existed as this Redis value stored the old placeholder "1", which
+    datetime.fromisoformat can't parse. consume_jti must fall back
+    gracefully (not raise), since the key is already GETDEL'd by the time
+    the parse is attempted — there's no way to retry a crash here."""
+    import uuid
+
+    from app.core.redis_client import get_redis
+    from app.services import token_service
+
+    user_id = uuid.uuid4()
+    jti = str(uuid.uuid4())
+    r = get_redis()
+    await r.set(f"refresh_jti:{user_id}:{jti}", "1", ex=60)  # pre-migration placeholder shape
+
+    result = await token_service.consume_jti(user_id, jti)
+    assert result is not None  # didn't raise, and didn't treat it as "invalid token" either
+
+
+async def test_me_endpoint_does_not_leak_internal_token_fields(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    """Audit finding: GET /auth/me used to return the internal CurrentUser
+    object directly, which (after this PR) carries access_jti/access_exp/
+    session_started_at — token-identifying and session-age metadata with
+    no business in a response body."""
+    society_id = two_societies_with_admins["a"]["society_id"]
+    user = await _create_active_user(db_session, society_id, "9000000083", [Role.RESIDENT])
+    headers = auth_headers(user.id, society_id, Role.RESIDENT, [Role.RESIDENT])
+
+    resp = await client.get("/api/v1/auth/me", headers=headers)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert set(body.keys()) == {"user_id", "society_id", "active_role", "available_roles"}
+
+
 async def test_fresh_login_starts_a_new_session_clock(
     client: AsyncClient, db_session: AsyncSession, two_societies_with_admins, monkeypatch
 ):
