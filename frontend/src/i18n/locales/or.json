@@ -1,0 +1,37 @@
+{
+  "nav": {
+    "home": "ହୋମ୍",
+    "overview": "ସମୀକ୍ଷା",
+    "societies": "ସୋସାଇଟି",
+    "changeAdmin": "ଆଡମିନ୍ ବଦଳାନ୍ତୁ",
+    "reports": "ରିପୋର୍ଟ",
+    "residents": "ବାସିନ୍ଦା",
+    "assignSubAdmin": "ସବ-ଆଡମିନ୍ ନିଯୁକ୍ତ କରନ୍ତୁ",
+    "staff": "କର୍ମଚାରୀ",
+    "properties": "ସମ୍ପତ୍ତି",
+    "monthlyMaintenance": "ମାସିକ ରକ୍ଷଣାବେକ୍ଷଣ",
+    "complaints": "ଅଭିଯୋଗ",
+    "visitors": "ପରିଦର୍ଶକ",
+    "notices": "ବିଜ୍ଞପ୍ତି",
+    "amenities": "ସୁବିଧା",
+    "proposals": "ପ୍ରସ୍ତାବ",
+    "expenseApproval": "ଖର୍ଚ୍ଚ ଅନୁମୋଦନ",
+    "accounts": "ଖାତା",
+    "wallet": "ୱାଲେଟ୍",
+    "myTodos": "ମୋର କାର୍ଯ୍ୟ"
+  },
+  "common": {
+    "myProfile": "ମୋର ପ୍ରୋଫାଇଲ୍",
+    "logOut": "ଲଗ୍ ଆଉଟ୍",
+    "accountMenu": "ଖାତା ମେନୁ",
+    "language": "ଭାଷା"
+  },
+  "role": {
+    "platformOwner": "ପ୍ଲାଟଫର୍ମ ମାଲିକ",
+    "admin": "ଆଡମିନ୍",
+    "subAdmin": "ସବ-ଆଡମିନ୍",
+    "manager": "ମ୍ୟାନେଜର",
+    "resident": "ବାସିନ୍ଦା",
+    "securityGuard": "ସିକ୍ୟୁରିଟି ଗାର୍ଡ"
+  }
+}

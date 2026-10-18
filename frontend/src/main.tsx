@@ -6,6 +6,7 @@ import { queryClient } from "@/queryClient";
 import { AuthProvider } from "@/auth/AuthContext";
 import { App } from "@/App";
 import "@/index.css";
+import "@/i18n";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

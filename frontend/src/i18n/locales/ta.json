@@ -1,0 +1,37 @@
+{
+  "nav": {
+    "home": "முகப்பு",
+    "overview": "கண்ணோட்டம்",
+    "societies": "சங்கங்கள்",
+    "changeAdmin": "நிர்வாகியை மாற்று",
+    "reports": "அறிக்கைகள்",
+    "residents": "குடியிருப்பாளர்கள்",
+    "assignSubAdmin": "துணை நிர்வாகி நியமி",
+    "staff": "ஊழியர்கள்",
+    "properties": "சொத்துக்கள்",
+    "monthlyMaintenance": "மாதாந்திர பராமரிப்பு",
+    "complaints": "புகார்கள்",
+    "visitors": "பார்வையாளர்கள்",
+    "notices": "அறிவிப்புகள்",
+    "amenities": "வசதிகள்",
+    "proposals": "முன்மொழிவுகள்",
+    "expenseApproval": "செலவு ஒப்புதல்",
+    "accounts": "கணக்குகள்",
+    "wallet": "வாலட்",
+    "myTodos": "எனது பணிகள்"
+  },
+  "common": {
+    "myProfile": "எனது சுயவிவரம்",
+    "logOut": "வெளியேறு",
+    "accountMenu": "கணக்கு மெனு",
+    "language": "மொழி"
+  },
+  "role": {
+    "platformOwner": "பிளாட்ஃபார்ம் உரிமையாளர்",
+    "admin": "நிர்வாகி",
+    "subAdmin": "துணை நிர்வாகி",
+    "manager": "மேலாளர்",
+    "resident": "குடியிருப்பாளர்",
+    "securityGuard": "பாதுகாப்பு காவலர்"
+  }
+}

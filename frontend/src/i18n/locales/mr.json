@@ -1,0 +1,37 @@
+{
+  "nav": {
+    "home": "होम",
+    "overview": "आढावा",
+    "societies": "सोसायट्या",
+    "changeAdmin": "अ‍ॅडमिन बदला",
+    "reports": "अहवाल",
+    "residents": "रहिवासी",
+    "assignSubAdmin": "सब-अ‍ॅडमिन नियुक्त करा",
+    "staff": "कर्मचारी",
+    "properties": "मालमत्ता",
+    "monthlyMaintenance": "मासिक देखभाल",
+    "complaints": "तक्रारी",
+    "visitors": "अभ्यागत",
+    "notices": "सूचना",
+    "amenities": "सुविधा",
+    "proposals": "प्रस्ताव",
+    "expenseApproval": "खर्च मंजुरी",
+    "accounts": "खाती",
+    "wallet": "वॉलेट",
+    "myTodos": "माझी कामे"
+  },
+  "common": {
+    "myProfile": "माझी प्रोफाइल",
+    "logOut": "लॉग आउट",
+    "accountMenu": "खाते मेनू",
+    "language": "भाषा"
+  },
+  "role": {
+    "platformOwner": "प्लॅटफॉर्म ओनर",
+    "admin": "अ‍ॅडमिन",
+    "subAdmin": "सब-अ‍ॅडमिन",
+    "manager": "मॅनेजर",
+    "resident": "रहिवासी",
+    "securityGuard": "सिक्युरिटी गार्ड"
+  }
+}

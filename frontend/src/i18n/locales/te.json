@@ -1,0 +1,37 @@
+{
+  "nav": {
+    "home": "హోమ్",
+    "overview": "అవలోకనం",
+    "societies": "సొసైటీలు",
+    "changeAdmin": "అడ్మిన్‌ని మార్చండి",
+    "reports": "నివేదికలు",
+    "residents": "నివాసితులు",
+    "assignSubAdmin": "సబ్-అడ్మిన్‌ని నియమించండి",
+    "staff": "సిబ్బంది",
+    "properties": "ఆస్తులు",
+    "monthlyMaintenance": "నెలవారీ నిర్వహణ",
+    "complaints": "ఫిర్యాదులు",
+    "visitors": "సందర్శకులు",
+    "notices": "ప్రకటనలు",
+    "amenities": "సౌకర్యాలు",
+    "proposals": "ప్రతిపాదనలు",
+    "expenseApproval": "ఖర్చు ఆమోదం",
+    "accounts": "ఖాతాలు",
+    "wallet": "వాలెట్",
+    "myTodos": "నా పనులు"
+  },
+  "common": {
+    "myProfile": "నా ప్రొఫైల్",
+    "logOut": "లాగ్ అవుట్",
+    "accountMenu": "ఖాతా మెనూ",
+    "language": "భాష"
+  },
+  "role": {
+    "platformOwner": "ప్లాట్‌ఫారమ్ యజమాని",
+    "admin": "అడ్మిన్",
+    "subAdmin": "సబ్-అడ్మిన్",
+    "manager": "మేనేజర్",
+    "resident": "నివాసి",
+    "securityGuard": "సెక్యూరిటీ గార్డ్"
+  }
+}

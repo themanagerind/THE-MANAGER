@@ -1,34 +1,42 @@
 import { useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "@/auth/AuthContext";
 import { navByRole } from "@/layouts/navConfig";
 import { usersApi } from "@/api/users";
 import { societiesApi } from "@/api/societies";
 import { Icon } from "@/components/Icon";
 import { RoleSwitcher } from "@/components/RoleSwitcher";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { OfflineQueueBanner } from "@/components/OfflineQueueBanner";
 import { AuthenticatedImage } from "@/components/AuthenticatedImage";
 import { NotificationBell } from "@/components/NotificationBell";
 
-const roleLabels: Record<string, string> = {
-  PLATFORM_OWNER: "Platform Owner",
-  ADMIN: "Admin",
-  SUB_ADMIN: "Sub-admin",
-  MANAGER: "Manager",
-  RESIDENT: "Resident",
-  SECURITY_GUARD: "Security Guard",
+// Keys under the "role" namespace (src/i18n/locales/*.json) — t(`role.${roleLabelKeys[role]}`).
+const roleLabelKeys: Record<string, string> = {
+  PLATFORM_OWNER: "platformOwner",
+  ADMIN: "admin",
+  SUB_ADMIN: "subAdmin",
+  MANAGER: "manager",
+  RESIDENT: "resident",
+  SECURITY_GUARD: "securityGuard",
 };
 
 /** Roles that can upload their own photo (backend 403s everyone else on
  * POST /users/me/avatar) — shown in place of the default logo. */
 const AVATAR_ROLES = new Set(["RESIDENT", "ADMIN", "SUB_ADMIN"]);
 
+/** Roles the language switcher is offered to (user-requested scope) —
+ * Manager/Guard/Platform Owner dashboards are unaffected for now. */
+const LANGUAGE_SWITCHER_ROLES = new Set(["RESIDENT", "ADMIN", "SUB_ADMIN"]);
+
 /** Sidebar header identity — Resident/Admin/Sub-admin/Manager/Platform
  * Owner see their own name; Security Guard sees the society's name
  * instead (a gate's identity is the society it guards, not the
  * individual guard on duty). */
 function useHeaderIdentity(activeRole: string | null) {
+  const { t } = useTranslation();
   const isGuard = activeRole === "SECURITY_GUARD";
   const profileQuery = useQuery({
     queryKey: ["appshell", "profile"],
@@ -41,19 +49,22 @@ function useHeaderIdentity(activeRole: string | null) {
     enabled: isGuard,
   });
 
+  const roleFallback = activeRole ? t(`role.${roleLabelKeys[activeRole]}`) : "Society Manager";
   const label = isGuard
-    ? societyQuery.data?.name ?? "Society Manager"
-    : profileQuery.data?.full_name ?? (activeRole ? roleLabels[activeRole] : "Society Manager");
+    ? societyQuery.data?.name ?? roleFallback
+    : profileQuery.data?.full_name ?? roleFallback;
   const hasAvatar = !isGuard && !!activeRole && AVATAR_ROLES.has(activeRole) && !!profileQuery.data?.has_avatar;
 
   return { label, hasAvatar };
 }
 
 export function AppShell() {
+  const { t } = useTranslation();
   const { activeRole, logout } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
   const items = activeRole ? navByRole[activeRole] : [];
   const { label: headerLabel, hasAvatar } = useHeaderIdentity(activeRole);
+  const showLanguageSwitcher = !!activeRole && LANGUAGE_SWITCHER_ROLES.has(activeRole);
 
   return (
     // `uppercase` here, not scattered across every page — text-transform is
@@ -97,7 +108,7 @@ export function AppShell() {
               end
             >
               <Icon name={item.icon} />
-              {item.label}
+              {t(`nav.${item.labelKey}`)}
             </NavLink>
           ))}
         </nav>
@@ -110,10 +121,10 @@ export function AppShell() {
               }`
             }
           >
-            My Profile
+            {t("common.myProfile")}
           </NavLink>
           <button onClick={() => void logout()} className="w-full text-left px-3 py-2 rounded text-sm text-white/70 hover:text-white hover:bg-white/5">
-            Log out
+            {t("common.logOut")}
           </button>
         </div>
       </aside>
@@ -134,11 +145,11 @@ export function AppShell() {
           <span className="font-semibold truncate">{headerLabel}</span>
         </div>
         <div className="flex items-center gap-2">
-          {activeRole && <span className="text-xs text-white/70">{roleLabels[activeRole]}</span>}
+          {activeRole && <span className="text-xs text-white/70">{t(`role.${roleLabelKeys[activeRole]}`)}</span>}
           {activeRole === "RESIDENT" && <NotificationBell />}
           <button
             onClick={() => setMenuOpen((v) => !v)}
-            aria-label="Account menu"
+            aria-label={t("common.accountMenu")}
             className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-sm"
           >
             ⋮
@@ -148,17 +159,19 @@ export function AppShell() {
       {menuOpen && (
         <div className="md:hidden bg-navy-light text-white px-4 py-3 space-y-3">
           <RoleSwitcher />
+          {showLanguageSwitcher && <LanguageSwitcher />}
           <NavLink to="/profile" onClick={() => setMenuOpen(false)} className="block text-sm text-white/80">
-            My Profile
+            {t("common.myProfile")}
           </NavLink>
           <button onClick={() => void logout()} className="text-sm text-white/80">
-            Log out
+            {t("common.logOut")}
           </button>
         </div>
       )}
 
       <div className="hidden md:flex md:absolute md:top-5 md:right-6 md:items-center md:gap-2">
         {activeRole === "RESIDENT" && <NotificationBell />}
+        {showLanguageSwitcher && <LanguageSwitcher />}
         <RoleSwitcher />
       </div>
 
@@ -178,7 +191,7 @@ export function AppShell() {
             }
           >
             <Icon name={item.icon} className="w-5 h-5" />
-            {item.label}
+            {t(`nav.${item.labelKey}`)}
           </NavLink>
         ))}
       </nav>
