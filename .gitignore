@@ -52,4 +52,5 @@ android/app/build/
 # pattern above, since gitignore negations only win over patterns earlier
 # in the file.
 !.env.example
+!.env.prod.example
 !**/.env.example

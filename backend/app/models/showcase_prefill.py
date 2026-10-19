@@ -34,7 +34,7 @@ class ShowcasePrefillToken(Base, UUIDPKMixin, CreatedAtOnlyMixin):
     __tablename__ = "showcase_prefill_tokens"
 
     resident_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True
     )
     token: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

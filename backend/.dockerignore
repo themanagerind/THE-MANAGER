@@ -1,0 +1,14 @@
+venv/
+.venv/
+__pycache__/
+*.pyc
+.env
+.env.*
+!.env.example
+tests/
+docs/
+scripts/
+uploads/
+dump.rdb
+*.log
+.pytest_cache/

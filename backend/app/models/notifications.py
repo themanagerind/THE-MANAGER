@@ -78,7 +78,7 @@ class ResidentNotification(Base, UUIDPKMixin):
         UUID(as_uuid=True), ForeignKey("societies.id"), nullable=False
     )
     resident_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True
     )
     type: Mapped[NotificationType] = mapped_column(
         pg_enum(NotificationType, "notification_type_enum"), nullable=False

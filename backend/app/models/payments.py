@@ -333,7 +333,7 @@ class WalletRedemptionCode(Base, UUIDPKMixin, CreatedAtOnlyMixin):
     __tablename__ = "wallet_redemption_codes"
 
     resident_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True
     )
     code: Mapped[str] = mapped_column(String(8), nullable=False, unique=True)
     amount: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False)
