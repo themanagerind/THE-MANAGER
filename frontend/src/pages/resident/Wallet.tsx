@@ -45,8 +45,8 @@ export function ResidentWallet() {
         <p className="text-3xl font-semibold text-navy">₹{balance.toLocaleString("en-IN")}</p>
       </div>
       <p className="text-sm text-navy-muted">
-        This is a record of your paid maintenance amounts — a running credit ledger, not a spendable balance.
-        It updates automatically whenever a maintenance payment is approved.
+        This balance builds up automatically whenever a maintenance payment is approved. Redeem it above for a
+        one-time code to use at a partner store — it isn't a general-purpose spendable balance otherwise.
       </p>
 
       <div>

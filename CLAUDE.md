@@ -175,12 +175,9 @@ left outside the 404 catch-all) — the frontend-wide rebuild described
 here in earlier revisions of this file is done. What's left is narrower:
 individual backend features that shipped without frontend UI, found by
 checking whether an API module has a matching `frontend/src/api/*.ts`
-client and a page that calls it. Known gap as of this writing:
-
-- **Wallet redemption** (`POST /wallet-redemptions`, `GET /wallet-redemptions/mine`,
-  `backend/app/services/wallet_service.py`) — a Resident can transfer wallet
-  points into a redeemable code server-side, but `pages/resident/Wallet.tsx`
-  has no UI for it (no "Redeem points" action, no list of past codes).
+client and a page that calls it (wallet redemption was the last one
+found this way — closed; re-check periodically rather than trusting a
+list here, which goes stale the moment the next gap is closed).
 
 When building one of these, follow the same pattern Resident's built-out
 pages (Complaints, Dues, Amenities, etc.) already use: list → detail/
