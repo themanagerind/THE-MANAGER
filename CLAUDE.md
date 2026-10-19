@@ -15,12 +15,13 @@ A multi-role housing society management platform:
 - **Backend:** FastAPI REST API (endpoint count drifts as modules are added — check
   `app.openapi()`'s path count rather than a number here, which goes stale)
 - **Frontend:** React PWA (installable, offline-capable)
-- **Status:** Backend is mature and covers every module. Frontend is behind it —
-  Resident is essentially complete; Admin has several `PlaceholderPage` routes still
-  (Complaints, Visitors, Notices, Amenities, Proposals, Expense Bills, Accounts);
-  Sub-admin, Guard, and most of Platform Owner are still placeholders too. Closing
-  that gap (wiring each placeholder to its already-built backend API) is the
-  current priority — see the note at the end of Section 7.
+- **Status:** Backend is mature and covers every module. Frontend has caught up —
+  every role's dashboard (Resident, Admin, Sub-admin, Manager, Guard, Platform
+  Owner) is wired to its backend API; `PlaceholderPage` is only used for the
+  catch-all 404 route now. Current gaps are narrower: individual features whose
+  backend API shipped with no frontend UI yet (e.g. wallet-redemption's
+  code-generation/listing endpoints — see the note at the end of Section 7) and
+  i18n page-content translation beyond the dashboard chrome (nav/common labels).
 
 ### User roles
 | Role | Purpose |
@@ -167,24 +168,21 @@ docker compose up --build
 
 Track progress in `GATE_0_EXECUTION_WORKSHEET.md`.
 
-### Current engineering priority: finish the frontend
+### Current engineering priority: close the remaining backend-ahead-of-frontend gaps
 
-The backend covers every module; the frontend doesn't yet call all of it.
-Still `PlaceholderPage`, each with a working backend API already sitting
-idle behind it:
+Every role's dashboard now routes to a real page (no `PlaceholderPage`
+left outside the 404 catch-all) — the frontend-wide rebuild described
+here in earlier revisions of this file is done. What's left is narrower:
+individual backend features that shipped without frontend UI, found by
+checking whether an API module has a matching `frontend/src/api/*.ts`
+client and a page that calls it (wallet redemption was the last one
+found this way — closed; re-check periodically rather than trusting a
+list here, which goes stale the moment the next gap is closed).
 
-- **Admin:** Complaints, Visitors, Notices, Amenities, Proposals, Expense
-  Bills, Accounts
-- **Sub-admin:** almost everything (Overview, Dues, Complaints, Proposals,
-  Expense Bills)
-- **Security Guard:** Visitors (gate entry/exit)
-- **Platform Owner:** mostly done (Societies page is now real) — nothing
-  else exists yet for this role beyond Societies
-
-Resident is essentially complete and is the reference pattern for how a
-module should look (list → detail/create modal → mutation, `Page[T]` for
-paginated endpoints, `Table`/`Badge`/`Modal`/`Button` from `components/`).
-Build the remaining ones the same way, one module at a time.
+When building one of these, follow the same pattern Resident's built-out
+pages (Complaints, Dues, Amenities, etc.) already use: list → detail/
+create modal → mutation, `Page[T]` for paginated endpoints, `Table`/
+`Badge`/`Modal`/`Button` from `components/`.
 
 ---
 
