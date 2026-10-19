@@ -71,7 +71,7 @@ async def switch_role_endpoint(
     current: Annotated[CurrentUser, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> TokenOut:
-    return await auth_service.switch_role(db, current, body.active_role)
+    return await auth_service.switch_role(db, current, body.active_role, body.refresh_token)
 
 
 @router.post("/token/refresh", response_model=TokenOut)

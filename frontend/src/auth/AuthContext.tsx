@@ -191,7 +191,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const switchRole = useCallback(async (role: Role) => {
-    const { data } = await authApi.switchRole(role);
+    const refreshToken = tokenStorage.getRefreshToken();
+    if (!refreshToken) throw new Error("No refresh token — please log in again");
+    const { data } = await authApi.switchRole(role, refreshToken);
     tokenStorage.setTokens(data.access_token, data.refresh_token, data.active_role, data.available_roles);
     // Same account, but a different role can see an entirely different
     // slice of data (e.g. ADMIN vs RESIDENT) — reset so no query keyed

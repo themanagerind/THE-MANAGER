@@ -269,13 +269,23 @@ async def test_admin_signup_approval_enables_role_switch(client: AsyncClient, db
     resp = await client.post(f"/api/v1/admins/{admin_id}/approval", json={"approve": True}, headers=owner_headers)
     assert resp.status_code == 200
 
-    admin_headers = auth_headers(uuid.UUID(admin_id), society.id, Role.ADMIN, [Role.ADMIN])
+    # Real token pair (not the bearer_token_for shortcut) — switch-role now
+    # requires a Redis-backed refresh token to consume (audit finding).
+    from app.models.identity import User as UserModel
+    from app.services import auth_service
+
+    admin_user = (await db_session.execute(select(UserModel).where(UserModel.id == uuid.UUID(admin_id)))).scalar_one()
+    tokens = await auth_service.issue_tokens_for(db_session, admin_user)
+    admin_headers = {"Authorization": f"Bearer {tokens.access_token}"}
+
     resp = await client.get("/api/v1/auth/me", headers=admin_headers)
     assert resp.status_code == 200
     assert set(resp.json()["available_roles"]) == {"ADMIN", "RESIDENT"}
 
     resp = await client.post(
-        "/api/v1/auth/switch-role", json={"active_role": "RESIDENT"}, headers=admin_headers
+        "/api/v1/auth/switch-role",
+        json={"active_role": "RESIDENT", "refresh_token": tokens.refresh_token},
+        headers=admin_headers,
     )
     assert resp.status_code == 200
     assert resp.json()["active_role"] == "RESIDENT"

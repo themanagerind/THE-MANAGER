@@ -15,6 +15,7 @@ from app.core.security import (
     create_otp_session_token,
     create_refresh_token,
     decode_otp_session_token,
+    decode_token,
     revoke_access_token,
 )
 from app.models.enums import Role, SocietyStatus, UserStatus
@@ -136,35 +137,57 @@ async def select_account(db: AsyncSession, otp_session_token: str, user_id: uuid
     return await issue_tokens_for(db, user)
 
 
-async def switch_role(db: AsyncSession, current: CurrentUser, new_role: Role) -> TokenOut:
+async def switch_role(
+    db: AsyncSession, current: CurrentUser, new_role: Role, refresh_token: str
+) -> TokenOut:
     """Context/dashboard switch only — never creates a second account, never
-    touches persistent role assignments (Section 4.3). Carries forward
-    current.session_started_at unchanged — switching role must never reset
-    the 12-hour privileged-role session clock (that would let someone stay
-    under the cap indefinitely by switching roles periodically).
+    touches persistent role assignments (Section 4.3).
 
-    Also enforces the cap itself here, not just in rotate_refresh_token
-    (audit finding): without this check, repeatedly calling switch-role
-    before each access token's 30-minute expiry mints fresh token pairs
-    that never go through /token/refresh at all, silently bypassing the
-    cap forever. current.available_roles is already fresh for this
-    request (get_current_user re-derives it from the DB every time), so
-    no extra query is needed here."""
+    Consumes the caller's current refresh token and issues a fresh one —
+    audit finding: this used to mint a brand-new jti without revoking the
+    old one, so every role switch forked off a permanently orphaned,
+    still-valid (up to 30 days) refresh token that /auth/logout could
+    never reach (it only revokes the ONE jti the client currently holds).
+    Anyone holding an earlier such token — e.g. via a leaked pre-switch
+    token — could mint fresh sessions for the account indefinitely,
+    bypassing both logout and the access-token blocklist. Now behaves
+    exactly like rotate_refresh_token (atomic consume via GETDEL, same
+    12-hour privileged-role cap check, session_started_at carried forward
+    unchanged so a switch never resets the clock), just also changing
+    active_role in the same step."""
     if new_role not in current.available_roles:
         raise HTTPException(
             status.HTTP_403_FORBIDDEN, f"Role {new_role.value} not available for this account"
         )
+
+    payload = decode_token(refresh_token)
+    if payload.get("type") != "refresh":
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Not a refresh token")
+    if uuid.UUID(payload["sub"]) != current.user_id:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Refresh token does not belong to this account")
+    old_jti = payload.get("jti")
+    if old_jti is None:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Malformed refresh token")
+
+    session_started_at = await token_service.consume_jti(current.user_id, old_jti)
+    if session_started_at is None:
+        raise HTTPException(
+            status.HTTP_401_UNAUTHORIZED,
+            "Refresh token has been revoked or already used — please log in again",
+        )
+
     if any(r in _PRIVILEGED_ROLES for r in current.available_roles):
-        if datetime.now(timezone.utc) - current.session_started_at > _PRIVILEGED_SESSION_CAP:
+        if datetime.now(timezone.utc) - session_started_at > _PRIVILEGED_SESSION_CAP:
             raise HTTPException(
                 status.HTTP_401_UNAUTHORIZED,
                 "Session expired after 12 hours for this account type — please log in again",
             )
-    jti = await token_service.issue_jti(current.user_id, current.session_started_at)
+
+    jti = await token_service.issue_jti(current.user_id, session_started_at)
     return TokenOut(
         access_token=create_access_token(
             current.user_id, current.society_id, new_role, current.available_roles,
-            current.session_started_at,
+            session_started_at,
         ),
         refresh_token=create_refresh_token(current.user_id, jti),
         active_role=new_role,

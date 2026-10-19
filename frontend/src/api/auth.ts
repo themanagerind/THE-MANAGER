@@ -42,7 +42,11 @@ export const authApi = {
   selectAccount: (otpSessionToken: string, userId: string) =>
     apiClient.post<TokenOut>("/auth/select-account", { otp_session_token: otpSessionToken, user_id: userId }),
 
-  switchRole: (activeRole: Role) => apiClient.post<TokenOut>("/auth/switch-role", { active_role: activeRole }),
+  // refreshToken required (audit finding — backend/app/services/auth_service.py's
+  // switch_role consumes this exact token's jti and issues a fresh one, so
+  // a pre-switch token is never left orphaned/un-revocable).
+  switchRole: (activeRole: Role, refreshToken: string) =>
+    apiClient.post<TokenOut>("/auth/switch-role", { active_role: activeRole, refresh_token: refreshToken }),
 
   refresh: (refreshToken: string) =>
     apiClient.post<TokenOut>("/auth/token/refresh", { refresh_token: refreshToken }),

@@ -21,6 +21,49 @@ apiClient.interceptors.request.use((config) => {
   return config;
 });
 
+// Audit finding: the old check (`!url?.includes("/auth/")`) excluded every
+// auth-prefixed URL from the retry-on-401 path, including /auth/me — an
+// authenticated, protected endpoint that the bootstrap effect (AuthContext.tsx)
+// calls on every app load/reload and genuinely needs refreshed on a merely-
+// expired (not revoked) access token, same as any other protected endpoint.
+// Its own comment said "401 -> the axios interceptor tries a refresh", which
+// the blanket exclusion silently made untrue — every reload more than
+// ~30 minutes after login was forcing a full re-login despite a perfectly
+// valid 30-day refresh token. Only exclude endpoints retry would be wrong
+// for: unauthenticated calls where 401 means "wrong OTP/session", not
+// "expired token" (otp/request, otp/verify, select-account), and logout
+// (if it 401s because the token's already revoked, the user is logging out
+// anyway — retrying serves nothing).
+export const NO_REFRESH_RETRY_PATHS = new Set([
+  "/auth/token/refresh",
+  "/auth/otp/request",
+  "/auth/otp/verify",
+  "/auth/select-account",
+  "/auth/logout",
+]);
+
+/** Pure helper (exported for testing): /auth/switch-role carries a
+ * single-use refresh_token in its own body (so the backend can revoke the
+ * pre-switch token instead of orphaning it) — the one captured in a
+ * retried request is stale/already-consumed by the refresh call that
+ * preceded the retry, so it must be swapped for the freshly-rotated one
+ * before replay, or the retry always fails with "refresh token already
+ * used" (the same token can't be consumed twice). Returns `data`
+ * unchanged for anything that isn't a JSON object with that key. */
+export function patchRefreshTokenInBody(data: unknown, newRefreshToken: string | null): unknown {
+  if (typeof data !== "string") return data;
+  try {
+    const parsed = JSON.parse(data) as Record<string, unknown>;
+    if (parsed && typeof parsed === "object" && "refresh_token" in parsed) {
+      parsed.refresh_token = newRefreshToken;
+      return JSON.stringify(parsed);
+    }
+  } catch {
+    // Body wasn't JSON — nothing to patch.
+  }
+  return data;
+}
+
 let refreshPromise: Promise<string> | null = null;
 
 async function performRefresh(): Promise<string> {
@@ -37,7 +80,11 @@ apiClient.interceptors.response.use(
   async (error: AxiosError) => {
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retried?: boolean };
 
-    if (error.response?.status === 401 && !originalRequest._retried && !originalRequest.url?.includes("/auth/")) {
+    if (
+      error.response?.status === 401 &&
+      !originalRequest._retried &&
+      !NO_REFRESH_RETRY_PATHS.has(originalRequest.url ?? "")
+    ) {
       originalRequest._retried = true;
       try {
         // Single-flight: concurrent 401s all await the SAME in-flight
@@ -51,6 +98,7 @@ apiClient.interceptors.response.use(
         }
         const newAccessToken = await refreshPromise;
         originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+        originalRequest.data = patchRefreshTokenInBody(originalRequest.data, tokenStorage.getRefreshToken());
         return apiClient(originalRequest);
       } catch {
         tokenStorage.clear();

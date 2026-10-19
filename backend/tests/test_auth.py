@@ -91,11 +91,20 @@ async def test_otp_request_rate_limited(client: AsyncClient, db_session: AsyncSe
 
 
 async def test_dual_role_switch_admin_to_resident(client: AsyncClient, db_session: AsyncSession, two_societies_with_admins):
+    from app.services import auth_service
+
     society_id = two_societies_with_admins["a"]["society_id"]
     user = await _create_active_user(db_session, society_id, "9000000095", [Role.ADMIN, Role.RESIDENT])
 
-    headers = auth_headers(user.id, society_id, Role.ADMIN, [Role.ADMIN, Role.RESIDENT])
-    resp = await client.post("/api/v1/auth/switch-role", json={"active_role": "RESIDENT"}, headers=headers)
+    # Real token pair (not the bearer_token_for shortcut) — switch-role now
+    # requires a Redis-backed refresh token to consume (audit finding).
+    tokens = await auth_service.issue_tokens_for(db_session, user)
+    headers = {"Authorization": f"Bearer {tokens.access_token}"}
+    resp = await client.post(
+        "/api/v1/auth/switch-role",
+        json={"active_role": "RESIDENT", "refresh_token": tokens.refresh_token},
+        headers=headers,
+    )
     assert resp.status_code == 200
     assert resp.json()["active_role"] == "RESIDENT"
 
@@ -105,7 +114,13 @@ async def test_switch_to_unavailable_role_rejected(client: AsyncClient, db_sessi
     user = await _create_active_user(db_session, society_id, "9000000094", [Role.RESIDENT])
 
     headers = auth_headers(user.id, society_id, Role.RESIDENT, [Role.RESIDENT])
-    resp = await client.post("/api/v1/auth/switch-role", json={"active_role": "ADMIN"}, headers=headers)
+    # The role check runs before the refresh token is ever looked at, so a
+    # placeholder value here is fine — this must 403 regardless of it.
+    resp = await client.post(
+        "/api/v1/auth/switch-role",
+        json={"active_role": "ADMIN", "refresh_token": "irrelevant-role-check-fires-first"},
+        headers=headers,
+    )
     assert resp.status_code == 403
 
 
@@ -333,7 +348,11 @@ async def test_switch_role_carries_session_started_at_forward_not_reset(
     tokens = await auth_service.rotate_refresh_token(db_session, user.id, jti)
 
     headers = {"Authorization": f"Bearer {tokens.access_token}"}
-    resp = await client.post("/api/v1/auth/switch-role", json={"active_role": "RESIDENT"}, headers=headers)
+    resp = await client.post(
+        "/api/v1/auth/switch-role",
+        json={"active_role": "RESIDENT", "refresh_token": tokens.refresh_token},
+        headers=headers,
+    )
     assert resp.status_code == 200
 
     from app.core.security import decode_token
@@ -363,7 +382,74 @@ async def test_switch_role_itself_enforces_12_hour_cap_for_platform_owner(
 
     headers = {"Authorization": f"Bearer {tokens.access_token}"}
     resp = await client.post(
-        "/api/v1/auth/switch-role", json={"active_role": "PLATFORM_OWNER"}, headers=headers
+        "/api/v1/auth/switch-role",
+        json={"active_role": "PLATFORM_OWNER", "refresh_token": tokens.refresh_token},
+        headers=headers,
+    )
+    assert resp.status_code == 401
+
+
+async def test_switch_role_revokes_the_pre_switch_refresh_token_not_orphans_it(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    """Audit finding (whole-project deep audit): switch_role used to mint
+    a brand-new refresh-token jti without revoking the old one, forking
+    off a permanently orphaned, still-valid-for-30-days token that
+    /auth/logout could never reach (it only revokes the ONE jti the
+    client currently holds). Anyone holding a pre-switch token — e.g. via
+    a leaked log, shared device, or browser history — could mint fresh
+    sessions for the account indefinitely. Confirms the pre-switch token
+    is now dead immediately after switching."""
+    from app.services import auth_service
+
+    society_id = two_societies_with_admins["a"]["society_id"]
+    user = await _create_active_user(
+        db_session, society_id, "9000000082", [Role.ADMIN, Role.RESIDENT]
+    )
+    pre_switch = await auth_service.issue_tokens_for(db_session, user)
+
+    headers = {"Authorization": f"Bearer {pre_switch.access_token}"}
+    resp = await client.post(
+        "/api/v1/auth/switch-role",
+        json={"active_role": "RESIDENT", "refresh_token": pre_switch.refresh_token},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+
+    # The pre-switch refresh token must be dead now, not merely unused —
+    # trying to refresh with it must fail, exactly like any other
+    # already-consumed/rotated refresh token.
+    from app.core.security import decode_token
+    old_jti = decode_token(pre_switch.refresh_token)["jti"]
+    from fastapi import HTTPException
+    with pytest.raises(HTTPException) as exc:
+        await auth_service.rotate_refresh_token(db_session, user.id, old_jti)
+    assert exc.value.status_code == 401
+
+
+async def test_switch_role_rejects_a_refresh_token_belonging_to_someone_else(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    """A refresh token's own `sub` must match the authenticated caller —
+    otherwise an attacker holding someone else's leaked refresh token could
+    use it to both authenticate as themselves (via their own access token)
+    and simultaneously burn/consume a victim's refresh token through this
+    endpoint."""
+    from app.services import auth_service
+
+    society_id = two_societies_with_admins["a"]["society_id"]
+    victim = await _create_active_user(db_session, society_id, "9000000081", [Role.RESIDENT])
+    attacker = await _create_active_user(
+        db_session, society_id, "9000000080", [Role.ADMIN, Role.RESIDENT]
+    )
+    victim_tokens = await auth_service.issue_tokens_for(db_session, victim)
+    attacker_tokens = await auth_service.issue_tokens_for(db_session, attacker)
+
+    headers = {"Authorization": f"Bearer {attacker_tokens.access_token}"}
+    resp = await client.post(
+        "/api/v1/auth/switch-role",
+        json={"active_role": "RESIDENT", "refresh_token": victim_tokens.refresh_token},
+        headers=headers,
     )
     assert resp.status_code == 401
 

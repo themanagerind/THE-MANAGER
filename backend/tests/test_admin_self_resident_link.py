@@ -114,11 +114,18 @@ async def test_admin_self_link_lets_admin_switch_to_resident(
     """After self-linking, /auth/me (re-derives available_roles fresh from
     the DB on every request — never trusts the JWT for this) must show
     RESIDENT as available, and switch-role to RESIDENT must succeed."""
+    from app.models.identity import User as UserModel
+    from app.services import auth_service
+
     fixtures = two_societies_with_admins
     society_id = fixtures["a"]["society_id"]
     admin_id = fixtures["a"]["admin_id"]
     prop = await _seed_property(db_session, society_id)
-    admin_headers = auth_headers(admin_id, society_id, Role.ADMIN, [Role.ADMIN])
+    # Real token pair (not the bearer_token_for shortcut) — switch-role now
+    # requires a Redis-backed refresh token to consume (audit finding).
+    admin_user = (await db_session.execute(select(UserModel).where(UserModel.id == admin_id))).scalar_one()
+    tokens = await auth_service.issue_tokens_for(db_session, admin_user)
+    admin_headers = {"Authorization": f"Bearer {tokens.access_token}"}
 
     await client.post(
         "/api/v1/residents/self-link",
@@ -131,7 +138,9 @@ async def test_admin_self_link_lets_admin_switch_to_resident(
     assert set(resp.json()["available_roles"]) == {"ADMIN", "RESIDENT"}
 
     resp = await client.post(
-        "/api/v1/auth/switch-role", json={"active_role": "RESIDENT"}, headers=admin_headers
+        "/api/v1/auth/switch-role",
+        json={"active_role": "RESIDENT", "refresh_token": tokens.refresh_token},
+        headers=admin_headers,
     )
     assert resp.status_code == 200
     assert resp.json()["active_role"] == "RESIDENT"

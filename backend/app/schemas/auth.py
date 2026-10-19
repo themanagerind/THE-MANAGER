@@ -82,6 +82,10 @@ class SelectAccountIn(BaseModel):
 
 class SwitchRoleIn(BaseModel):
     active_role: Role
+    # Required (audit finding) — auth_service.switch_role consumes this
+    # exact refresh token's jti and issues a fresh one in the same step,
+    # so the pre-switch token can never be left orphaned and un-revocable.
+    refresh_token: str
 
 
 class RefreshTokenIn(BaseModel):
