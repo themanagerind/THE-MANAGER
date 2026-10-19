@@ -169,15 +169,23 @@ export function AppShell() {
         </div>
       )}
 
-      <div className="hidden md:flex md:absolute md:top-5 md:right-6 md:items-center md:gap-2">
-        {activeRole === "RESIDENT" && <NotificationBell />}
-        {showLanguageSwitcher && <LanguageSwitcher />}
-        <RoleSwitcher />
-      </div>
+      {/* Desktop top-right cluster — was `absolute`, which reserved no
+          space for itself and silently overlapped any page's own top-right
+          content (audit finding: Admin Overview's "Resign as Admin" button).
+          Normal flow now, as a sibling of <main> inside a column wrapper,
+          so it always pushes <main> down by its own real height instead of
+          floating over whatever happens to render there. */}
+      <div className="flex-1 flex flex-col min-w-0">
+        <div className="hidden md:flex md:justify-end md:items-center md:gap-2 md:px-8 md:pt-5">
+          {activeRole === "RESIDENT" && <NotificationBell />}
+          {showLanguageSwitcher && <LanguageSwitcher />}
+          <RoleSwitcher />
+        </div>
 
-      <main className="flex-1 pb-20 md:pb-0 px-4 py-5 md:px-8 md:py-8 max-w-5xl mx-auto w-full">
-        <Outlet />
-      </main>
+        <main className="flex-1 pb-20 md:pb-0 px-4 py-5 md:px-8 md:pt-2 md:pb-8 max-w-5xl mx-auto w-full">
+          <Outlet />
+        </main>
+      </div>
 
       {/* Mobile bottom tabs */}
       <nav className="md:hidden fixed bottom-0 inset-x-0 bg-white border-t border-line flex justify-around py-2 z-10">
