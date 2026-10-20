@@ -195,6 +195,7 @@ create modal → mutation, `Page[T]` for paginated endpoints, `Table`/
 |---|---|
 | `HOUSING_BACKEND_COMPLETE_API_REFERENCE.md` | Full endpoint documentation — generated from `app.openapi()`, run `python -m scripts.generate_api_reference` from `backend/` after any endpoint change (see rule 4 above) |
 | `docker-compose.prod.yml` + `.env.prod.example` | Reference production deployment topology (Postgres + Redis + `backend/Dockerfile` + `frontend/Dockerfile`/`nginx.conf`) |
+| `backend/requirements.lock.txt` | Full exact dependency pin (direct + transitive) — what `backend/Dockerfile` actually installs from, so a production image build is reproducible. `requirements.txt` stays the human-edited, unpinned (`>=`) list for local dev; regenerate the lock file (see its own header) and run the full suite against it after changing `requirements.txt`, before committing either |
 | `AUDIT_REPORT_2026-09-25.md` | Past security/correctness audit findings |
 
 The `WEEK_2_*`/`PHASE_5_*`/`GATE_0_*` planning docs this table used to list don't exist in this repo (see Section 7) — don't point anyone at a file name from here without confirming it's actually present.
