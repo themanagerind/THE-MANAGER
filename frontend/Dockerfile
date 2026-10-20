@@ -10,5 +10,7 @@ RUN npm run build
 
 FROM nginx:1.27-alpine
 COPY --from=build /app/dist /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# Installed as a template so the image entrypoint renders it with envsubst
+# (provides NGINX_LOCAL_RESOLVERS for the resolver directive).
+COPY nginx.conf /etc/nginx/templates/default.conf.template
 EXPOSE 80
