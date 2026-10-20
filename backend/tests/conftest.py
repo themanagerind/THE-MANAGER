@@ -29,6 +29,17 @@ from app.core.redis_client import get_redis  # noqa: E402
 
 @pytest_asyncio.fixture(scope="session")
 async def _engine():
+    # Gotcha: drop_all() below also drops the native Postgres ENUM types
+    # every pg_enum(..., create_type=False) column depends on — but
+    # alembic's own `alembic_version` bookkeeping table isn't part of
+    # Base.metadata, so it survives. That leaves `alembic upgrade head`
+    # thinking it's already at head (the stamp says so) even though the
+    # real schema is gone, so it silently no-ops instead of recreating
+    # anything. Symptom: every test errors with `asyncpg.exceptions.
+    # UndefinedObjectError: type "..._enum" does not exist` right after a
+    # session that ran to completion. Fix is to DROP DATABASE + CREATE
+    # DATABASE + `alembic upgrade head` again — running `alembic upgrade
+    # head` alone against the same DB does nothing here.
     engine = create_async_engine(os.environ["DATABASE_URL"])
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

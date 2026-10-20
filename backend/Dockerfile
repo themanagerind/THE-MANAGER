@@ -16,11 +16,13 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Dependencies before app code so this layer is cached across code-only
-# changes — requirements.txt's sqlalchemy[asyncio] extra pulls in
-# greenlet, which the async engine needs to import at all.
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Installs from the full exact pin (requirements.lock.txt), not the
+# human-edited requirements.txt (>= constraints, no transitive pins) —
+# a production image build needs to be reproducible, not pick up
+# whatever the latest compatible version happens to resolve to on build
+# day. See requirements.lock.txt's own header for how to regenerate it.
+COPY requirements.lock.txt .
+RUN pip install --no-cache-dir -r requirements.lock.txt
 
 COPY alembic.ini .
 COPY alembic ./alembic
