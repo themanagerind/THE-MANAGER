@@ -59,7 +59,12 @@ services:
     ports:
       - "80:80"
     depends_on:
-      - backend
+      backend:
+        # Backend's own Dockerfile HEALTHCHECK (curl /health/ready) is
+        # what Compose evaluates here — waits for an actual DB/Redis
+        # connection, not just the container starting, before nginx
+        # starts proxying to it.
+        condition: service_healthy
 
 volumes:
   postgres_data:
