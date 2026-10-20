@@ -19,9 +19,9 @@ A multi-role housing society management platform:
   every role's dashboard (Resident, Admin, Sub-admin, Manager, Guard, Platform
   Owner) is wired to its backend API; `PlaceholderPage` is only used for the
   catch-all 404 route now. Current gaps are narrower: individual features whose
-  backend API shipped with no frontend UI yet (e.g. wallet-redemption's
-  code-generation/listing endpoints — see the note at the end of Section 7) and
-  i18n page-content translation beyond the dashboard chrome (nav/common labels).
+  backend API shipped with no frontend UI yet (wallet-redemption was the last
+  one found this way — closed; see Section 7 for how to re-check) and i18n
+  page-content translation beyond the dashboard chrome (nav/common labels).
 
 ### User roles
 | Role | Purpose |
@@ -46,7 +46,7 @@ and the UI (role-based routing/menus).
 - **Alembic** for schema migrations
 - **Redis** (rate limiting / caching)
 - **JWT** authentication
-- Security hardening: OWASP compliance, rate limiting, audit logging
+- Security hardening: OWASP compliance, rate limiting (**audit logging does NOT exist** — see rule 3 below, don't trust this line either without re-checking)
 - **Docker** deployment
 - Test suite: **the full `pytest` suite must stay passing** (grows as coverage is added — check `pytest -q`'s own count rather than a number here, which goes stale)
 
@@ -141,7 +141,8 @@ docker compose -f docker-compose.prod.yml up -d --build   # reference prod topol
 2. **Every schema change needs an Alembic migration.** Never edit the database by hand or modify old migrations that may already be applied in production.
 3. **Security is non-negotiable:**
    - Every new endpoint needs JWT auth + a role/permission check (unless it's explicitly public, like login).
-   - Keep rate limiting and audit logging on sensitive actions (auth, payments, accounts, sub-admin permission changes).
+   - Keep rate limiting on sensitive actions (auth, payments, accounts, sub-admin permission changes) — this part is real, confirmed via `grep -rln "HTTP_429" app/`.
+   - **"Audit logging" is NOT real** — a full-codebase audit (2026-10-20) confirmed there is no `AuditLog` model, no audit service, and essentially no `logger.info`/`logger.warning` calls anywhere in `app/services/`/`app/api/` (one hit, an unrelated mock-SMS debug print). What forensic value exists is incidental: a handful of domain rows carry a `*_reason` field (e.g. `Payment.rejection_reason`, `AdminChangeRequest.decision_reason`) for their own terminal decision, not a queryable "who did what when" trail, and denied/attempted actions (every 403) leave no trace at all. Don't claim this control exists in a security review, a stakeholder conversation, or a future CLAUDE.md edit without first re-verifying it — and don't add a new sensitive action assuming existing audit infra will log it, because none will. If/when a real audit log is built (a table + a `log_audit()` call wired into each sensitive mutation), update this line.
    - Validate all input with Pydantic schemas; never build raw SQL from user input.
    - Never commit secrets. Config comes from environment variables.
 4. **Keep API and UI in sync.** When an endpoint changes, update the frontend API client/types, and update `HOUSING_BACKEND_COMPLETE_API_REFERENCE.md`.
