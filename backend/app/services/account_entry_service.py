@@ -11,9 +11,13 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.rate_limit import enforce_rate_limit
 from app.models.accounts import AccountEntry, AccountEntryEditHistory, AccountHeading
 from app.models.enums import EntrySource, EntryType, ExpenseBillStatus
 from app.models.governance import ExpenseBill
+
+_MANUAL_ENTRY_MAX_PER_HOUR = 30
+_MANUAL_ENTRY_RATE_WINDOW_SECONDS = 3600
 
 
 async def add_heading(db: AsyncSession, entry_type: EntryType, title: str, created_by: uuid.UUID) -> AccountHeading:
@@ -106,6 +110,13 @@ async def create_manual_entry(
     entries (MAINTENANCE_PAYMENT/EXPENSE_BILL/ADJUSTMENT) come from their own
     flows (payment approval, expense bill approval, payment correction).
     title is taken from the picked heading, not free-typed."""
+    # CLAUDE.md Section 6 rule 3 names "accounts" as needing rate limiting —
+    # this endpoint had none until this fix.
+    await enforce_rate_limit(
+        f"manual_entry:rate:{created_by}", _MANUAL_ENTRY_MAX_PER_HOUR, _MANUAL_ENTRY_RATE_WINDOW_SECONDS,
+        "Too many manual entries — try again in an hour",
+    )
+
     heading = await _get_heading_or_404(db, heading_id, entry_type)
     entry = AccountEntry(
         society_id=society_id, entry_type=entry_type, source=EntrySource.MANUAL,

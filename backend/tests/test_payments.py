@@ -146,6 +146,54 @@ async def test_duplicate_idempotency_key_returns_same_payment_not_a_duplicate(
     assert len(payments) == 1
 
 
+async def test_submit_payment_is_rate_limited_per_resident(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    society_id = two_societies_with_admins["a"]["society_id"]
+    loc = SocietyLocation(society_id=society_id, name="Rate Limit Wing", location_type=LocationType.WING)
+    db_session.add(loc)
+    await db_session.flush()
+    resident = User(society_id=society_id, full_name="Rate Limit Resident", mobile="9200099999", status=UserStatus.ACTIVE)
+    db_session.add(resident)
+    await db_session.flush()
+    db_session.add(UserRole(user_id=resident.id, role=Role.RESIDENT, assigned_at=datetime.now(timezone.utc)))
+    await db_session.commit()
+    await db_session.refresh(resident)
+    headers = auth_headers(resident.id, society_id, Role.RESIDENT, [Role.RESIDENT])
+
+    responses = []
+    for i in range(21):
+        # Each due needs its own Property — ux_maintenance_due_month is
+        # unique per (property_id, billing_month), and _seed_due always
+        # uses the current month.
+        prop = Property(
+            society_id=society_id, location_id=loc.id, house_number=f"RL-{i}",
+            house_type=HouseType.FLAT, floor_number=1, status="ACTIVE",
+        )
+        db_session.add(prop)
+        await db_session.flush()
+        db_session.add(
+            PropertyResident(
+                society_id=society_id, property_id=prop.id, resident_id=resident.id,
+                relationship_type=RelationshipType.OWNER, is_active=True, created_at=datetime.now(timezone.utc),
+            )
+        )
+        await db_session.commit()
+        due = await _seed_due(db_session, society_id, prop.id)
+
+        resp = await client.post(
+            "/api/v1/payments",
+            json={
+                "maintenance_due_id": str(due.id), "payment_method": "MOCK_ONLINE",
+                "idempotency_key": str(uuid.uuid4()),
+            },
+            headers=headers,
+        )
+        responses.append(resp.status_code)
+
+    assert 429 in responses
+
+
 async def test_second_payment_blocked_while_one_is_pending(client: AsyncClient, db_session: AsyncSession, two_societies_with_admins):
     """Section 49.2 — at most one PENDING_APPROVAL payment per due."""
     society_id = two_societies_with_admins["a"]["society_id"]

@@ -101,6 +101,26 @@ async def test_admin_creates_manual_entry_from_a_heading(
     assert body["heading_id"] == str(heading.id)
 
 
+async def test_create_manual_entry_is_rate_limited_per_admin(
+    client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
+):
+    society_id = two_societies_with_admins["a"]["society_id"]
+    admin_id = two_societies_with_admins["a"]["admin_id"]
+    admin_headers = auth_headers(admin_id, society_id, Role.ADMIN, [Role.ADMIN])
+    heading = await _seed_heading(db_session, EntryType.INCOME, "Rate Limit Test Heading")
+
+    responses = []
+    for _ in range(31):
+        resp = await client.post(
+            "/api/v1/account-entries",
+            json={"entry_type": "INCOME", "heading_id": str(heading.id), "amount": 100, "entry_date": "2026-09-01"},
+            headers=admin_headers,
+        )
+        responses.append(resp.status_code)
+
+    assert 429 in responses
+
+
 async def test_heading_entry_type_mismatch_rejected(
     client: AsyncClient, db_session: AsyncSession, two_societies_with_admins
 ):
