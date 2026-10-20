@@ -37,8 +37,11 @@ USER appuser
 
 EXPOSE 8000
 
+# /health/ready (not just /health) — Docker/an orchestrator should mark
+# this container unhealthy if it can't actually reach Postgres/Redis, not
+# just if the process happens to be alive.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
+    CMD curl -f http://localhost:8000/health/ready || exit 1
 
 # Migrations are NOT run here — run `alembic upgrade head` as a separate
 # deploy step (once, before traffic is routed to new containers), never

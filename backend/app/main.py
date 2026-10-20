@@ -2,8 +2,12 @@
 import logging
 from pathlib import Path
 
-from fastapi import FastAPI, Request, status
+from typing import Annotated
+
+from fastapi import Depends, FastAPI, Request, status
 from fastapi.responses import JSONResponse
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.account_entries import router as account_entries_router
 from app.api.v1.admin_change import router as admin_change_router
@@ -29,6 +33,8 @@ from app.api.v1.visitors import router as visitors_router
 from app.api.v1.wallet_redemptions import router as wallet_redemptions_router
 from app.api.v1.showcase_prefill import router as showcase_prefill_router
 from app.core.config import get_settings
+from app.core.db import get_db
+from app.core.redis_client import get_redis
 
 settings = get_settings()
 logger = logging.getLogger("app")
@@ -84,5 +90,35 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
 
 @app.get("/health")
 async def health() -> dict:
-    """Section 41 — required for load balancer health checks."""
+    """Section 41 — required for load balancer health checks.
+    Pure liveness only: confirms the process is up and answering HTTP,
+    not that it can actually serve a request (no DB/Redis access) — use
+    /health/ready for that. Kept deliberately dependency-free so it never
+    itself becomes unreachable for a reason unrelated to the process
+    being alive."""
     return {"status": "ok"}
+
+
+@app.get("/health/ready")
+async def health_ready(db: Annotated[AsyncSession, Depends(get_db)]) -> JSONResponse:
+    """Readiness check — /health alone previously reported "ok" even with
+    Postgres or Redis unreachable, since it never touched either; a load
+    balancer or Docker HEALTHCHECK relying on it would keep routing
+    traffic to (or calling itself healthy as) a container that 500s on
+    every real request. This actually exercises both."""
+    problems = []
+    try:
+        await db.execute(text("SELECT 1"))
+    except Exception:
+        problems.append("database")
+    try:
+        await get_redis().ping()
+    except Exception:
+        problems.append("redis")
+
+    if problems:
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={"status": "not ready", "unreachable": problems},
+        )
+    return JSONResponse(status_code=status.HTTP_200_OK, content={"status": "ready"})
