@@ -8,12 +8,16 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.rate_limit import enforce_rate_limit
 from app.models.enums import MaintenanceDueStatus, PaymentAuditAction, PaymentMethod, PaymentStatus, Role, UserStatus
 from app.models.identity import Property, PropertyResident, User, UserRole
 from app.models.payments import MaintenanceDue, Payment, PaymentAuditLog, PaymentProof
 from app.schemas.payment import SubmitPaymentIn
 from app.services import maintenance_service
 from app.services.payment_service._finalize import finalize_paid
+
+_SUBMIT_MAX_PER_HOUR = 20
+_SUBMIT_RATE_WINDOW_SECONDS = 3600
 
 
 async def _active_resident_authorized_for_property(
@@ -71,6 +75,14 @@ async def _active_resident_authorized_for_property(
 async def submit_payment(
     db: AsyncSession, society_id: uuid.UUID, resident_id: uuid.UUID, body: SubmitPaymentIn
 ) -> Payment:
+    # CLAUDE.md Section 6 rule 3 names "payments" as needing rate limiting —
+    # this endpoint had none until this fix; same incr/expire/429 pattern
+    # already used for OTP/signup/search/uploads.
+    await enforce_rate_limit(
+        f"payment_submit:rate:{resident_id}", _SUBMIT_MAX_PER_HOUR, _SUBMIT_RATE_WINDOW_SECONDS,
+        "Too many payment submissions — try again in an hour",
+    )
+
     # Row lock: closes the race where two concurrent submissions (e.g. two
     # MOCK_ONLINE requests, which skip the PENDING_APPROVAL stage entirely
     # and go straight to PAID) both read status=PENDING before either

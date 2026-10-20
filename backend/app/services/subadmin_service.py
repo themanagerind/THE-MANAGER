@@ -10,10 +10,27 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.rate_limit import enforce_rate_limit
 from app.models.enums import Role, RoleRequestStatus, RoleRequestType, UserStatus
 from app.models.identity import RoleRequest, SocietyLocation, SubAdminScope, User, UserRole
 from app.services import expense_bill_service
 from app.services.scope_service import active_subadmin_ids, user_has_active_role
+
+# CLAUDE.md Section 6 rule 3 names "sub-admin permission changes" as
+# needing rate limiting — none of promote/demote/assign-scope/revoke-scope
+# had any until this fix. Keyed by society_id (not the acting Admin) since
+# demote_subadmin/revoke_scope don't take an acting-user id and adding one
+# would touch every call site for no real gain — a per-society cap on
+# permission-change churn is what actually matters here.
+_SUBADMIN_CHANGE_MAX_PER_HOUR = 30
+_SUBADMIN_CHANGE_RATE_WINDOW_SECONDS = 3600
+
+
+async def _enforce_subadmin_change_rate_limit(society_id: uuid.UUID) -> None:
+    await enforce_rate_limit(
+        f"subadmin_change:rate:{society_id}", _SUBADMIN_CHANGE_MAX_PER_HOUR, _SUBADMIN_CHANGE_RATE_WINDOW_SECONDS,
+        "Too many Sub-admin permission changes — try again in an hour",
+    )
 
 
 async def _reject_if_locations_already_scoped(
@@ -54,6 +71,8 @@ async def promote_to_subadmin(
     location_ids: list[uuid.UUID],
     promoted_by: uuid.UUID,
 ) -> list[SubAdminScope]:
+    await _enforce_subadmin_change_rate_limit(society_id)
+
     resident = (
         await db.execute(
             select(User).where(
@@ -142,6 +161,8 @@ async def demote_subadmin(db: AsyncSession, society_id: uuid.UUID, sub_admin_id:
     active_subadmin_ids is role-based, not scope-based), while a role-less
     one with leftover scope rows is just dead data. RESIDENT role (if
     held) is untouched — dual-role, same as resignation."""
+    await _enforce_subadmin_change_rate_limit(society_id)
+
     # Tenant-isolated existence check (same helper assign_additional_scope
     # uses) — a bare UserRole lookup alone can't verify society_id, since
     # UserRole doesn't carry one.
@@ -192,6 +213,8 @@ async def demote_subadmin(db: AsyncSession, society_id: uuid.UUID, sub_admin_id:
 async def assign_additional_scope(
     db: AsyncSession, society_id: uuid.UUID, sub_admin_id: uuid.UUID, location_id: uuid.UUID, assigned_by: uuid.UUID
 ) -> SubAdminScope:
+    await _enforce_subadmin_change_rate_limit(society_id)
+
     # HIGH fix (audit round-8): verify the target actually holds an active
     # Sub-admin role in this society — the composite FK only guarantees
     # same-society, not correct-role/active.
@@ -233,6 +256,8 @@ async def assign_additional_scope(
 
 
 async def revoke_scope(db: AsyncSession, society_id: uuid.UUID, scope_id: uuid.UUID) -> SubAdminScope:
+    await _enforce_subadmin_change_rate_limit(society_id)
+
     scope = (
         await db.execute(
             select(SubAdminScope).where(SubAdminScope.id == scope_id, SubAdminScope.society_id == society_id)

@@ -509,3 +509,22 @@ async def test_demote_rejects_subadmin_from_another_society(client: AsyncClient,
     # It's still intact from the actual owning Admin's perspective.
     resp = await client.get(f"/api/v1/subadmins/{seeded['resident'].id}/scopes", headers=admin_headers)
     assert len(resp.json()) == 1
+
+
+async def test_subadmin_permission_changes_are_rate_limited_per_society(client: AsyncClient, db_session: AsyncSession):
+    """Rate limit is keyed by society_id and checked before any other
+    validation, so hammering assign_scope with a nonexistent sub_admin_id
+    (normally a 400) still trips it once the per-hour cap is exceeded."""
+    seeded = await _seed_admin_and_resident(db_session)
+    headers = auth_headers(seeded["admin"].id, seeded["society"].id, Role.ADMIN, [Role.ADMIN])
+
+    responses = []
+    for _ in range(31):
+        resp = await client.post(
+            f"/api/v1/subadmins/{uuid.uuid4()}/scopes",
+            json={"location_id": str(seeded["wing_a"].id)},
+            headers=headers,
+        )
+        responses.append(resp.status_code)
+
+    assert 429 in responses
