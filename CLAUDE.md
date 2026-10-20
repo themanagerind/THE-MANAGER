@@ -19,9 +19,9 @@ A multi-role housing society management platform:
   every role's dashboard (Resident, Admin, Sub-admin, Manager, Guard, Platform
   Owner) is wired to its backend API; `PlaceholderPage` is only used for the
   catch-all 404 route now. Current gaps are narrower: individual features whose
-  backend API shipped with no frontend UI yet (e.g. wallet-redemption's
-  code-generation/listing endpoints — see the note at the end of Section 7) and
-  i18n page-content translation beyond the dashboard chrome (nav/common labels).
+  backend API shipped with no frontend UI yet (wallet-redemption was the last
+  one found this way — closed; see Section 7 for how to re-check) and i18n
+  page-content translation beyond the dashboard chrome (nav/common labels).
 
 ### User roles
 | Role | Purpose |
@@ -46,7 +46,7 @@ and the UI (role-based routing/menus).
 - **Alembic** for schema migrations
 - **Redis** (rate limiting / caching)
 - **JWT** authentication
-- Security hardening: OWASP compliance, rate limiting, audit logging
+- Security hardening: OWASP compliance, rate limiting, audit logging (**payments only** — see rule 3 below, don't trust this line either without re-checking)
 - **Docker** deployment
 - Test suite: **the full `pytest` suite must stay passing** (grows as coverage is added — check `pytest -q`'s own count rather than a number here, which goes stale)
 
@@ -141,7 +141,8 @@ docker compose -f docker-compose.prod.yml up -d --build   # reference prod topol
 2. **Every schema change needs an Alembic migration.** Never edit the database by hand or modify old migrations that may already be applied in production.
 3. **Security is non-negotiable:**
    - Every new endpoint needs JWT auth + a role/permission check (unless it's explicitly public, like login).
-   - Keep rate limiting and audit logging on sensitive actions (auth, payments, accounts, sub-admin permission changes).
+   - Keep rate limiting on sensitive actions (auth, payments, accounts, sub-admin permission changes). As of 2026-10-20's audit this was only true for auth (OTP/signup) plus society search and uploads (`grep -rln "HTTP_429" app/` showed exactly those 5 files) — payments, accounts, and sub-admin permission changes had none, despite this rule naming them explicitly. Being fixed via `app/core/rate_limit.py` (a shared helper, factored out of the duplicated otp/signup/search/upload pattern) wired into `submit_payment`, `create_manual_entry`, and the sub-admin promote/demote/scope endpoints. Re-check with the same grep before trusting this is still current.
+   - **"Audit logging" is real, but payments-only.** `PaymentAuditLog` (`app/models/payments.py`) is a genuine, immutable (INSERT/SELECT only) trail of CREATED/PAID_MARKED/APPROVED/REJECTED/CORRECTED for every payment — correctly written to from `payment_service/{submission,approval,rejection,correction}.py`. A 2026-10-20 audit pass initially missed this (grepped for the literal string `AuditLog`, which doesn't match `PaymentAuditLog`) and claimed no audit logging existed at all anywhere — that was wrong; verify by grepping `class.*AuditLog` before trusting either claim. What's still actually true: there is **no equivalent for accounts, sub-admin permission changes, or auth** — those sensitive actions (named in this same rule) leave no audit trail, only incidental `*_reason` fields on a few domain rows (e.g. `AdminChangeRequest.decision_reason`) for their own terminal decision, and a denied/attempted action (every 403) leaves no trace anywhere. Don't assume a new sensitive action outside payments gets logged for free.
    - Validate all input with Pydantic schemas; never build raw SQL from user input.
    - Never commit secrets. Config comes from environment variables.
 4. **Keep API and UI in sync.** When an endpoint changes, update the frontend API client/types, and update `HOUSING_BACKEND_COMPLETE_API_REFERENCE.md`.
