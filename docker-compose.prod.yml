@@ -1,0 +1,66 @@
+# Reference production topology — Postgres + Redis + backend (FastAPI,
+# backend/Dockerfile) + frontend (nginx serving the built PWA and
+# reverse-proxying /api to the backend, frontend/nginx.conf). This is a
+# starting point for a single-host/self-hosted deployment; a managed
+# platform (ECS, Cloud Run, k8s, etc.) would use these same two images
+# with its own orchestration instead of this file.
+#
+# Required before `docker compose -f docker-compose.prod.yml up -d --build`:
+#   1. Copy .env.prod.example to .env.prod and fill in real values
+#      (JWT_SECRET_KEY especially — generate with `openssl rand -hex 32`).
+#   2. Run migrations once against the postgres service before routing
+#      traffic to the backend — see backend/Dockerfile's comment on why
+#      this isn't done automatically on container start:
+#        docker compose -f docker-compose.prod.yml run --rm backend \
+#          alembic upgrade head
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: housing_prod
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    env_file: .env.prod
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:${POSTGRES_PASSWORD}@postgres:5432/housing_prod
+      REDIS_URL: redis://redis:6379/0
+    volumes:
+      - backend_uploads:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+  backend_uploads:

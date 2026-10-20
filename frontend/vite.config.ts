@@ -64,14 +64,6 @@ export default defineConfig({
         target: process.env.VITE_API_PROXY_TARGET || "http://localhost:8000",
         changeOrigin: true,
       },
-      // Payment-proof files served by the backend's StaticFiles mount
-      // (app/main.py) — same origin as /api in production too; whatever
-      // reverse proxy routes /api/v1/* to the backend must also route
-      // /uploads/* there.
-      "/uploads": {
-        target: process.env.VITE_API_PROXY_TARGET || "http://localhost:8000",
-        changeOrigin: true,
-      },
     },
   },
   test: {

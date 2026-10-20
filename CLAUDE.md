@@ -129,7 +129,8 @@ npm run lint         # if configured
 
 ### Docker
 ```bash
-docker compose up --build
+docker compose up --build                  # local dev infra (Postgres + Redis only)
+docker compose -f docker-compose.prod.yml up -d --build   # reference prod topology — see Section 8
 ```
 
 ---
@@ -153,11 +154,12 @@ docker compose up --build
 
 ## 7. Current phase — Phase 5 Production Readiness
 
-- **Week 1:** ✅ Complete — specifications, procedures and documentation ready
-- **Week 2:** Infrastructure verification + testing gates (Gates 0–4, ~6–9 hours total, can be split across 7 days)
-- **Week 3:** Stakeholder sign-offs, production deployment, 24-hour monitoring
+- **Week 1:** the planning docs this section used to describe as "✅ Complete" (`WEEK_2_START_HERE.md`, `WEEK_2_GATE_0_EXECUTION_GUIDE.md`, `GATE_0_EXECUTION_WORKSHEET.md`, `PHASE_5_COMPLETE_EXECUTION_PLAYBOOK.md`, `PHASE_5_FINAL_DELIVERY_SUMMARY.md`) do not actually exist in this repo — confirmed by `ls *.md` at the repo root, not just a stale claim like the old "frontend incomplete" one in Section 1 used to be. Don't trust this line either; re-check with `ls` before relying on it.
+- **Deployable artifacts now exist:** `backend/Dockerfile`, `frontend/Dockerfile` + `frontend/nginx.conf`, and `docker-compose.prod.yml` (repo root, with `.env.prod.example`) — none of these existed before despite Section 2/Section 4 referencing Docker deployment. They were written and the pip-install/build/test steps verified from this environment, but never `docker build`/`docker run`-tested end-to-end (no Docker daemon available in that sandbox) — do that once before relying on them for a real deploy.
+- **Week 2 (Gates 0–4, infrastructure verification + testing gates) has NOT been executed.** It needs real production hosting/DNS/TLS/load-balancer access that no coding session has — this has to be done by whoever holds that infrastructure, not assumed complete.
+- **Week 3** (stakeholder sign-offs, production deployment, 24-hour monitoring) hasn't started.
 
-### Next immediate task: Gate 0 — Infrastructure inventory verification (90–120 min)
+### Gate 0 — Infrastructure inventory verification (90–120 min), still to do
 1. Hosting provider verification
 2. PostgreSQL operational check
 3. Redis operational check
@@ -166,7 +168,7 @@ docker compose up --build
 6. TLS certificate validation
 7. End-to-end accessibility test
 
-Track progress in `GATE_0_EXECUTION_WORKSHEET.md`.
+No worksheet exists to track this yet — create one (or reuse this section) when someone with real infra access actually runs it.
 
 ### Current engineering priority: close the remaining backend-ahead-of-frontend gaps
 
@@ -190,14 +192,11 @@ create modal → mutation, `Page[T]` for paginated endpoints, `Table`/
 
 | File | Purpose |
 |---|---|
-| `WEEK_2_START_HERE.md` | Quick reference guide for Week 2 |
-| `WEEK_2_GATE_0_EXECUTION_GUIDE.md` | Detailed Gate 0 infrastructure verification procedure |
-| `GATE_0_EXECUTION_WORKSHEET.md` | Live tracking sheet for the 7 infrastructure checks |
-| `HOUSING_BACKEND_COMPLETE_API_REFERENCE.md` | Full endpoint documentation (not yet in this repo — generate from `app.openapi()` when needed) |
-| `PHASE_5_COMPLETE_EXECUTION_PLAYBOOK.md` | Complete Week 2–3 strategy with decision trees |
-| `PHASE_5_FINAL_DELIVERY_SUMMARY.md` | Week 1 completion summary |
+| `HOUSING_BACKEND_COMPLETE_API_REFERENCE.md` | Full endpoint documentation — generated from `app.openapi()`, run `python -m scripts.generate_api_reference` from `backend/` after any endpoint change (see rule 4 above) |
+| `docker-compose.prod.yml` + `.env.prod.example` | Reference production deployment topology (Postgres + Redis + `backend/Dockerfile` + `frontend/Dockerfile`/`nginx.conf`) |
+| `AUDIT_REPORT_2026-09-25.md` | Past security/correctness audit findings |
 
-Read the relevant document before starting gate or deployment work.
+The `WEEK_2_*`/`PHASE_5_*`/`GATE_0_*` planning docs this table used to list don't exist in this repo (see Section 7) — don't point anyone at a file name from here without confirming it's actually present.
 
 ---
 
