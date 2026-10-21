@@ -4,6 +4,7 @@ Per Master Requirements Section 36: no production secrets in .env in real
 deployment (use a secret manager) — .env is for local development only.
 """
 from functools import lru_cache
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -14,8 +15,28 @@ class Settings(BaseSettings):
     app_name: str = "Housing Society Management API"
     environment: str = "development"  # development | staging | production
 
+    # CORS
+    cors_origins: list[str] | str = ["*"]
+
     # Database
     database_url: str  # postgresql+asyncpg://user:pass@host:5432/dbname
+
+    @field_validator("database_url", mode="before")
+    @classmethod
+    def assemble_db_connection(cls, v: str) -> str:
+        if isinstance(v, str):
+            if v.startswith("postgres://"):
+                return v.replace("postgres://", "postgresql+asyncpg://", 1)
+            elif v.startswith("postgresql://") and not v.startswith("postgresql+asyncpg://"):
+                return v.replace("postgresql://", "postgresql+asyncpg://", 1)
+        return v
+
+    @field_validator("cors_origins", mode="before")
+    @classmethod
+    def assemble_cors_origins(cls, v: list[str] | str) -> list[str]:
+        if isinstance(v, str):
+            return [origin.strip() for origin in v.split(",") if origin.strip()]
+        return v
 
     # Redis (cache, OTP, background jobs — Section 1)
     redis_url: str = "redis://localhost:6379/0"

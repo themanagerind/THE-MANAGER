@@ -9,8 +9,10 @@ import axios, { type AxiosError, type InternalAxiosRequestConfig } from "axios";
 import { tokenStorage } from "@/auth/tokenStorage";
 import type { Role } from "@/types/enums";
 
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api/v1";
+
 export const apiClient = axios.create({
-  baseURL: "/api/v1",
+  baseURL: API_BASE_URL,
 });
 
 apiClient.interceptors.request.use((config) => {
@@ -70,7 +72,7 @@ async function performRefresh(): Promise<string> {
   const refreshToken = tokenStorage.getRefreshToken();
   if (!refreshToken) throw new Error("No refresh token");
 
-  const { data } = await axios.post("/api/v1/auth/token/refresh", { refresh_token: refreshToken });
+  const { data } = await axios.post(`${API_BASE_URL}/auth/token/refresh`, { refresh_token: refreshToken });
   tokenStorage.setTokens(data.access_token, data.refresh_token, data.active_role as Role, data.available_roles as Role[]);
   return data.access_token as string;
 }

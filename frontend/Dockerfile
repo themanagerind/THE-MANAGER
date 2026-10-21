@@ -17,6 +17,7 @@ COPY --from=build /app/dist /usr/share/nginx/html
 # exports a DIFFERENT var, NGINX_LOCAL_RESOLVERS, which is what
 # nginx.conf actually references.
 ENV NGINX_ENTRYPOINT_LOCAL_RESOLVERS=1
+ENV BACKEND_UPSTREAM_URL=http://backend.railway.internal:8000
 # Deployed as a *.template* (not straight to conf.d/) so the official
 # image's own entrypoint runs envsubst on it — nginx.conf references
 # ${NGINX_LOCAL_RESOLVERS}, which only that step fills in. envsubst
