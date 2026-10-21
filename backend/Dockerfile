@@ -27,6 +27,8 @@ RUN pip install --no-cache-dir -r requirements.lock.txt
 COPY alembic.ini .
 COPY alembic ./alembic
 COPY app ./app
+COPY scripts ./scripts
+COPY entrypoint.sh .
 
 # Runs as a non-root user — Section 3 (security hardening). uploads/ must
 # be writable by this user (see UPLOAD_DIR in app/core/config.py, default
@@ -34,6 +36,7 @@ COPY app ./app
 # container restarts/redeploys instead of living in the writable layer).
 RUN useradd --create-home --uid 1000 appuser \
     && mkdir -p /app/uploads \
+    && chmod +x /app/entrypoint.sh \
     && chown -R appuser:appuser /app
 USER appuser
 
@@ -45,8 +48,5 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD curl -f http://localhost:${PORT:-8000}/health/ready || exit 1
 
-# Migrations are NOT run here — run `alembic upgrade head` as a separate
-# deploy step (once, before traffic is routed to new containers), never
-# automatically on every container start: with multiple replicas that
-# would race each other to apply the same migration concurrently.
-CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 4"]
+# entrypoint.sh automatically applies alembic migrations and optionally seeds the Platform Owner
+CMD ["/app/entrypoint.sh"]
