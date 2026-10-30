@@ -7,7 +7,10 @@ __pycache__/
 !.env.example
 tests/
 docs/
+<<<<<<< HEAD
 scripts/
+=======
+>>>>>>> 191853d0b99367296d07aeb3fd7615459bc0b889
 uploads/
 dump.rdb
 *.log

@@ -1,4 +1,5 @@
 """Shared Redis client — used by OTP service, refresh-token store, rate limits."""
+<<<<<<< HEAD
 import logging
 import time
 from typing import Any
@@ -161,4 +162,18 @@ def get_redis() -> Any:
     if _redis is None:
         is_dev = settings.environment == "development"
         _redis = ResilientRedisProxy(settings.redis_url, is_dev=is_dev)
+=======
+import redis.asyncio as redis
+
+from app.core.config import get_settings
+
+settings = get_settings()
+_redis: redis.Redis | None = None
+
+
+def get_redis() -> redis.Redis:
+    global _redis
+    if _redis is None:
+        _redis = redis.from_url(settings.redis_url, decode_responses=True)
+>>>>>>> 191853d0b99367296d07aeb3fd7615459bc0b889
     return _redis

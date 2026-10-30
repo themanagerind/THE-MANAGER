@@ -20,7 +20,11 @@ async def test_seed_creates_active_societies_with_one_admin_each(db_session: Asy
     # Distinct from the placeholder range so the test can't collide with other fixtures.
     mobiles = [str(9100000101 + i) for i in range(20)]
     rows = await seed_mod.seed(db_session, mobiles)
+<<<<<<< HEAD
     assert len(rows) == 20 and all(r["created"] for r in rows)
+=======
+    assert len(rows) == 20
+>>>>>>> 191853d0b99367296d07aeb3fd7615459bc0b889
 
     surat = (
         await db_session.execute(select(Society).where(Society.city == "Surat"))
