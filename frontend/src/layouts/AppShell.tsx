@@ -1,0 +1,210 @@
+import { useState } from "react";
+import { NavLink, Outlet } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
+import { useAuth } from "@/auth/AuthContext";
+import { navByRole } from "@/layouts/navConfig";
+import { usersApi } from "@/api/users";
+import { societiesApi } from "@/api/societies";
+import { Icon } from "@/components/Icon";
+import { RoleSwitcher } from "@/components/RoleSwitcher";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
+import { OfflineQueueBanner } from "@/components/OfflineQueueBanner";
+import { AuthenticatedImage } from "@/components/AuthenticatedImage";
+import { NotificationBell } from "@/components/NotificationBell";
+
+// Keys under the "role" namespace (src/i18n/locales/*.json) — t(`role.${roleLabelKeys[role]}`).
+const roleLabelKeys: Record<string, string> = {
+  PLATFORM_OWNER: "platformOwner",
+  ADMIN: "admin",
+  SUB_ADMIN: "subAdmin",
+  MANAGER: "manager",
+  RESIDENT: "resident",
+  SECURITY_GUARD: "securityGuard",
+};
+
+/** Roles that can upload their own photo (backend 403s everyone else on
+ * POST /users/me/avatar) — shown in place of the default logo. */
+const AVATAR_ROLES = new Set(["RESIDENT", "ADMIN", "SUB_ADMIN"]);
+
+/** Roles the language switcher is offered to (user-requested scope) —
+ * Manager/Guard/Platform Owner dashboards are unaffected for now. */
+const LANGUAGE_SWITCHER_ROLES = new Set(["RESIDENT", "ADMIN", "SUB_ADMIN"]);
+
+/** Sidebar header identity — Resident/Admin/Sub-admin/Manager/Platform
+ * Owner see their own name; Security Guard sees the society's name
+ * instead (a gate's identity is the society it guards, not the
+ * individual guard on duty). */
+function useHeaderIdentity(activeRole: string | null) {
+  const { t } = useTranslation();
+  const isGuard = activeRole === "SECURITY_GUARD";
+  const profileQuery = useQuery({
+    queryKey: ["appshell", "profile"],
+    queryFn: () => usersApi.me().then((r) => r.data),
+    enabled: !!activeRole && !isGuard,
+  });
+  const societyQuery = useQuery({
+    queryKey: ["appshell", "society-me"],
+    queryFn: () => societiesApi.me().then((r) => r.data),
+    enabled: isGuard,
+  });
+
+  const roleFallback = activeRole ? t(`role.${roleLabelKeys[activeRole]}`) : "Society Manager";
+  const label = isGuard
+    ? societyQuery.data?.name ?? roleFallback
+    : profileQuery.data?.full_name ?? roleFallback;
+  const hasAvatar = !isGuard && !!activeRole && AVATAR_ROLES.has(activeRole) && !!profileQuery.data?.has_avatar;
+
+  return { label, hasAvatar };
+}
+
+export function AppShell() {
+  const { t } = useTranslation();
+  const { activeRole, logout } = useAuth();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const items = activeRole ? navByRole[activeRole] : [];
+  const { label: headerLabel, hasAvatar } = useHeaderIdentity(activeRole);
+  const showLanguageSwitcher = !!activeRole && LANGUAGE_SWITCHER_ROLES.has(activeRole);
+
+  return (
+    // `uppercase` here, not scattered across every page — text-transform is
+    // an inherited CSS property, so one class on the dashboard's own root
+    // (this wrapper — Login/Signup live outside AppShell, App.tsx routes,
+    // and are deliberately unaffected) capitalizes every letter rendered
+    // anywhere inside every role's dashboard, including modals (Modal.tsx
+    // renders inline, not through a portal, so it's still inside this DOM
+    // subtree) — without touching the underlying data or hardcoding
+    // shouting-case strings into every component. Tailwind's `uppercase`
+    // utility handles ordinary elements via inheritance; `dashboard-uppercase`
+    // (index.css) re-asserts it on form controls (button/input/select/
+    // textarea/option), which the browser's own UA stylesheet otherwise
+    // exempts from inheriting text-transform.
+    <div className="min-h-screen flex flex-col md:flex-row bg-paper uppercase dashboard-uppercase">
+      {/* Desktop sidebar */}
+      <aside className="hidden md:flex md:w-64 md:flex-col bg-navy text-white">
+        <div className="px-6 py-5 border-b border-white/10 flex items-center gap-3">
+          {hasAvatar ? (
+            <AuthenticatedImage
+              src="/users/me/avatar"
+              alt=""
+              className="w-9 h-9 rounded-full bg-white/5 object-cover shrink-0"
+              fallback={<img src="/logo.png" alt="" className="w-9 h-9 rounded-full bg-white/5 object-cover shrink-0" />}
+            />
+          ) : (
+            <img src="/logo.png" alt="" className="w-9 h-9 rounded-full bg-white/5 object-cover shrink-0" />
+          )}
+          <span className="text-lg font-semibold tracking-tight truncate">{headerLabel}</span>
+        </div>
+        <nav className="flex-1 px-3 py-4 space-y-1">
+          {items.map((item) => (
+            <NavLink
+              key={item.path}
+              to={item.path}
+              className={({ isActive }) =>
+                `flex items-center gap-3 px-3 py-2 rounded text-sm transition-colors ${
+                  isActive ? "bg-white/10 text-white" : "text-white/70 hover:text-white hover:bg-white/5"
+                }`
+              }
+              end
+            >
+              <Icon name={item.icon} />
+              {t(`nav.${item.labelKey}`)}
+            </NavLink>
+          ))}
+        </nav>
+        <div className="px-3 py-4 border-t border-white/10 space-y-1">
+          <NavLink
+            to="/profile"
+            className={({ isActive }) =>
+              `block px-3 py-2 rounded text-sm transition-colors ${
+                isActive ? "bg-white/10 text-white" : "text-white/70 hover:text-white hover:bg-white/5"
+              }`
+            }
+          >
+            {t("common.myProfile")}
+          </NavLink>
+          <button onClick={() => void logout()} className="w-full text-left px-3 py-2 rounded text-sm text-white/70 hover:text-white hover:bg-white/5">
+            {t("common.logOut")}
+          </button>
+        </div>
+      </aside>
+
+      {/* Mobile top bar */}
+      <header className="md:hidden sticky top-0 z-10 flex items-center justify-between bg-navy text-white px-4 py-3">
+        <div className="flex items-center gap-2 min-w-0">
+          {hasAvatar ? (
+            <AuthenticatedImage
+              src="/users/me/avatar"
+              alt=""
+              className="w-7 h-7 rounded-full bg-white/5 object-cover shrink-0"
+              fallback={<img src="/logo.png" alt="" className="w-7 h-7 rounded-full bg-white/5 object-cover shrink-0" />}
+            />
+          ) : (
+            <img src="/logo.png" alt="" className="w-7 h-7 rounded-full bg-white/5 object-cover shrink-0" />
+          )}
+          <span className="font-semibold truncate">{headerLabel}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          {activeRole && <span className="text-xs text-white/70">{t(`role.${roleLabelKeys[activeRole]}`)}</span>}
+          {activeRole === "RESIDENT" && <NotificationBell />}
+          <button
+            onClick={() => setMenuOpen((v) => !v)}
+            aria-label={t("common.accountMenu")}
+            className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-sm"
+          >
+            ⋮
+          </button>
+        </div>
+      </header>
+      {menuOpen && (
+        <div className="md:hidden bg-navy-light text-white px-4 py-3 space-y-3">
+          <RoleSwitcher />
+          {showLanguageSwitcher && <LanguageSwitcher />}
+          <NavLink to="/profile" onClick={() => setMenuOpen(false)} className="block text-sm text-white/80">
+            {t("common.myProfile")}
+          </NavLink>
+          <button onClick={() => void logout()} className="text-sm text-white/80">
+            {t("common.logOut")}
+          </button>
+        </div>
+      )}
+
+      {/* Desktop top-right cluster — was `absolute`, which reserved no
+          space for itself and silently overlapped any page's own top-right
+          content (audit finding: Admin Overview's "Resign as Admin" button).
+          Normal flow now, as a sibling of <main> inside a column wrapper,
+          so it always pushes <main> down by its own real height instead of
+          floating over whatever happens to render there. */}
+      <div className="flex-1 flex flex-col min-w-0">
+        <div className="hidden md:flex md:justify-end md:items-center md:gap-2 md:px-8 md:pt-5">
+          {activeRole === "RESIDENT" && <NotificationBell />}
+          {showLanguageSwitcher && <LanguageSwitcher />}
+          <RoleSwitcher />
+        </div>
+
+        <main className="flex-1 pb-20 md:pb-0 px-4 py-5 md:px-8 md:pt-2 md:pb-8 max-w-5xl mx-auto w-full">
+          <Outlet />
+        </main>
+      </div>
+
+      {/* Mobile bottom tabs */}
+      <nav className="md:hidden fixed bottom-0 inset-x-0 bg-white border-t border-line flex justify-around py-2 z-10">
+        {items.slice(0, 5).map((item) => (
+          <NavLink
+            key={item.path}
+            to={item.path}
+            end
+            className={({ isActive }) =>
+              `flex flex-col items-center gap-0.5 px-2 py-1 text-[11px] ${isActive ? "text-navy" : "text-navy-muted"}`
+            }
+          >
+            <Icon name={item.icon} className="w-5 h-5" />
+            {t(`nav.${item.labelKey}`)}
+          </NavLink>
+        ))}
+      </nav>
+
+      <OfflineQueueBanner />
+    </div>
+  );
+}
