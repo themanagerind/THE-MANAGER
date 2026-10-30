@@ -50,6 +50,18 @@ class Settings(BaseSettings):
     # OTP
     otp_expiry_seconds: int = 300
     otp_length: int = 6
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+    # SMS (Twilio). Leave the account SID / auth token unset in local dev and
+    # sms_service falls back to logging the OTP. Set twilio_messaging_service_sid
+    # OR twilio_from_number / twilio_phone_number (one is enough; the service SID wins if both are set).
+    twilio_account_sid: str | None = None
+    twilio_auth_token: str | None = None
+    twilio_from_number: str | None = None  # E.164, e.g. +12025550123
+    twilio_phone_number: str | None = None  # Alias for twilio_from_number
+=======
+>>>>>>> 8ef6aa5dd8d08a8909e6d67aad9f9e88b0b9a641
 
     # SMS (Twilio). Leave the account SID / auth token unset in local dev and
     # sms_service falls back to logging the OTP. Set twilio_messaging_service_sid
@@ -57,9 +69,23 @@ class Settings(BaseSettings):
     twilio_account_sid: str | None = None
     twilio_auth_token: str | None = None
     twilio_from_number: str | None = None  # E.164, e.g. +12025550123
+<<<<<<< HEAD
     twilio_messaging_service_sid: str | None = None
     sms_default_country_code: str = "+91"  # prefixed to bare 10-digit mobiles
 
+=======
+>>>>>>> 191853d0b99367296d07aeb3fd7615459bc0b889
+    twilio_messaging_service_sid: str | None = None
+    sms_default_country_code: str = "+91"  # prefixed to bare 10-digit mobiles
+
+    # TEMPORARY, until Twilio SMS is fully active: when true, POST /auth/otp/
+    # request echoes the OTP in the response (shown on the Login screen) even
+    # outside development. Anyone who knows a mobile number can then log in as
+    # that account — keep this false in real production and turn it off as
+    # soon as SMS delivery works.
+    show_otp_on_screen: bool = False
+
+>>>>>>> 8ef6aa5dd8d08a8909e6d67aad9f9e88b0b9a641
     # Push notifications (Section 1 / Section 30 — push_subscriptions)
     fcm_server_key: str | None = None
     web_push_vapid_public_key: str | None = None

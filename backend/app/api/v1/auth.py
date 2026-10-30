@@ -38,6 +38,7 @@ settings = get_settings()
 @router.post("/otp/request", response_model=OTPRequestOut)
 async def request_otp_endpoint(body: OTPRequestIn) -> OTPRequestOut:
     otp = await request_otp(body.mobile)
+<<<<<<< HEAD
     # No SMS provider is wired up yet — send_otp_sms() is a mock (logs
     # instead of sending) so the login flow is actually completable
     # end-to-end. Swap sms_service.send_otp_sms for a real provider when
@@ -45,6 +46,14 @@ async def request_otp_endpoint(body: OTPRequestIn) -> OTPRequestOut:
     await send_otp_sms(body.mobile, otp)
     # Dev-only: echo the OTP so login works without a real SMS gateway.
     if settings.environment == "development":
+=======
+    # Sends via Twilio when configured, otherwise logs (see sms_service).
+    await send_otp_sms(body.mobile, otp)
+    # Echo the OTP so login works without a working SMS gateway: always in
+    # development, and in other environments only while the temporary
+    # SHOW_OTP_ON_SCREEN flag is on (see Settings.show_otp_on_screen).
+    if settings.environment == "development" or settings.show_otp_on_screen:
+>>>>>>> 8ef6aa5dd8d08a8909e6d67aad9f9e88b0b9a641
         return OTPRequestOut(dev_otp=otp)
     return OTPRequestOut()
 
