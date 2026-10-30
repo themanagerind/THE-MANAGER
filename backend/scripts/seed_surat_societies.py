@@ -87,11 +87,19 @@ async def seed(db: AsyncSession, mobiles: list[str]) -> list[dict]:
                 ),
             )
 
+        # One active Admin per society (DB rule) — if the society already has
+        # one, keep it as-is and report its mobile instead of adding another.
         admin = (
             await db.execute(
-                select(User).where(User.society_id == society.id, User.mobile == mobile)
+                select(User)
+                .join(UserRole, UserRole.user_id == User.id)
+                .where(
+                    User.society_id == society.id,
+                    UserRole.role == Role.ADMIN,
+                    UserRole.revoked_at.is_(None),
+                )
             )
-        ).scalar_one_or_none()
+        ).scalars().first()
         if admin is None:
             now = datetime.now(timezone.utc)
             admin = User(
@@ -113,8 +121,8 @@ async def seed(db: AsyncSession, mobiles: list[str]) -> list[dict]:
             {
                 "society": full_name,
                 "code": society.code,
-                "admin": admin_name,
-                "mobile": mobile,
+                "admin": admin.full_name,
+                "mobile": admin.mobile,
                 "created": created,
             }
         )
