@@ -1,0 +1,37 @@
+{
+  "nav": {
+    "home": "Home",
+    "overview": "Overview",
+    "societies": "Societies",
+    "changeAdmin": "Change Admin",
+    "reports": "Reports",
+    "residents": "Residents",
+    "assignSubAdmin": "Assign Sub-admin",
+    "staff": "Staff",
+    "properties": "Properties",
+    "monthlyMaintenance": "Monthly Maintenance",
+    "complaints": "Complaints",
+    "visitors": "Visitors",
+    "notices": "Notices",
+    "amenities": "Amenities",
+    "proposals": "Proposals",
+    "expenseApproval": "Expense Approval",
+    "accounts": "Accounts",
+    "wallet": "Wallet",
+    "myTodos": "My To-Dos"
+  },
+  "common": {
+    "myProfile": "My Profile",
+    "logOut": "Log out",
+    "accountMenu": "Account menu",
+    "language": "Language"
+  },
+  "role": {
+    "platformOwner": "Platform Owner",
+    "admin": "Admin",
+    "subAdmin": "Sub-admin",
+    "manager": "Manager",
+    "resident": "Resident",
+    "securityGuard": "Security Guard"
+  }
+}
