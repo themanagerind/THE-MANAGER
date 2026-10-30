@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>THE MANAGER - Surat Societies and Login Details</title>
+<style>
+  @page { size: A4; margin: 16mm 14mm; }
+  body { font-family: Segoe UI, Arial, sans-serif; color: #1a2233; font-size: 11pt; line-height: 1.45; }
+  h1 { font-size: 20pt; margin: 0 0 2mm; color: #12294f; }
+  h2 { font-size: 13pt; margin: 8mm 0 2mm; color: #12294f; border-bottom: 1px solid #c9d2e3; padding-bottom: 1mm; }
+  .sub { color: #5a6578; margin-bottom: 4mm; }
+  table { border-collapse: collapse; width: 100%; font-size: 9.5pt; margin-top: 2mm; }
+  th, td { border: 1px solid #c9d2e3; padding: 1.6mm 2mm; text-align: left; vertical-align: top; }
+  th { background: #eef2f9; }
+  .note { background: #fff7e0; border: 1px solid #ecd48a; padding: 2.5mm 3mm; margin: 3mm 0; font-size: 10pt; }
+  code { background: #eef2f9; padding: 0 1mm; font-size: 9.5pt; }
+  ul { margin: 1mm 0 1mm 5mm; padding: 0; }
+  tr { break-inside: avoid; }
+</style>
+</head>
+<body>
+
+<h1>THE MANAGER - Surat Societies and Login Details</h1>
+<div class="sub">Live site: https://frontend-production-611e.up.railway.app/login &nbsp;|&nbsp; Repo: github.com/themanagerind/THE-MANAGER</div>
+
+<h2>1. How login works</h2>
+<ul>
+  <li>Login is <b>Mobile number + OTP only</b>. There are no passwords in this app.</li>
+  <li>Steps: enter the 10-digit mobile on <code>/login</code> &rarr; a 6-digit OTP is sent by SMS (Twilio) &rarr; enter the OTP. The OTP expires in 5 minutes. Max 5 OTP requests per hour per number, and 60 seconds between requests.</li>
+  <li>If one mobile belongs to more than one account (e.g. several societies), the app asks which account to open.</li>
+  <li>In development mode the OTP is shown on screen. In production it is only sent by SMS.</li>
+</ul>
+
+<h2>2. Platform Owner</h2>
+<ul>
+  <li>The Platform Owner manages all societies. Their pages are: Societies, Reports, Change Admin, Society Mapping.</li>
+  <li>The account is created at deploy time from the Railway variable <code>SEED_PLATFORM_OWNER_MOBILE</code> (name from <code>SEED_PLATFORM_OWNER_NAME</code>), by <code>backend/entrypoint.sh</code>.</li>
+  <li><b>Login:</b> that mobile number + OTP. The actual number is stored in your Railway variables; it is not in the code, so it is not listed here.</li>
+  <li>Platform Owner sessions expire after 12 hours.</li>
+</ul>
+
+<h2>3. The login problem and the fix</h2>
+<ul>
+  <li><b>Cause:</b> before the merge, <code>main</code> only logged the OTP (mock SMS). In production the OTP is not returned to the browser, so nobody could receive a code.</li>
+  <li><b>Fix (merged to main, commit 54a6424):</b> OTPs are now sent through Twilio. It needs these Railway variables on the backend service: <code>TWILIO_ACCOUNT_SID</code>, <code>TWILIO_AUTH_TOKEN</code>, <code>TWILIO_FROM_NUMBER</code> (+17372508034), <code>ENVIRONMENT=production</code>.</li>
+  <li>Not yet tested on the live site.</li>
+</ul>
+<div class="note"><b>Twilio trial limit:</b> a trial account can only send SMS to numbers verified in the Twilio console. Other users will not receive OTPs until the account is upgraded. A US sender number may also be blocked or delayed for Indian mobiles.</div>
+
+<h2>4. 20 Surat societies and their Admin logins</h2>
+<div class="note"><b>Important:</b> the mobile numbers below are <b>placeholders</b> (9000000101 to 9000000120). They cannot receive an SMS, so they cannot log in on the live site. Replace them with real numbers when running the seed script (section 5). Society names, admin names and pincodes are sample data; please verify before real use.</div>
+
+<table>
+  <tr><th>#</th><th>Society</th><th>Area</th><th>Pincode</th><th>Admin name</th><th>Login mobile (placeholder)</th></tr>
+  <tr><td>1</td><td>Shreeji Residency</td><td>Adajan</td><td>395009</td><td>Rajesh Patel</td><td>9000000101</td></tr>
+  <tr><td>2</td><td>Sunrise Heights</td><td>Vesu</td><td>395007</td><td>Kiran Desai</td><td>9000000102</td></tr>
+  <tr><td>3</td><td>Anand Park Society</td><td>Piplod</td><td>395007</td><td>Hiren Shah</td><td>9000000103</td></tr>
+  <tr><td>4</td><td>Riverside Apartments</td><td>Althan</td><td>395017</td><td>Mehul Mehta</td><td>9000000104</td></tr>
+  <tr><td>5</td><td>Green Valley Homes</td><td>Pal</td><td>395009</td><td>Nilesh Joshi</td><td>9000000105</td></tr>
+  <tr><td>6</td><td>Silver Oak Residency</td><td>City Light</td><td>395007</td><td>Jignesh Modi</td><td>9000000106</td></tr>
+  <tr><td>7</td><td>Krishna Kunj Society</td><td>Athwa</td><td>395001</td><td>Bhavesh Thakkar</td><td>9000000107</td></tr>
+  <tr><td>8</td><td>Laxmi Nagar Apartments</td><td>Varachha</td><td>395006</td><td>Dipak Gajera</td><td>9000000108</td></tr>
+  <tr><td>9</td><td>Shanti Niketan</td><td>Katargam</td><td>395004</td><td>Ketan Vaghasiya</td><td>9000000109</td></tr>
+  <tr><td>10</td><td>Om Shanti Heights</td><td>Udhna</td><td>394210</td><td>Paresh Rana</td><td>9000000110</td></tr>
+  <tr><td>11</td><td>Tapi View Residency</td><td>Rander</td><td>395005</td><td>Sanjay Chauhan</td><td>9000000111</td></tr>
+  <tr><td>12</td><td>Royal Orchid Society</td><td>Dumas Road</td><td>395007</td><td>Ashish Parekh</td><td>9000000112</td></tr>
+  <tr><td>13</td><td>Swastik Enclave</td><td>Bhatar</td><td>395017</td><td>Vimal Bhatt</td><td>9000000113</td></tr>
+  <tr><td>14</td><td>Gokul Dham Society</td><td>Ghod Dod Road</td><td>395001</td><td>Tushar Kapadia</td><td>9000000114</td></tr>
+  <tr><td>15</td><td>Pearl Residency</td><td>Parle Point</td><td>395007</td><td>Chirag Sheth</td><td>9000000115</td></tr>
+  <tr><td>16</td><td>Sea Breeze Apartments</td><td>Magdalla</td><td>395007</td><td>Yogesh Trivedi</td><td>9000000116</td></tr>
+  <tr><td>17</td><td>Navjivan Society</td><td>Jahangirpura</td><td>395005</td><td>Mahesh Solanki</td><td>9000000117</td></tr>
+  <tr><td>18</td><td>Dev Darshan Residency</td><td>Sarthana</td><td>395006</td><td>Rohit Dave</td><td>9000000118</td></tr>
+  <tr><td>19</td><td>Mangal Murti Apartments</td><td>Nanpura</td><td>395001</td><td>Alpesh Naik</td><td>9000000119</td></tr>
+  <tr><td>20</td><td>Vrundavan Park</td><td>Kapodra</td><td>395006</td><td>Dharmesh Italiya</td><td>9000000120</td></tr>
+</table>
+<p>All societies are in Surat, Gujarat. The society is stored as "name, area". Each society gets a unique code (for example <code>SHREEJIR-48213</code>) generated at creation; it is printed by the script.</p>
+
+<h2>5. How to create them (seed script)</h2>
+<ul>
+  <li>Script: <code>backend/scripts/seed_surat_societies.py</code> (merged to main). Each society is created ACTIVE with one ACTIVE Admin. It is safe to run twice.</li>
+  <li>Run against the production database (from the backend folder, with the production <code>DATABASE_URL</code> set), with real numbers in society order:</li>
+</ul>
+<p><code>python -m scripts.seed_surat_societies --mobiles 98xxxxxx01,98xxxxxx02, ... (20 numbers)</code></p>
+<ul>
+  <li>Without <code>--mobiles</code> it uses the placeholder numbers above.</li>
+  <li>With Twilio on a trial account, verify each real number in the Twilio console first.</li>
+  <li>The script has not been run or tested yet (Python is not installed on the development machine).</li>
+</ul>
+
+<h2>6. Security reminders</h2>
+<ul>
+  <li>The Twilio Auth Token was shared in chat. Regenerate it in the Twilio console and put the new one only in Railway variables.</li>
+  <li>Set a strong <code>JWT_SECRET_KEY</code> and <code>ECOM_STORE_API_KEY</code> in Railway; the example values must not be used in production.</li>
+</ul>
+
+</body>
+</html>
