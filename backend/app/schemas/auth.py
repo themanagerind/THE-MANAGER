@@ -23,9 +23,9 @@ class OTPRequestIn(BaseModel):
 
 class OTPRequestOut(BaseModel):
     message: str = "OTP sent"
-    # Dev convenience only: SMS is mocked, so in development the OTP is
-    # echoed here so login is completable without a real SMS gateway.
-    # Never populated when environment != "development".
+    # Echoed only in development, or while SHOW_OTP_ON_SCREEN is on (a
+    # temporary switch for before SMS delivery is fully active). Never
+    # populated otherwise.
     dev_otp: str | None = None
 
 
