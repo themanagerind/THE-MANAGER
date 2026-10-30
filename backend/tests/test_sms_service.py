@@ -8,6 +8,7 @@ def _settings(**overrides):
         twilio_account_sid=None,
         twilio_auth_token=None,
         twilio_from_number=None,
+        twilio_phone_number=None,
         twilio_messaging_service_sid=None,
         sms_default_country_code="+91",
         otp_expiry_seconds=300,
@@ -66,3 +67,19 @@ async def test_provider_failure_does_not_raise(monkeypatch):
     monkeypatch.setattr(sms_service, "_send_via_twilio", boom)
 
     await sms_service.send_otp_sms("9876543210", "123456")
+
+
+async def test_phone_number_alias_is_accepted_as_sender(monkeypatch):
+    monkeypatch.setattr(
+        sms_service,
+        "get_settings",
+        lambda: _settings(
+            twilio_account_sid="ACxxx", twilio_auth_token="tok", twilio_phone_number="+10000000000"
+        ),
+    )
+    called = []
+    monkeypatch.setattr(sms_service, "_send_via_twilio", lambda to, body: called.append(to))
+
+    await sms_service.send_otp_sms("9876543210", "123456")
+
+    assert called == ["+919876543210"]

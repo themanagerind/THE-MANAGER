@@ -87,13 +87,6 @@ async def seed(db: AsyncSession, mobiles: list[str]) -> list[dict]:
                 ),
             )
 
-<<<<<<< HEAD
-        admin = (
-            await db.execute(
-                select(User).where(User.society_id == society.id, User.mobile == mobile)
-            )
-        ).scalar_one_or_none()
-=======
         # One active Admin per society (DB rule) — if the society already has
         # one, keep it as-is and report its mobile instead of adding another.
         admin = (
@@ -107,7 +100,6 @@ async def seed(db: AsyncSession, mobiles: list[str]) -> list[dict]:
                 )
             )
         ).scalars().first()
->>>>>>> 191853d0b99367296d07aeb3fd7615459bc0b889
         if admin is None:
             now = datetime.now(timezone.utc)
             admin = User(
@@ -129,13 +121,8 @@ async def seed(db: AsyncSession, mobiles: list[str]) -> list[dict]:
             {
                 "society": full_name,
                 "code": society.code,
-<<<<<<< HEAD
-                "admin": admin_name,
-                "mobile": mobile,
-=======
                 "admin": admin.full_name,
                 "mobile": admin.mobile,
->>>>>>> 191853d0b99367296d07aeb3fd7615459bc0b889
                 "created": created,
             }
         )

@@ -24,6 +24,10 @@ def _to_e164(mobile: str, default_country_code: str) -> str:
     return f"{default_country_code}{number.lstrip('0')}"
 
 
+def _from_number(settings) -> str | None:
+    return settings.twilio_from_number or settings.twilio_phone_number
+
+
 def _send_via_twilio(to: str, body: str) -> None:
     from twilio.rest import Client  # imported lazily: only needed when configured
 
@@ -33,39 +37,13 @@ def _send_via_twilio(to: str, body: str) -> None:
     if settings.twilio_messaging_service_sid:
         params["messaging_service_sid"] = settings.twilio_messaging_service_sid
     else:
-<<<<<<< HEAD
-        params["from_"] = settings.twilio_from_number or settings.twilio_phone_number
-=======
-<<<<<<< HEAD
-        params["from_"] = settings.twilio_from_number
-=======
-<<<<<<< HEAD
-        params["from_"] = settings.twilio_from_number or settings.twilio_phone_number
-=======
-        params["from_"] = settings.twilio_from_number
->>>>>>> 191853d0b99367296d07aeb3fd7615459bc0b889
->>>>>>> 8ef6aa5dd8d08a8909e6d67aad9f9e88b0b9a641
->>>>>>> 9578131bb0f890ffbe7d37f05d13d9f002ccf4e0
+        params["from_"] = _from_number(settings)
     client.messages.create(**params)
 
 
 async def send_otp_sms(mobile: str, otp: str) -> None:
     settings = get_settings()
-<<<<<<< HEAD
-    from_number = settings.twilio_from_number or settings.twilio_phone_number
-    has_sender = settings.twilio_messaging_service_sid or from_number
-=======
-<<<<<<< HEAD
-    has_sender = settings.twilio_messaging_service_sid or settings.twilio_from_number
-=======
-<<<<<<< HEAD
-    from_number = settings.twilio_from_number or settings.twilio_phone_number
-    has_sender = settings.twilio_messaging_service_sid or from_number
-=======
-    has_sender = settings.twilio_messaging_service_sid or settings.twilio_from_number
->>>>>>> 191853d0b99367296d07aeb3fd7615459bc0b889
->>>>>>> 8ef6aa5dd8d08a8909e6d67aad9f9e88b0b9a641
->>>>>>> 9578131bb0f890ffbe7d37f05d13d9f002ccf4e0
+    has_sender = settings.twilio_messaging_service_sid or _from_number(settings)
     if not (settings.twilio_account_sid and settings.twilio_auth_token and has_sender):
         logger.info("[MOCK SMS] OTP for %s: %s", mobile, otp)
         return
@@ -78,24 +56,6 @@ async def send_otp_sms(mobile: str, otp: str) -> None:
     try:
         # The Twilio SDK is blocking; keep it off the event loop.
         await asyncio.to_thread(_send_via_twilio, to, body)
-<<<<<<< HEAD
-    except Exception as exc:
-        # Never log the OTP or let a provider outage 500 the request; the user can retry.
-        logger.exception("Twilio SMS send failed for %s: %s", to, exc)
-=======
-<<<<<<< HEAD
     except Exception:
         # Never log the OTP or let a provider outage 500 the request; the user can retry.
         logger.exception("Twilio SMS send failed for %s", to)
-=======
-<<<<<<< HEAD
-    except Exception as exc:
-        # Never log the OTP or let a provider outage 500 the request; the user can retry.
-        logger.exception("Twilio SMS send failed for %s: %s", to, exc)
-=======
-    except Exception:
-        # Never log the OTP or let a provider outage 500 the request; the user can retry.
-        logger.exception("Twilio SMS send failed for %s", to)
->>>>>>> 191853d0b99367296d07aeb3fd7615459bc0b889
->>>>>>> 8ef6aa5dd8d08a8909e6d67aad9f9e88b0b9a641
->>>>>>> 9578131bb0f890ffbe7d37f05d13d9f002ccf4e0
