@@ -51,3 +51,52 @@ async def test_seed_rejects_bad_mobile_lists(db_session: AsyncSession):
         await seed_mod.seed(db_session, ["9000000001"])
     with pytest.raises(ValueError):
         await seed_mod.seed(db_session, ["9000000001"] * 20)
+
+
+async def test_seed_adds_flats_and_residents_who_can_log_in(db_session: AsyncSession):
+    from app.models.enums import RelationshipType
+    from app.models.identity import Property, PropertyResident
+
+    mobiles = [str(9300000101 + i) for i in range(20)]
+    rows = await seed_mod.seed(db_session, mobiles, residents_per_society=3)
+
+    first = rows[0]
+    assert len(first["residents"]) == 3
+    society = (
+        await db_session.execute(select(Society).where(Society.code == first["code"]))
+    ).scalar_one()
+
+    flats = (
+        await db_session.execute(select(Property).where(Property.society_id == society.id))
+    ).scalars().all()
+    assert len(flats) == 3
+
+    links = (
+        await db_session.execute(
+            select(PropertyResident).where(PropertyResident.society_id == society.id)
+        )
+    ).scalars().all()
+    kinds = sorted(RelationshipType(link.relationship_type).value for link in links)
+    assert kinds == ["OWNER", "OWNER", "TENANT"]
+
+    for res in first["residents"]:
+        user = (
+            await db_session.execute(
+                select(User).where(User.society_id == society.id, User.mobile == res["mobile"])
+            )
+        ).scalar_one()
+        assert user.status == UserStatus.ACTIVE
+        roles = (
+            await db_session.execute(select(UserRole).where(UserRole.user_id == user.id))
+        ).scalars().all()
+        assert [Role(x.role) for x in roles] == [Role.RESIDENT]
+
+    again = await seed_mod.seed(db_session, mobiles, residents_per_society=3)
+    assert [r["residents"] for r in again] == [r["residents"] for r in rows]
+
+
+async def test_seed_can_skip_residents(db_session: AsyncSession):
+    rows = await seed_mod.seed(
+        db_session, [str(9400000101 + i) for i in range(20)], residents_per_society=0
+    )
+    assert all(r["residents"] == [] for r in rows)
