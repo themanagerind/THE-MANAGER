@@ -140,7 +140,7 @@ export function Login() {
                 data-testid="dev-otp-banner"
                 className="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800"
               >
-                <span className="font-semibold">Dev mode:</span> SMS is mocked. Your code is{" "}
+                <span className="font-semibold">SMS not active yet:</span> your code is{" "}
                 <span className="font-mono font-bold tracking-widest">{devOtp}</span> (auto-filled below).
               </div>
             )}

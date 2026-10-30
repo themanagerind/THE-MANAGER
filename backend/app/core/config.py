@@ -60,6 +60,13 @@ class Settings(BaseSettings):
     twilio_messaging_service_sid: str | None = None
     sms_default_country_code: str = "+91"  # prefixed to bare 10-digit mobiles
 
+    # TEMPORARY, until Twilio SMS is fully active: when true, POST /auth/otp/
+    # request echoes the OTP in the response (shown on the Login screen) even
+    # outside development. Anyone who knows a mobile number can then log in as
+    # that account — keep this false in real production and turn it off as
+    # soon as SMS delivery works.
+    show_otp_on_screen: bool = False
+
     # Push notifications (Section 1 / Section 30 — push_subscriptions)
     fcm_server_key: str | None = None
     web_push_vapid_public_key: str | None = None
