@@ -1,0 +1,23 @@
+{
+  "summary": "Regression + auto-recovery verification of the reported 'preview nhi dikh rha hai' bug. All three targeted areas pass. (1) External preview URL renders login page with 'THE MANAGER' + 'Society Manager' + 'Mobile number' + 'Send code' — NOT blank. (2) /signup renders 'Create account' with 'As a Resident'/'As an Admin' toggle and 'Search for your society by name'. (3) Auto-recovery works: I explicitly killed redis-server (pkill -9) and stopped postgres (pg_ctl stop -m immediate on /app/.pgdata), then `sudo supervisorctl restart backend` — after ~8s, both redis and postgres were back up automatically (server.py -> bootstrap_env.sh), and POST /api/v1/auth/otp/request returned 200 without any manual service start. (4) End-to-end OTP: cleared otp:* keys, generated OTP via `app.services.otp_service.request_otp('9999999999')`, POSTed to /api/v1/auth/otp/verify with body {mobile, otp} and received JWT access+refresh tokens for PLATFORM_OWNER.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": ["/app/tests/test_smoke.py", "/app/test_reports/pytest/pytest_results.xml"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Auto-recovery via server.py._ensure_infra() + bootstrap_env.sh is a good durable fix. Confirmed idempotent — surviving a kill of both redis and postgres and returning to healthy on `supervisorctl restart backend` alone.",
+    "OTP verify endpoint accepts field name `otp` (not `code`) — worth noting in API docs; if frontend already uses `otp` (Login.tsx), this is fine. Non-blocking."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "100% (OTP request 200, OTP verify 200 with JWT, auto-recovery verified)", "frontend": "100% (login + signup render at external preview URL; 'Send code' wired to backend; cooldown error rendered correctly)" },
+  "test_credentials": "Mobile 9999999999 (Platform Owner). OTP: clear redis otp:* then `python -c \"import asyncio; from app.services.otp_service import request_otp; print(asyncio.run(request_otp('9999999999')))\"`. Verify with POST /api/v1/auth/otp/verify body {\"mobile\":\"9999999999\",\"otp\":\"<code>\"}.",
+  "seed_data_creation": "None (persistent /app/.pgdata already seeded from iteration_1).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "The reported bug is FIXED. Auto-recovery of Redis+Postgres on backend start is verified. Preview URL: https://d722f5c7-54d2-4f4a-aa3e-268a02a998e1.preview.emergentagent.com . API prefix /api/v1. Postgres data dir /app/.pgdata. OTP verify uses field name `otp` (not `code`). 60s cooldown per mobile — clear redis `otp:*` before regenerating.",
+  "rca of the issue": "Original RCA (iteration_1): Redis+Postgres not running, all auth 500. Durable fix now in place — /app/backend/server.py._ensure_infra() detects :5432/:6379 down and executes /app/backend/bootstrap_env.sh which starts redis, initializes/starts postgres at /app/.pgdata, runs alembic migrations, and seeds Platform Owner. Verified by hard-killing both services and observing them come back purely via `supervisorctl restart backend`. /api/v1/auth/otp/request => 200 post-restart with no human intervention."
+}

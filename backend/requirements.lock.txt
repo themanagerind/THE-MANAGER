@@ -1,0 +1,51 @@
+# Full, exact dependency pin (direct + transitive) for production builds —
+# generated via `pip freeze` from a clean venv with ONLY requirements.txt
+# installed (no requirements-dev.txt mixed in). requirements.txt stays the
+# human-edited, unpinned (>=) direct-dependency list for local dev — this
+# file is what backend/Dockerfile actually installs from, so a production
+# image build is reproducible instead of picking up whatever the latest
+# compatible version happens to be on build day.
+#
+# Regenerate after changing requirements.txt:
+#   python3 -m venv /tmp/lockenv && /tmp/lockenv/bin/pip install -r requirements.txt
+#   /tmp/lockenv/bin/pip freeze > requirements.lock.txt
+# Then run the full test suite against it before committing (swap it into
+# the dev venv, or build the Docker image) — pinning is only safe once
+# verified, not assumed.
+alembic==1.20.0
+annotated-doc==0.0.5
+annotated-types==0.8.0
+anyio==4.15.1
+asyncpg==0.32.0
+cffi==2.1.1
+click==8.5.0
+cryptography==50.0.2
+ecdsa==0.19.2
+fastapi==0.151.0
+greenlet==3.5.6
+h11==0.16.0
+httptools==0.9.0
+idna==3.20
+Mako==1.4.3
+MarkupSafe==3.0.4
+opentelemetry-api==1.45.1
+pyasn1==0.6.4
+pycparser==3.11
+pydantic==2.14.1
+pydantic-settings==2.16.0
+pydantic_core==2.50.1
+python-dotenv==1.2.4
+python-jose==3.5.0
+python-multipart==0.0.32
+PyYAML==6.0.3
+redis==8.1.0
+rsa==4.9.1
+six==1.17.0
+SQLAlchemy==2.1.5
+starlette==1.9.0
+typing-inspection==0.4.4
+typing_extensions==4.16.0
+uvicorn==0.54.0
+uvloop==0.23.0
+watchfiles==1.3.0
+websockets==17.3
