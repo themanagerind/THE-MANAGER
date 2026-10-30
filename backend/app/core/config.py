@@ -51,6 +51,23 @@ class Settings(BaseSettings):
     otp_expiry_seconds: int = 300
     otp_length: int = 6
 
+    # SMS. "auto" picks MSG91 if configured, else Twilio if configured, else
+    # logs the OTP (mock). Force one with "msg91" | "twilio" | "mock".
+    sms_provider: str = "auto"
+
+    # MSG91 (India). The template must be DLT-approved and contain the OTP
+    # variable (##OTP## in MSG91's OTP templates).
+    msg91_auth_key: str | None = None
+    msg91_template_id: str | None = None
+
+    # Twilio. Set twilio_messaging_service_sid OR twilio_from_number (one is
+    # enough; the service SID wins if both are set).
+    twilio_account_sid: str | None = None
+    twilio_auth_token: str | None = None
+    twilio_from_number: str | None = None  # E.164, e.g. +12025550123
+    twilio_messaging_service_sid: str | None = None
+    sms_default_country_code: str = "+91"  # prefixed to bare 10-digit mobiles
+
     # Push notifications (Section 1 / Section 30 — push_subscriptions)
     fcm_server_key: str | None = None
     web_push_vapid_public_key: str | None = None
